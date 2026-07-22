@@ -4,6 +4,12 @@ extends SceneTree
 
 
 func _init() -> void:
+	# Deferred so autoload globals (SceneManager) are registered before
+	# scripts referencing them get compiled by load().
+	_run.call_deferred()
+
+
+func _run() -> void:
 	var failures: Array[String] = []
 
 	InputMap.load_from_project_settings()

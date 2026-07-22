@@ -8,20 +8,20 @@ Godot 4.7 project. Core flow: Intro → Main Menu → Game ⇄ Pause Menu.
 - [x] Add input map action `pause` bound to Esc (physical keycode, in `project.godot`)
 - [x] Set the main scene in Project Settings (stub `scenes/intro.tscn` for now — replaced by the Intro feature)
 
-## Scene loading system (do this first — everything else uses it)
+## Scene loading system — done ([log](docs/features/scene-manager.md))
 
-- [ ] `SceneManager` autoload (`scripts/scene_manager.gd`)
-  - [ ] `change_scene(path)` — swaps the current scene
-  - [ ] Fade-out / fade-in transition (CanvasLayer + ColorRect, tween alpha)
+- [x] `SceneManager` autoload (`scripts/scene_manager.gd`)
+  - [x] `change_scene(path)` — swaps the current scene
+  - [x] Fade-out / fade-in transition (CanvasLayer + ColorRect, tween alpha)
   - [ ] Optional: `ResourceLoader.load_threaded_request` for async loading if scenes get heavy
-- [ ] Register autoload in Project Settings → Globals
+- [x] Register autoload in Project Settings → Globals
 
-## Intro
+## Intro — done ([log](docs/features/intro.md))
 
-- [ ] `scenes/intro.tscn` — splash screen (logo / jam title)
-- [ ] Auto-advance to main menu after ~2s timer
-- [ ] Skip on any key press / mouse click
-- [ ] Fade in/out via SceneManager transition
+- [x] `scenes/intro.tscn` — black screen, big red countdown 10 → 0 (1s per tick)
+- [x] Auto-advance to main menu when countdown hits 0
+- [x] Skip button (bottom-right) transitions immediately
+- [x] Fade in/out via SceneManager transition
 
 ## Main menu
 
