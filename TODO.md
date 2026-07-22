@@ -270,6 +270,9 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] Doorways currently cut an opening with a lintel; actual sliding doors (or just a frame mesh)
       are dressing for later
 - [ ] Rooms must not overlap — the builder doesn't check. Fine for a hand-authored ship.
+- [x] ~~Gap above the join when a shorter room meets a taller one~~ — fixed: wall coverage is
+      tracked in height as well as along the line, so the taller room fills the band above its
+      shorter neighbour (including above the doorway). Regression-tested both build orders.
 - [ ] Copy `smoke_room_builder.gd`'s **watchdog** into the other async tests: a script error inside
       an awaited coroutine silently hangs the test instead of failing it
 

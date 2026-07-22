@@ -166,48 +166,86 @@ func _emit_wall_span(segment: Dictionary, room: Room, material: StandardMaterial
 	var runs_along_x := absf(end.x - start.x) > absf(end.y - start.y)
 
 	var key := ("H:%.3f" % start.y) if runs_along_x else ("V:%.3f" % start.x)
-	# A lintel and a full wall can share a line without being the same thing.
-	key += "|door" if has_door else "|solid"
 	var lo := minf(start.x, end.x) if runs_along_x else minf(start.y, end.y)
 	var hi := maxf(start.x, end.x) if runs_along_x else maxf(start.y, end.y)
+	# What this room needs vertically here: full height, or a lintel above an opening.
+	var need_bottom := doorway_height if has_door else 0.0
+	var need_top := room.height
+	if need_top - need_bottom < 0.01:
+		return
 
+	# Coverage is tracked in TWO dimensions — along the line AND in height. Tracking
+	# only the span was a bug: a shorter room claiming a stretch first left the taller
+	# room's wall above it unbuilt, so you could see over the join into the void.
 	var existing: Array = _spans.get(key, [])
-	for piece in subtract_spans(Vector2(lo, hi), existing):
-		if piece.y - piece.x < 0.01:
+
+	# Cut the span at every existing edge inside it, so each sub-span has uniform
+	# vertical coverage and can be handled with a plain 1D subtraction.
+	var cuts: Array[float] = [lo, hi]
+	for entry in existing:
+		if entry["hi"] <= lo or entry["lo"] >= hi:
 			continue
-		var piece_start := Vector2(piece.x, start.y) if runs_along_x else Vector2(start.x, piece.x)
-		var piece_end := Vector2(piece.y, start.y) if runs_along_x else Vector2(start.x, piece.y)
-		_create_wall(piece_start, piece_end, room, material, has_door)
-		existing.append(piece)
+		if entry["lo"] > lo and entry["lo"] < hi:
+			cuts.append(entry["lo"])
+		if entry["hi"] > lo and entry["hi"] < hi:
+			cuts.append(entry["hi"])
+	cuts.sort()
+
+	var added: Array = []
+	for i in cuts.size() - 1:
+		var a: float = cuts[i]
+		var b: float = cuts[i + 1]
+		if b - a < 0.01:
+			continue
+		var mid := (a + b) * 0.5
+		var covered: Array[Vector2] = []
+		for entry in existing:
+			if entry["lo"] <= mid and entry["hi"] >= mid:
+				covered.append(Vector2(entry["y0"], entry["y1"]))
+		for band in subtract_spans(Vector2(need_bottom, need_top), covered):
+			if band.y - band.x < 0.01:
+				continue
+			_create_wall(a, b, band.x, band.y, start, runs_along_x, room, material)
+			added.append({"lo": a, "hi": b, "y0": band.x, "y1": band.y})
+	for entry in added:
+		existing.append(entry)
 	_spans[key] = existing
 
 
-func _create_wall(start: Vector2, end: Vector2, room: Room, material: StandardMaterial3D, has_door: bool) -> void:
-	var length := start.distance_to(end) * tile_size
-	if length < 0.01:
+# One wall box: `a`..`b` along the line, `y_bottom`..`y_top` in height.
+func _create_wall(
+	a: float,
+	b: float,
+	y_bottom: float,
+	y_top: float,
+	line: Vector2,
+	runs_along_x: bool,
+	room: Room,
+	material: StandardMaterial3D
+) -> void:
+	var length := (b - a) * tile_size
+	var wall_height := y_top - y_bottom
+	if length < 0.01 or wall_height < 0.01:
 		return
-	var runs_along_x := absf(end.x - start.x) > absf(end.y - start.y)
-
-	# Above a doorway only a lintel remains.
-	var wall_height := room.height - doorway_height if has_door else room.height
-	if wall_height <= 0.01:
-		return
-	var y_offset := doorway_height if has_door else 0.0
 
 	var size := Vector3(length, wall_height, wall_thickness)
-	if not runs_along_x:
+	var centre: Vector2
+	if runs_along_x:
+		centre = grid_to_world((a + b) * 0.5, line.y)
+	else:
 		size = Vector3(wall_thickness, wall_height, length)
+		centre = grid_to_world(line.x, (a + b) * 0.5)
 
-	var centre := grid_to_world((start.x + end.x) * 0.5, (start.y + end.y) * 0.5)
 	var body := _make_box(
-		"Wall_%s_%.1f_%.1f" % [room.id, start.x, start.y],
+		"Wall_%s_%.1f_%.1f" % [room.id, a, y_bottom],
 		size,
-		Vector3(centre.x, y_offset + wall_height * 0.5, centre.y),
+		Vector3(centre.x, y_bottom + wall_height * 0.5, centre.y),
 		material,
 		true
 	)
 	body.add_to_group(GROUP_WALL)
-	if has_door:
+	if y_bottom > 0.01:
+		# Sits above an opening (a lintel) or above a shorter neighbour's wall.
 		body.set_meta("lintel", true)
 
 

@@ -173,11 +173,77 @@ func _run() -> void:
 	var into_lintel := PhysicsRayQueryParameters3D.create(Vector3(4, 2.6, 2), Vector3(4, 2.6, -2))
 	_check("lintel above the opening is solid", not space.intersect_ray(into_lintel).is_empty())
 
-	# --- Rebuild is idempotent ----------------------------------------------
-	var before := _count_in_group(b5.get_node("Built"), RoomBuilder.GROUP_WALL)
-	b5.build()
+	# --- Mismatched room heights must not leave a gap above the join --------
+	# REGRESSION: coverage used to be tracked only along the wall line, so when the
+	# SHORTER room claimed a stretch first, the taller room's wall above it was never
+	# built and you could see over the join into the void.
+	b5.free()
+	await physics_frame
+
+	var b6 := _new_builder(world)
+	b6.build_lights = false
+	# Short room FIRST — that is the order that used to break.
+	b6.add_room(Rect2i(2, 6, 4, 6), {"id": "short", "height": 2.5})
+	b6.add_room(Rect2i(0, 0, 8, 6), {"id": "tall", "height": 4.0})
+	b6.add_doorway(Vector2(4, 6), Doorway.Axis.X, 2.0)
+	b6.build()
 	await process_frame
-	var after := _count_in_group(b5.get_node("Built"), RoomBuilder.GROUP_WALL)
+	await physics_frame
+	await physics_frame
+
+	var space6 := world.get_world_3d().direct_space_state
+	# Above the short room's ceiling but below the tall room's: must be walled,
+	# both over the doorway and over the short room's solid wall stretch.
+	var over_door := PhysicsRayQueryParameters3D.create(Vector3(4, 3.2, 4), Vector3(4, 3.2, 8))
+	_check(
+		"wall exists above the doorway where the neighbour is shorter",
+		not space6.intersect_ray(over_door).is_empty()
+	)
+	var over_wall := PhysicsRayQueryParameters3D.create(Vector3(2.5, 3.2, 4), Vector3(2.5, 3.2, 8))
+	_check(
+		"wall exists above a shorter neighbour's wall stretch",
+		not space6.intersect_ray(over_wall).is_empty()
+	)
+	# ...and the doorway itself is still an opening at head height.
+	var still_open := PhysicsRayQueryParameters3D.create(Vector3(4, 1.2, 4), Vector3(4, 1.2, 8))
+	_check("the doorway is still passable after the fix", space6.intersect_ray(still_open).is_empty())
+
+	# The reverse order must behave identically (taller room first).
+	b6.free()
+	await physics_frame
+	var b7 := _new_builder(world)
+	b7.build_lights = false
+	b7.add_room(Rect2i(0, 0, 8, 6), {"id": "tall", "height": 4.0})
+	b7.add_room(Rect2i(2, 6, 4, 6), {"id": "short", "height": 2.5})
+	b7.add_doorway(Vector2(4, 6), Doorway.Axis.X, 2.0)
+	b7.build()
+	await process_frame
+	await physics_frame
+	await physics_frame
+	var space7 := world.get_world_3d().direct_space_state
+	var over_door_b := PhysicsRayQueryParameters3D.create(Vector3(4, 3.2, 4), Vector3(4, 3.2, 8))
+	_check(
+		"wall above the join regardless of build order",
+		not space7.intersect_ray(over_door_b).is_empty()
+	)
+	var open_b := PhysicsRayQueryParameters3D.create(Vector3(4, 1.2, 4), Vector3(4, 1.2, 8))
+	_check("doorway passable regardless of build order", space7.intersect_ray(open_b).is_empty())
+	b7.free()
+	await physics_frame
+
+	# --- Rebuild is idempotent ----------------------------------------------
+	var b8 := _new_builder(world)
+	b8.build_lights = false
+	b8.add_room(Rect2i(0, 0, 8, 8), {"id": "phys", "height": 3.0})
+	b8.add_doorway(Vector2(4, 0), Doorway.Axis.X, 2.0)
+	b8.build()
+	await process_frame
+	var before := _count_in_group(b8.get_node("Built"), RoomBuilder.GROUP_WALL)
+	b8.build()
+	await process_frame
+	var after := _count_in_group(b8.get_node("Built"), RoomBuilder.GROUP_WALL)
+	b8.free()
+	await physics_frame
 	_check("rebuilding produces the same geometry (%d -> %d)" % [before, after], before == after)
 
 	# --- The actual ship layout builds and is walkable ----------------------
