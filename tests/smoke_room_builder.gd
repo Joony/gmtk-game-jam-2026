@@ -281,6 +281,24 @@ func _run() -> void:
 	_check("panels are AnimatableBody3D (they must sweep, not clip)", door.get_node("Panel_0") is AnimatableBody3D)
 	_check("door starts closed", not door.is_open)
 
+	# Panels must be strictly thinner than the walls. An open panel slides INSIDE the
+	# wall, so equal thickness makes the faces coplanar and they z-fight.
+	var panel_mesh: MeshInstance3D = door.get_node("Panel_0/Mesh")
+	var panel_size: Vector3 = (panel_mesh.mesh as BoxMesh).size
+	var panel_depth: float = minf(panel_size.x, panel_size.z)
+	_check(
+		"door panels are thinner than the walls (%.3f vs %.3f) so they can't z-fight"
+			% [panel_depth, bd.wall_thickness],
+		panel_depth < bd.wall_thickness - 0.005
+	)
+	# ...and taller than the opening, so they interpenetrate the lintel and floor
+	# instead of sitting flush against them.
+	_check(
+		"door panels overlap the lintel/floor seams (%.3f vs opening %.3f)"
+			% [panel_size.y, bd.doorway_height],
+		panel_size.y > bd.doorway_height + 0.01
+	)
+
 	var space_d := world2.get_world_3d().direct_space_state
 	var across := PhysicsRayQueryParameters3D.create(Vector3(4, 1.2, 1.5), Vector3(4, 1.2, -1.5))
 	_check("closed door blocks the opening", not space_d.intersect_ray(across).is_empty())

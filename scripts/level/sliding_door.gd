@@ -17,6 +17,12 @@ extends Node3D
 signal opened
 signal closed
 
+# Panels overlap the lintel above and the floor below by this much. Sitting flush would
+# put the panel's top face exactly on the lintel's underside and its base exactly on the
+# floor — coplanar overlapping faces, the same z-fighting that thickness fixes sideways.
+# Interpenetrating slightly is invisible and cannot shimmer.
+const SEAM_OVERLAP := 0.02
+
 @export var open_time: float = 0.4
 ## A jammed door refuses to open. Cheap hook for step 12d: "the door won't open" is a
 ## repair with no new mechanics behind it.
@@ -32,6 +38,8 @@ var _occupants: int = 0
 
 
 ## Build the panels and the proximity trigger for `doorway`. Called by RoomBuilder.
+## `thickness` must be LESS than the wall thickness: an open panel slides inside the
+## wall, and equal thickness makes the two coplanar, which z-fights badly.
 func build(
 	doorway: Doorway,
 	height: float,
@@ -55,9 +63,10 @@ func build(
 		panel.name = "Panel_%d" % i
 		panel.sync_to_physics = true
 
-		var size := Vector3(half_width, height, thickness)
+		var panel_height := height + SEAM_OVERLAP * 2.0
+		var size := Vector3(half_width, panel_height, thickness)
 		if doorway.axis == Doorway.Axis.Z:
-			size = Vector3(thickness, height, half_width)
+			size = Vector3(thickness, panel_height, half_width)
 
 		var mesh := MeshInstance3D.new()
 		mesh.name = "Mesh"

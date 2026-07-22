@@ -42,6 +42,11 @@ const GROUP_LIGHT_PANEL := &"room_light_panels"
 @export var ceiling_thickness: float = 0.2
 ## Height of doorway openings. The wall above one becomes a lintel.
 @export var doorway_height: float = 2.2
+## Door panels are deliberately THINNER than the walls and centred in their depth.
+## An open panel slides inside the wall, so equal thickness put the two exactly
+## coplanar and produced z-fighting. Clamped below wall_thickness so it stays true
+## if the walls are ever made thinner.
+@export var door_thickness: float = 0.08
 @export var build_lights: bool = true
 ## Sliding door panels in each opening. Turn off to test the raw wall gap.
 @export var build_doors: bool = true
@@ -130,7 +135,7 @@ func _build_door(doorway: Doorway) -> void:
 	door.build(
 		doorway,
 		doorway_height,
-		wall_thickness,
+		minf(door_thickness, wall_thickness * 0.7),
 		tile_size,
 		_door_material(),
 		door_approach

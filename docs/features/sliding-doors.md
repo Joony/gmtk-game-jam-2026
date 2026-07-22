@@ -34,6 +34,26 @@ other bodies, so a closing panel would clip through the player or trap them. `An
 **Only the player triggers a door.** The trigger checks the `player` group (newly added to
 `scenes/player.tscn`) rather than reacting to any body — otherwise a thrown crate opens doors.
 
+## Z-fighting fix (2026-07-23)
+
+Reported in play: the doors flickered and tore against the walls. Cause: panels were built with
+`wall_thickness` and centred on the same plane as the wall, so a panel sliding **open** ends up
+inside the wall, exactly coplanar with it — overlapping surfaces at identical depth, which the
+depth buffer cannot resolve.
+
+Two seams removed, both by making surfaces never share a plane:
+
+- **Sideways:** panels are now `door_thickness` (0.08), clamped to at most 70% of `wall_thickness`,
+  and centred in the wall's depth. An open panel is then strictly *inside* the wall volume — hidden,
+  with no shared faces. A closed panel reads as slightly recessed, which is how doors look anyway.
+- **Top and bottom:** panels are `SEAM_OVERLAP` (2cm) taller than the opening at each end, so they
+  interpenetrate the lintel above and the floor below rather than sitting flush. A flush panel put
+  its top face exactly on the lintel's underside — the same coplanar-overlap problem, just rotated.
+
+Both are asserted in the test (`panel depth < wall_thickness`, `panel height > doorway_height`),
+because they are geometric invariants: a still screenshot cannot prove flicker is absent, but
+"no two surfaces share a plane" can be checked exactly.
+
 ## `jammed`
 
 `SlidingDoor.jammed` makes a door refuse to open. Three lines, and it turns "the door won't open"
