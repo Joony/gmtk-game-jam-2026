@@ -273,6 +273,23 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] Copy `smoke_room_builder.gd`'s **watchdog** into the other async tests: a script error inside
       an awaited coroutine silently hangs the test instead of failing it
 
+## 9a. Window size → 1920×1080
+
+The project has never set a viewport size, so it's on Godot's default **1152×648**.
+
+Worth doing **before** more UI is built, not in step 13: `window/stretch/mode="canvas_items"` scales
+the UI relative to the base viewport, so enlarging it makes every existing font *proportionally
+smaller* on screen. Doing it now means tuning type sizes once.
+
+- [ ] `display/window/size/viewport_width = 1920`, `viewport_height = 1080` in `project.godot`
+- [ ] Re-check every UI screen after the change — current sizes were chosen against 1152×648:
+      intro countdown (256), menu title (96), buttons (22–32), reticle prompt (24), controls hint (18)
+- [ ] Re-render the capture screenshots (`tests/capture_scene.gd`) to confirm layout still works
+- [ ] Confirm the reticle dot (9px) is still visible at the new scale — it may need to grow
+- [ ] Check the web export canvas: `html/canvas_resize_policy=2` is adaptive, but the letterboxing
+      on a 16:9 canvas should be verified in a browser (step 7)
+- [ ] Decide `window/size/window_width_override` / fullscreen defaults, if any
+
 ## 10. Lighting modes
 
 Cheap immediately after step 9 since it attaches to the room builder's lights, and it's where
