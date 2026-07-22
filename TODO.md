@@ -1,6 +1,6 @@
 # TODO — GMTK Game Jam 2026
 
-Godot 4.7 project. Core flow: Intro → Main Menu → Game ⇄ Pause Menu.
+Godot 4.7 project. Core flow: Intro → Game (START) ⇄ Pause Menu → Quit to Menu → Play.
 
 **THEME: "Countdown"**
 
@@ -46,8 +46,8 @@ controller, the oxygen loop, and one solid repair type are not optional.
 
 ### Intro ([log](docs/features/intro.md))
 
-- [x] `scenes/intro.tscn` — black screen, big red countdown 10 → 0 (1s per tick)
-- [x] Auto-advance to main menu when countdown hits 0
+- [x] `scenes/intro.tscn` — black screen, big red two-digit countdown `10, 09 … 01` (1s per tick)
+- [x] Holds 1.5s on `01` (never reaches `00`), then fades into the **game** scene
 - [x] Skip button (bottom-right) transitions immediately
 - [x] Fade in/out via SceneManager transition
 
@@ -94,7 +94,7 @@ more than action. Get this right before anything else in step 12:
 
 ### Already on-theme (leverage these)
 
-- [x] Intro is literally a 10 → 0 red countdown — reframe it as the **stasis wake-up sequence**
+- [x] Intro is a 10 → 01 red countdown that now leads straight into the game — still worth dressing
       (pod cycling, klaxon) rather than a title card. Already built; just needs dressing.
 - [ ] Alert lighting (step 10) maps directly onto **active malfunctions** — red while something is
       broken, back to white once repaired. Doubles as a wayfinding cue toward the problem.
@@ -109,7 +109,7 @@ more than action. Get this right before anything else in step 12:
 ## 2. ✅ Main menu — done ([log](docs/features/main-menu.md))
 
 - [x] `scenes/main_menu.tscn` — Control-based UI
-  - [x] Title label (`STASIS` — **placeholder, needs a real name**)
+  - [x] Title label (currently `PERPETUAL PICKLE` over a `WORKING TITLE` subtitle)
   - [x] **Play** button → `SceneManager.change_scene("res://scenes/game.tscn")`
   - [x] ~~Options button~~ — deferred to step 13, where the volume slider it opens lives
   - [x] ~~Quit button~~ — not required (also removes the web-export special case)
