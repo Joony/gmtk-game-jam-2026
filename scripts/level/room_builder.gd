@@ -33,6 +33,7 @@ const GROUP_FLOOR := &"room_floor"
 const GROUP_CEILING := &"room_ceiling"
 const GROUP_WALL := &"room_wall"
 const GROUP_LIGHT := &"room_lights"
+const GROUP_DOOR := &"room_door"
 
 @export var tile_size: float = 1.0
 @export var wall_thickness: float = 0.15
@@ -41,6 +42,10 @@ const GROUP_LIGHT := &"room_lights"
 ## Height of doorway openings. The wall above one becomes a lintel.
 @export var doorway_height: float = 2.2
 @export var build_lights: bool = true
+## Sliding door panels in each opening. Turn off to test the raw wall gap.
+@export var build_doors: bool = true
+## How far from an opening the player has to be for its door to slide apart.
+@export var door_approach: float = 1.6
 ## Fallback light colour. Step 10's LightingController drives these once it exists.
 @export var light_color: Color = Color(1.0, 0.97, 0.92)
 @export var light_energy: float = 1.4
@@ -105,7 +110,35 @@ func build() -> Node3D:
 	# Walls last, so span subtraction sees every room's openings consistently.
 	for room in rooms:
 		_build_walls(room)
+	if build_doors:
+		for doorway in doorways:
+			_build_door(doorway)
 	return _built_root
+
+
+func _build_door(doorway: Doorway) -> void:
+	var door := SlidingDoor.new()
+	_built_root.add_child(door)
+	door.build(
+		doorway,
+		doorway_height,
+		wall_thickness,
+		tile_size,
+		_door_material(),
+		door_approach
+	)
+	door.add_to_group(GROUP_DOOR)
+
+
+func _door_material() -> StandardMaterial3D:
+	if _materials.has("door"):
+		return _materials["door"]
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.70, 0.72, 0.78)
+	material.metallic = 0.35
+	material.roughness = 0.3
+	_materials["door"] = material
+	return material
 
 
 # --- surfaces ---------------------------------------------------------------

@@ -152,6 +152,7 @@ func _run() -> void:
 	# --- The built geometry is physically real ------------------------------
 	var b5 := _new_builder(world)
 	b5.build_lights = false
+	b5.build_doors = false
 	b5.add_room(Rect2i(0, 0, 8, 8), {"id": "phys", "height": 3.0})
 	b5.add_doorway(Vector2(4, 0), Doorway.Axis.X, 2.0)
 	b5.build()
@@ -182,6 +183,7 @@ func _run() -> void:
 
 	var b6 := _new_builder(world)
 	b6.build_lights = false
+	b6.build_doors = false
 	# Short room FIRST — that is the order that used to break.
 	b6.add_room(Rect2i(2, 6, 4, 6), {"id": "short", "height": 2.5})
 	b6.add_room(Rect2i(0, 0, 8, 6), {"id": "tall", "height": 4.0})
@@ -213,6 +215,7 @@ func _run() -> void:
 	await physics_frame
 	var b7 := _new_builder(world)
 	b7.build_lights = false
+	b7.build_doors = false
 	b7.add_room(Rect2i(0, 0, 8, 6), {"id": "tall", "height": 4.0})
 	b7.add_room(Rect2i(2, 6, 4, 6), {"id": "short", "height": 2.5})
 	b7.add_doorway(Vector2(4, 6), Doorway.Axis.X, 2.0)
@@ -234,6 +237,7 @@ func _run() -> void:
 	# --- Rebuild is idempotent ----------------------------------------------
 	var b8 := _new_builder(world)
 	b8.build_lights = false
+	b8.build_doors = false
 	b8.add_room(Rect2i(0, 0, 8, 8), {"id": "phys", "height": 3.0})
 	b8.add_doorway(Vector2(4, 0), Doorway.Axis.X, 2.0)
 	b8.build()
@@ -246,8 +250,87 @@ func _run() -> void:
 	await physics_frame
 	_check("rebuilding produces the same geometry (%d -> %d)" % [before, after], before == after)
 
-	# --- The actual ship layout builds and is walkable ----------------------
-	world.free()  # same reason: the test rooms must not sit inside the ship
+	# --- Sliding doors -------------------------------------------------------
+	world.free()
+	await physics_frame
+	var world2 := Node3D.new()
+	root.add_child(world2)
+	current_scene = world2
+
+	var bd := RoomBuilder.new()
+	world2.add_child(bd)
+	bd.build_lights = false
+	bd.add_room(Rect2i(0, 0, 8, 8), {"id": "doors", "height": 3.0})
+	bd.add_doorway(Vector2(4, 0), Doorway.Axis.X, 2.0)
+	bd.build()
+	await process_frame
+	await physics_frame
+	await physics_frame
+
+	var doors := bd.get_node("Built").find_children("*", "Node3D", true, false).filter(
+		func(n: Node) -> bool: return n.is_in_group(RoomBuilder.GROUP_DOOR)
+	)
+	_check("one door built for one doorway (got %d)" % doors.size(), doors.size() == 1)
+	var door: Node3D = doors[0] if doors.size() > 0 else null
+	if door == null:
+		_failures.append("no door to test — skipping the rest of the door checks")
+		_report()
+		return
+	_check("door has two panels", door.get_node_or_null("Panel_0") != null and door.get_node_or_null("Panel_1") != null)
+	_check("door has a proximity trigger", door.get_node_or_null("Trigger") != null)
+	_check("panels are AnimatableBody3D (they must sweep, not clip)", door.get_node("Panel_0") is AnimatableBody3D)
+	_check("door starts closed", not door.is_open)
+
+	var space_d := world2.get_world_3d().direct_space_state
+	var across := PhysicsRayQueryParameters3D.create(Vector3(4, 1.2, 1.5), Vector3(4, 1.2, -1.5))
+	_check("closed door blocks the opening", not space_d.intersect_ray(across).is_empty())
+
+	# Walk a player-grouped body into the trigger.
+	var walker := CharacterBody3D.new()
+	walker.add_to_group(&"player")
+	var walker_shape := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.4
+	capsule.height = 1.8
+	walker_shape.shape = capsule
+	walker.add_child(walker_shape)
+	world2.add_child(walker)
+	walker.global_position = Vector3(4.6, 1.0, 1.0)
+	await physics_frame
+	await physics_frame
+	_check("approaching opens the door", door.is_open)
+
+	# Let the slide finish, then the way must be clear.
+	for i in 45:
+		await physics_frame
+	var open_ray := PhysicsRayQueryParameters3D.create(Vector3(4, 1.2, 1.5), Vector3(4, 1.2, -1.5))
+	var open_hit := space_d.intersect_ray(open_ray)
+	_check(
+		"open door clears the way (hit %s)" % ("nothing" if open_hit.is_empty() else str(open_hit["collider"].name)),
+		open_hit.is_empty()
+	)
+
+	# Leave, and it closes again.
+	walker.global_position = Vector3(4.6, 1.0, 6.0)
+	await physics_frame
+	await physics_frame
+	_check("leaving closes the door", not door.is_open)
+	for i in 45:
+		await physics_frame
+	_check("closed again blocks the opening", not space_d.intersect_ray(across).is_empty())
+
+	# A jammed door refuses — the hook for step 12d repairs.
+	door.jammed = true
+	walker.global_position = Vector3(4.6, 1.0, 1.0)
+	await physics_frame
+	await physics_frame
+	_check("a jammed door stays shut", not door.is_open)
+	for i in 20:
+		await physics_frame
+	_check("jammed door still blocks", not space_d.intersect_ray(across).is_empty())
+
+	# --- The ship's doorways get doors --------------------------------------
+	world2.free()  # the test rooms must not sit inside the ship
 	await physics_frame
 
 	var ship_scene: Node3D = load("res://scenes/game.tscn").instantiate()
@@ -268,6 +351,10 @@ func _run() -> void:
 		player.is_on_floor() and absf(player.global_position.y - 0.9) < 0.3
 	)
 
+	_report()
+
+
+func _report() -> void:
 	if _failures.is_empty():
 		print("ROOM BUILDER TEST PASS")
 		quit(0)
