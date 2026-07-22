@@ -5,7 +5,7 @@ const GAME_SCENE := "res://scenes/game.tscn"
 
 func _ready() -> void:
 	# Menus need the cursor back — the game captures it.
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	MouseCapture.release()
 	%PlayButton.grab_focus()
 
 

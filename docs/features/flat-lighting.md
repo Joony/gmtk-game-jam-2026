@@ -60,9 +60,12 @@ All eight headless suites still pass.
 - Shadows are off everywhere by design. If something later needs to cast one (a prop, the player),
   enable it on that light specifically rather than globally.
 
-## Screenshot capture gotcha
+## Screenshot capture gotcha (corrected)
 
-A capture taken too early rendered mid-settle and produced a completely different framing (a wall
-corner instead of the room). Wait ~60 physics frames *and* several process frames before
-`frame_post_draw`, and print the camera transform when a shot looks wrong — the pose tells you
-immediately whether it is a lighting problem or a timing one.
+One capture came out framed on a wall corner instead of the room, which I put down to rendering
+mid-settle. **That was the wrong diagnosis** — the capture had grabbed the OS cursor, so real mouse
+movement on the machine was rotating the camera. Script runs no longer capture the cursor; see
+[mouse-capture-in-tests.md](mouse-capture-in-tests.md).
+
+Still worth doing when a shot looks wrong: print the camera transform. The pose distinguishes a
+lighting problem from a camera-pointing-somewhere-else problem immediately.

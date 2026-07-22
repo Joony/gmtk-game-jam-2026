@@ -35,7 +35,7 @@ func _show_start_prompt() -> void:
 	# Freeze the player and disable Esc until the game actually begins.
 	_player.process_mode = Node.PROCESS_MODE_DISABLED
 	_pause_menu.enabled = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	MouseCapture.release()
 	_start_prompt.get_node("%StartButton").grab_focus()
 
 
@@ -52,4 +52,4 @@ func start_game() -> void:
 
 
 func capture_mouse() -> void:
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	MouseCapture.capture()

@@ -20,3 +20,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | Room builder (step 9): rooms, doorway splitting, hand-authored ship | Done, verified | [room-builder.md](features/room-builder.md) |
 | 2026-07-23 | Sliding doors: proximity-triggered panels, ported from GMTK 2025 | Done, verified | [sliding-doors.md](features/sliding-doors.md) |
 | 2026-07-23 | Flat interior lighting: shadowless omni grid, no directional sun | Done, verified | [flat-lighting.md](features/flat-lighting.md) |
+| 2026-07-23 | Script runs no longer capture the real cursor (and two corrected diagnoses) | Done, verified | [mouse-capture-in-tests.md](features/mouse-capture-in-tests.md) |

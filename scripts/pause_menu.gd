@@ -44,7 +44,7 @@ func pause_game() -> void:
 	is_paused = true
 	get_tree().paused = true
 	visible = true
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	MouseCapture.release()
 	%ResumeButton.grab_focus()
 	paused.emit()
 
@@ -55,7 +55,7 @@ func resume() -> void:
 	is_paused = false
 	get_tree().paused = false
 	visible = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	MouseCapture.capture()
 	resumed.emit()
 
 
@@ -69,5 +69,5 @@ func _on_quit_button_pressed() -> void:
 	get_tree().paused = false
 	visible = false
 	# Cursor stays visible on purpose — the main menu needs it.
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	MouseCapture.release()
 	SceneManager.change_scene(MAIN_MENU_SCENE)

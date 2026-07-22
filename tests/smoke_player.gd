@@ -18,6 +18,9 @@ func _check(label: String, ok: bool) -> void:
 
 
 func _run() -> void:
+	# This suite verifies cursor capture, so it needs the real thing.
+	MouseCapture.allow_in_script_runs = true
+
 	var player_script := load("res://scripts/player/player.gd")
 	_check("player.gd loads", player_script != null)
 

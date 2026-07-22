@@ -69,9 +69,12 @@ The demo `Socket` sat centred directly in front of the pod-bay doorway, blocking
 corridor — the player physically could not reach the door trigger. Moved to `x = -3.6`, out of the
 path. Worth remembering when placing step 12's repair panels: **don't put interactables in doorways.**
 
-## Gotcha
+## Gotcha (corrected)
 
-Teleporting the player by setting `global_position` leaves the camera rig sampling a stale
-interpolated anchor for several frames, which produced badly skewed screenshots. Call
-`reset_physics_interpolation()` after any teleport — or, as here, just drive the player with real
-input instead.
+Several screenshots during this work came out at wild angles, and I first blamed stale camera
+interpolation after teleporting. **That was wrong.** The capture scripts call `start_game()`, which
+captured the OS cursor — so the *real* mouse being used on the machine at the time was feeding
+motion straight into the camera. See [mouse-capture-in-tests.md](mouse-capture-in-tests.md); script
+runs no longer capture the cursor.
+
+(Teleporting still warrants `reset_physics_interpolation()`, but it was not the cause here.)

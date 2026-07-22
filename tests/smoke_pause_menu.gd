@@ -33,6 +33,9 @@ func _current_scene_is(scene_name: String) -> bool:
 
 
 func _run() -> void:
+	# This suite verifies cursor state, so it needs real capture.
+	MouseCapture.allow_in_script_runs = true
+
 	if not root.has_node("SceneManager"):
 		var sm: Node = load("res://scripts/scene_manager.gd").new()
 		sm.name = "SceneManager"
