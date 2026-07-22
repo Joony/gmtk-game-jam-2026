@@ -443,6 +443,11 @@ look out of.
 
 ### 12c. Stasis pod (the loop anchor)
 
+> **Asset available:** `CD_Cryo_v1.2.blend` (cryo chamber, added by LoganDevz) with a scratch
+> scene at `node_3d.tscn`. This is the pod model. Worth moving both under `assets/` and
+> `scenes/props/` when it's wired up — coordinate first, since moving a collaborator's files
+> mid-jam causes merge pain.
+
 - [ ] `Interactable` pod — enter to stop the oxygen drain and skip ahead to the next malfunction
 - [ ] **The pod does not refill oxygen** — it pauses the bleed. It's a stop button, not a refuel.
 - [ ] The trip back to the pod costs air too, so the pod's distance from the action is a core
