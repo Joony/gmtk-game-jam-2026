@@ -217,93 +217,32 @@ more than action. Get this right before anything else in step 12:
 
 ---
 
-## 8. Interaction & item pickup
+## 8. ✅ Interaction & item pickup — done ([log](docs/features/interaction-and-carry.md))
 
-Two reference implementations exist. Take the **interface + detection** from GMTK 2025 and the
-**carry physics** from Doortal.
+Interface + detection from GMTK 2025, carry physics from Doortal.
 
-- `/Users/joony/gmtk-game-jam-2025/Player/Interactable.gd` (81 lines) — live, clean, zero game
-  deps. Interaction types, per-item prompt text, signals, group registration. Port nearly as-is.
-- `/Users/joony/gmtk-game-jam-2025/Player/Player.gd:200-232` `check_for_interactables()` — a
-  camera-forward **raycast**, 2.0m, `exclude = [self]`, `collide_with_areas = true`, then
-  `find_interactable_in_hierarchy()` walks up parents to find the `Interactable`. Solid; port it.
-  - **Decided: raycast, not proximity+angle.** Note the 2025 code already settled this — it has an
-    `interaction_angle = 60.0` export and a facing-cone check at `Player.gd:222-227` that is
-    **commented out**. The cone was tried and abandoned; `interaction_angle` is now vestigial.
-    A reticle is a promise that you interact with whatever the dot covers, and only a ray keeps it.
-  - Re-add the change guard at `Player.gd:230` (also commented out) so the UI updates on change
-    rather than every physics frame.
-- Doortal's `Carry.gd` (755 lines) — the physics carry we want, but portal-entangled. Extract, don't
-  copy wholesale.
+- [x] **8a Interactable** — ported; kept `accepted_item_names` + `use_with_item()` (the repair
+      loop needs them), dropped `interaction_range`/`interaction_angle`, added `can_act_on()`
+- [x] **8b Detection** — camera ray (2.5m), `find_interactable_in_hierarchy()`, excludes the
+      player body **and the held item**, emits `focus_changed(interactable, prompt, actionable)`
+- [x] **8c Carry** — Doortal's render-frame kinematic follow extracted (~180 lines from 755):
+      frozen kinematic body authored per `_process`, wall-sweep clamping, break-free, capped
+      release velocity, throw impulse, `process_priority = 10`
+- [x] **8d Reticle** — grey dot, green **when you can act** (not merely when something is
+      there), 0.1s tween, outlined prompt; hidden while paused and before START
+- [x] Input actions `interact` (E) and `throw` (left mouse)
+- [x] Demo content: two pickup crates and a `USE_ITEM` socket in `scenes/game.tscn`
+- [x] Tested: detection, occlusion, pickup/track/drop/throw, wall sweep, hands-full, and the full
+      carry-a-part-to-a-socket flow — all driven through real input events
 
-### 8a. Interactable base
+### Follow-ups (not blocking)
 
-- [ ] Port `Interactable.gd` → `scripts/interaction/interactable.gd`
-  - [ ] Keep: `enum InteractionType { PICKUP, USE_ITEM, ACTIVATE, DISABLED }`, `interaction_text`,
-        `is_enabled`, the `interacted_with` / `picked_up` / `dropped` signals, `get_item_node()`
-        override hook, and auto `add_to_group("interactables")` in `_ready`
-  - [ ] Drop `interaction_range` / `interaction_angle` — raycast detection makes them dead
-  - [ ] **Keep `accepted_item_names` + `use_with_item()` — the hook needs it.** "Carry the right
-        part to the broken panel" is the repair loop, and this is exactly that check. The
-        "Can't use X here" prompt it already returns is free feedback.
-
-### 8b. Detection — raycast (decided)
-
-- [ ] Camera-forward ray, ~2.0–2.5m. Either a `RayCast3D` child of `Camera3D` (auto-follows the
-      reticle, inspectable in-editor) or 2025's direct `intersect_ray` query — prefer the node.
-- [ ] Port `find_interactable_in_hierarchy()` — the ray hits a CollisionShape/StaticBody, so walk
-      up parents to find the owning `Interactable`. Keep the loop's infinite-loop safety check.
-- [ ] `exclude`/collision mask must skip the player's own body, and the **currently held item**
-      (otherwise the thing in your hands blocks every ray)
-- [ ] Update `current_interactable` only on change, and emit `interactable_changed` so the UI
-      subscribes instead of polling
-- [ ] If precise aiming feels finicky in playtest, swap the `RayCast3D` for a `ShapeCast3D` with a
-      small sphere (~0.15m) — that adds a few degrees of tolerance while still being "what the dot
-      is on". Cheap change; do it only if it actually feels bad.
-
-### 8c. Carry — Doortal's physics follow (decided)
-
-Extracting from `/Users/joony/Games/doortal/scripts/Carry.gd`. Keep the render-frame kinematic
-follow and wall sweeping; strip everything portal-related.
-
-- [ ] Port the core: `_try_pickup` / `_grab` / `_drop` and the `_process` follow loop
-- [ ] Keep: kinematic follow of the held RigidBody3D at render rate, **wall-sweep clamping** (item
-      pulls in toward the player instead of clipping through geometry), break-free on obstruction,
-      throw with capped release speed
-- [ ] Keep the `HoldPoint` marker under `Camera3D` (Doortal has it at z=-2, y=-0.30)
-- [ ] `Carry` must stay a sibling of `CameraRig` with `process_priority = 10` so it runs *after*
-      the camera's priority-0 `_process` — otherwise the held item lags a frame behind the view
-- [ ] `add_collision_exception_with` the player body while carrying (Doortal does this via
-      `get_parent()` — replace that assumption with an exported NodePath to the body)
-- [ ] **Strip:** every `Portal3D` reference, `_clip_clone` and the `cube_clip.gdshader` preload,
-      portal-forwarding beams, transit tick budgets, chain arrays, the `get_tree().current_scene`
-      portal auto-discovery walk (`Carry.gd:91-96, 750-754`)
-- [ ] Replace the `&"pickable"` group check with the `Interactable` type check, so 2025's
-      interface drives it and there's one concept of "interactable", not two
-- [ ] Add input actions: `interact` (E) to pick up/drop, `throw` (mouse left, as in Doortal)
-- [ ] Decide whether "hands full" blocks new pickups — leaning yes; `Interactable` already returns
-      a "Hands full" prompt for that case
-
-### 8d. Reticle & interaction UI
-
-- [ ] `ui/reticle.tscn` — small dot centred on screen, always visible during play
-  - [ ] **Grey** normally, **green** when the ray is on something interactable (decided)
-  - [ ] Optional third state later: red/dim for `DISABLED` interactables ("can't use that yet").
-        2025 shipped `red.png` and `grey.png` but never wired them up — all four interaction types
-        preload the same green dot, so its indicator never actually changed colour.
-  - [ ] Draw it in code or as a simple TextureRect — don't port 2025's HUD.tscn wholesale
-  - [ ] Tween the grey→green change (~0.1s) so it doesn't strobe when sweeping across a room
-- [ ] Interaction prompt near the reticle: item name + key hint (e.g. `[E] Pick up keycard`)
-  - [ ] Pull the text from `Interactable.get_interaction_text()`
-  - [ ] Fade in/out on change rather than popping (2025 tweened `modulate:a` over 0.1s)
-- [ ] Hide reticle + prompt whenever the pause menu is open (cursor is visible then)
-- [ ] Keep the reticle readable against both white and red alert lighting (step 10), and against
-      the bright starfield through windows (step 11) — outline or blend mode may be needed
-- [ ] Test: headless — ray hits a spawned Interactable and sets `current_interactable`, and misses
-      when a wall is interposed; pickup sets the held reference and the item tracks the hold point
-      over several frames; a held item swept into a wall clamps toward the player rather than
-      passing through it; drop/throw releases cleanly and restores collision with the player;
-      the reticle goes grey → green and the prompt text matches the targeted interactable
+- [ ] `DISABLED` interactables are currently never targeted (`can_interact()` filters them out).
+      If step 12 wants "can't use that yet" feedback, surface them and add the red dot state.
+- [ ] If precise aiming feels finicky in playtest, swap the ray for a `ShapeCast3D` with a small
+      sphere (~0.15m). Cheap change; only do it if it actually feels bad.
+- [ ] Held-item rotation is not swept, only translation — a fast turn can clip a long item into
+      a wall corner. Fine for small props; revisit if the repair parts get big.
 
 ## 9. Procedural room builder (port from GMTK 2025)
 

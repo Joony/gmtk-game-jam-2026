@@ -1,7 +1,9 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/player/camera_controller.gd" id="2_camrig"]
+[ext_resource type="Script" path="res://scripts/interaction/carry.gd" id="3_carry"]
+[ext_resource type="Script" path="res://scripts/interaction/interactor.gd" id="4_interactor"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -33,4 +35,11 @@ script = ExtResource("2_camrig")
 [node name="Camera3D" type="Camera3D" parent="CameraRig"]
 
 [node name="HoldPoint" type="Marker3D" parent="CameraRig/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.30033565, -2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, -1.4)
+
+[node name="Carry" type="Node3D" parent="."]
+process_priority = 10
+script = ExtResource("3_carry")
+
+[node name="Interactor" type="Node3D" parent="."]
+script = ExtResource("4_interactor")
