@@ -44,16 +44,6 @@ func _run() -> void:
 	root.add_child(world)
 	current_scene = world
 
-	# --- Pure span maths (no scene needed) ----------------------------------
-	var whole := RoomBuilder.subtract_spans(Vector2(0, 10), [])
-	_check("subtract nothing leaves the whole span", whole.size() == 1 and whole[0] == Vector2(0, 10))
-	var holed := RoomBuilder.subtract_spans(Vector2(0, 10), [Vector2(4, 6)])
-	_check("subtracting a middle span leaves two pieces", holed.size() == 2)
-	var covered := RoomBuilder.subtract_spans(Vector2(2, 5), [Vector2(0, 10)])
-	_check("a fully covered span leaves nothing", covered.is_empty())
-	var partial := RoomBuilder.subtract_spans(Vector2(0, 10), [Vector2(-5, 3)])
-	_check("partial overlap trims the front", partial.size() == 1 and is_equal_approx(partial[0].x, 3.0))
-
 	# --- One plain room ------------------------------------------------------
 	var b1 := _new_builder(world)
 	b1.build_lights = false
@@ -106,47 +96,43 @@ func _run() -> void:
 	b2.free()
 	await physics_frame
 
-	# --- Adjacent rooms share one wall, not two -----------------------------
+	# --- Adjacent rooms: one skin each, in each room's own colour -----------
+	# REGRESSION: the shared wall used to be built once by whichever room got there
+	# first, so it wore that room's colour on BOTH sides — a room's wall around the
+	# door showed the neighbour's colour.
+	var red := Color(0.8, 0.2, 0.2)
+	var blue := Color(0.2, 0.3, 0.8)
 	var b3 := _new_builder(world)
 	b3.build_lights = false
-	b3.add_room(Rect2i(0, 0, 6, 4), {"id": "a"})
-	b3.add_room(Rect2i(0, 4, 6, 4), {"id": "b"})  # shares the y=4 line
+	b3.build_doors = false
+	b3.add_room(Rect2i(0, 0, 6, 4), {"id": "a", "wall_color": red})
+	b3.add_room(Rect2i(0, 4, 6, 4), {"id": "b", "wall_color": blue})   # shares the y=4 line
+	b3.add_doorway(Vector2(3, 4), Doorway.Axis.X, 2.0)
 	var built3 := b3.build()
 	await process_frame
-	# 4 + 4 = 8 if naive; the shared wall must be built once, so 7.
-	_check(
-		"shared wall built once (got %d walls, want 7)" % _count_in_group(built3, RoomBuilder.GROUP_WALL),
-		_count_in_group(built3, RoomBuilder.GROUP_WALL) == 7
-	)
 
+	var red_at_join := 0
+	var blue_at_join := 0
+	for child in built3.find_children("*", "StaticBody3D", true, false):
+		if not child.is_in_group(RoomBuilder.GROUP_WALL):
+			continue
+		if absf(child.position.z - 4.0) > 0.2:
+			continue
+		var mat: StandardMaterial3D = child.get_node("Mesh").material_override
+		if mat.albedo_color.is_equal_approx(red):
+			red_at_join += 1
+		elif mat.albedo_color.is_equal_approx(blue):
+			blue_at_join += 1
+	_check("shared wall has the first room's colour on its side (%d pieces)" % red_at_join, red_at_join > 0)
+	_check("shared wall has the second room's colour on its side (%d pieces)" % blue_at_join, blue_at_join > 0)
+
+	# Each room is a closed box, so both build all four sides.
+	_check(
+		"each room builds its own four walls (got %d, want 8 + door splits)"
+			% _count_in_group(built3, RoomBuilder.GROUP_WALL),
+		_count_in_group(built3, RoomBuilder.GROUP_WALL) == 12
+	)
 	b3.free()
-	await physics_frame
-
-	# Differently-sized neighbours: partial overlap must not double up either.
-	var b4 := _new_builder(world)
-	b4.build_lights = false
-	b4.add_room(Rect2i(0, 0, 8, 4), {"id": "wide"})
-	b4.add_room(Rect2i(2, 4, 3, 4), {"id": "narrow"})
-	var built4 := b4.build()
-	await process_frame
-	var overlapping := 0
-	for child in built4.find_children("*", "StaticBody3D", true, false):
-		if child.is_in_group(RoomBuilder.GROUP_WALL) and is_equal_approx(child.position.z, 4.0):
-			overlapping += 1
-	# The wide room's south wall plus the narrow room's leftovers — but the shared
-	# 3m stretch must appear exactly once, so total length on that line is 8m.
-	var total_len := 0.0
-	for child in built4.find_children("*", "StaticBody3D", true, false):
-		if child.is_in_group(RoomBuilder.GROUP_WALL) and is_equal_approx(child.position.z, 4.0):
-			var mesh: MeshInstance3D = child.get_node("Mesh")
-			total_len += (mesh.mesh as BoxMesh).size.x
-	_check(
-		"partial overlap builds each stretch once (%d pieces, %.2fm total, want 8m)"
-			% [overlapping, total_len],
-		is_equal_approx(snappedf(total_len, 0.01), 8.0)
-	)
-
-	b4.free()
 	await physics_frame
 
 	# --- The built geometry is physically real ------------------------------
@@ -280,6 +266,15 @@ func _run() -> void:
 	_check("door has a proximity trigger", door.get_node_or_null("Trigger") != null)
 	_check("panels are AnimatableBody3D (they must sweep, not clip)", door.get_node("Panel_0") is AnimatableBody3D)
 	_check("door starts closed", not door.is_open)
+
+	# Fully open, a panel should still show a sliver rather than vanishing into the wall.
+	var half_opening := 2.0 * 0.5
+	var open_inner_edge: float = absf(door._open_positions[0].x) - half_opening * 0.5
+	_check(
+		"an open panel still protrudes into the opening (inner edge %.3f of %.2f)"
+			% [open_inner_edge, half_opening],
+		open_inner_edge < half_opening - 0.001 and open_inner_edge > half_opening - 0.2
+	)
 
 	# Panels must be strictly thinner than the walls. An open panel slides INSIDE the
 	# wall, so equal thickness makes the faces coplanar and they z-fight.

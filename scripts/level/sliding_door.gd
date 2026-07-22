@@ -24,6 +24,10 @@ signal closed
 const SEAM_OVERLAP := 0.02
 
 @export var open_time: float = 0.4
+## How much of each panel stays visible in the opening when fully open. A door that
+## retracts completely into the wall reads as a hole; leaving a sliver showing keeps
+## it legible as a door.
+@export var open_reveal: float = 0.06
 ## A jammed door refuses to open. Cheap hook for step 12d: "the door won't open" is a
 ## repair with no new mechanics behind it.
 @export var jammed: bool = false
@@ -53,9 +57,10 @@ func build(
 
 	var along := Vector3.RIGHT if doorway.axis == Doorway.Axis.X else Vector3.BACK
 	var half_width := doorway.width * 0.5 * tile
-	# Each panel covers half the opening; sliding by 0.6x the full width clears it
-	# entirely and tucks the panel into the wall, as if into a pocket.
-	var slide := doorway.width * 0.6 * tile
+	# Each panel covers half the opening. When open, a panel's inner edge lands at
+	# `half_width - open_reveal`, so it clears the opening except for a visible sliver.
+	# (The panel's inner edge when open sits exactly at `slide` from the centre.)
+	var slide := maxf(half_width - open_reveal, 0.0)
 
 	for i in 2:
 		var direction := 1.0 if i == 0 else -1.0

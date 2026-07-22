@@ -32,19 +32,20 @@ centring, no level dimensions, one conversion function.
 **2. One box per surface, not one per tile.** 2025 emitted a `StaticBody3D` per floor tile *and* per
 ceiling tile — a 20×20 room cost 800 nodes. Rooms are rectangles, so one box each does the same job.
 
-**3. Shared walls are built once, tracked in TWO dimensions.** Adjacent rooms each generate the wall between them. 2025 hid the
-resulting z-fighting with per-side nudge offsets (`Vector3(0, 0, 0.0125)`). Instead, wall spans are
-tracked per line and each new segment has the already-built spans subtracted from it
-(`subtract_spans`). This handles partial overlap between differently-sized neighbours too, and the
-subtraction is order-independent — whichever room builds first claims its stretch, the other fills
-in the remainder.
+**3. Each room builds its own wall skin.** Adjacent rooms both generate the wall between them.
+2025 hid the resulting z-fighting with per-side nudge offsets (`Vector3(0, 0, 0.0125)`). Instead,
+each room builds **half** the wall thickness on its own side of the line, offset inward.
 
-Coverage is tracked along the line **and in height**. Tracking only the span was a bug (found in
-play, fixed 2026-07-22): where a *shorter* room claimed a stretch first, the taller room's wall
-above it was never built, leaving a gap you could see through into the void — most visibly above
-the doorway between the 2.6m corridor and the 4.0m engine room. Each new wall piece now has its
-span cut at every existing edge, and for each resulting sub-span the already-covered vertical
-bands are subtracted, so only the genuinely missing bands are built.
+This replaced two earlier attempts, both of which had real bugs found in play:
+
+1. *Build the shared wall once, dedupe by span.* Whichever room built first claimed the span — and
+   supplied the **material**, so a room's wall around a shared door wore the neighbour's colour.
+2. *Same, but track coverage in height too.* Fixed a gap where a taller room met a shorter one, but
+   left the colour bug untouched.
+
+Per-room skins make both problems structurally impossible: every room is a closed box in its own
+colours, so there is no shared geometry to get wrong and no ordering to depend on. It also deleted
+the span-subtraction machinery entirely.
 
 Also: `flags_unshaded` (a deprecated 4.7 alias) isn't used, and lighting is **one omni per room** in
 the `room_lights` group for step 10 to drive — not 2025's one-`OmniLight3D`-per-floor-tile, which was
@@ -79,22 +80,17 @@ The old flat floor and three static crate landmarks were removed — the ship pr
 
 [tests/smoke_room_builder.gd](../../tests/smoke_room_builder.gd) — **ROOM BUILDER TEST PASS**:
 
-- `subtract_spans` unit cases: empty, middle hole, fully covered, partial overlap
 - one room → exactly 1 floor, 1 ceiling, 4 walls; floor centred on the room with its **top at y=0**;
   ceiling at the room height (proving the no-centring convention)
 - a doorway splits its wall into three pieces (6 walls total) with exactly **one lintel**
-- two equal adjacent rooms → **7 walls, not 8** (the shared wall is built once)
-- differently-sized neighbours → each stretch built once, verified by summing wall lengths on the
-  shared line (8m total, not 11m)
+- adjacent rooms with different wall colours → the shared wall has **each room's colour on its own
+  side** (the reported bug), and each room builds all four of its own sides
 - **physically real**: a ray down hits the floor, a ray through the opening passes, the wall beside
   it blocks, and the lintel above it blocks
 - `build()` twice produces identical geometry
 - the real ship layout builds 3 rooms, 2 doorways and 3 lights, and the player **stands on its floor**
-- **mismatched room heights** leave no gap: with the SHORTER room built first (the order that used
-  to break), rays above the short room's ceiling are blocked both over the doorway and over the
-  short room's wall stretch, while the opening below stays passable — and the same holds with the
-  build order reversed. Verified as a true regression test: it fails against the pre-fix builder
-  with exactly those two errors.
+- **mismatched room heights** leave no gap, in either build order — now guaranteed by construction
+  rather than by bookkeeping, since each room encloses itself
 
 Visual check: rendered the pod bay — walls, ceiling, the socket and crates, and the lit corridor
 visible through the doorway.

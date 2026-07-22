@@ -34,15 +34,19 @@ func contains_tile(x: int, y: int) -> bool:
 
 
 ## The four perimeter walls, in grid boundary coordinates. Each is
-## {start: Vector2, end: Vector2, side: String}.
+## {start: Vector2, end: Vector2, side: String, inward: Vector2}.
+##
+## `inward` points from the wall line toward this room's interior. Each room builds
+## its own wall skin on its own side, so a shared wall shows the correct colour in
+## both rooms — see RoomBuilder.
 func perimeter_walls() -> Array[Dictionary]:
 	var x0 := float(rect.position.x)
 	var y0 := float(rect.position.y)
 	var x1 := x0 + float(rect.size.x)
 	var y1 := y0 + float(rect.size.y)
 	return [
-		{"start": Vector2(x0, y0), "end": Vector2(x1, y0), "side": "north"},
-		{"start": Vector2(x0, y1), "end": Vector2(x1, y1), "side": "south"},
-		{"start": Vector2(x0, y0), "end": Vector2(x0, y1), "side": "west"},
-		{"start": Vector2(x1, y0), "end": Vector2(x1, y1), "side": "east"},
+		{"start": Vector2(x0, y0), "end": Vector2(x1, y0), "side": "north", "inward": Vector2(0, 1)},
+		{"start": Vector2(x0, y1), "end": Vector2(x1, y1), "side": "south", "inward": Vector2(0, -1)},
+		{"start": Vector2(x0, y0), "end": Vector2(x0, y1), "side": "west", "inward": Vector2(1, 0)},
+		{"start": Vector2(x1, y0), "end": Vector2(x1, y1), "side": "east", "inward": Vector2(-1, 0)},
 	]

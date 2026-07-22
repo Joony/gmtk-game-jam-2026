@@ -20,10 +20,11 @@ extends Node3D
 #    and per ceiling tile — a 20x20 room cost 800 nodes. Rooms are rectangles, so a
 #    single box each does the same job.
 #
-# 3. SHARED WALLS ARE BUILT ONCE. Adjacent rooms each generate the wall between them.
-#    Rather than 2025's per-side nudge offsets to hide the resulting z-fighting, wall
-#    spans are tracked per line and each new segment has the already-built spans
-#    subtracted from it. Handles partial overlaps between differently-sized rooms too.
+# 3. EACH ROOM BUILDS ITS OWN WALL SKIN. Adjacent rooms both generate the wall between
+#    them, so 2025 nudged them apart per side to hide z-fighting. Instead each room
+#    builds half the wall thickness on its own side. No overlap, no z-fighting, each
+#    side shows its own room's colour, and every room is a closed box — so a taller
+#    room can never leave a gap above a shorter neighbour.
 #
 # Lights: one omni per room, in the `room_lights` group so step 10's lighting modes can
 # retint them. Deliberately NOT 2025's one-OmniLight3D-per-floor-tile, which was a
@@ -47,6 +48,8 @@ const GROUP_LIGHT_PANEL := &"room_light_panels"
 ## coplanar and produced z-fighting. Clamped below wall_thickness so it stays true
 ## if the walls are ever made thinner.
 @export var door_thickness: float = 0.08
+## Sliver of each door panel left showing when fully open — see SlidingDoor.open_reveal.
+@export var door_open_reveal: float = 0.06
 @export var build_lights: bool = true
 ## Sliding door panels in each opening. Turn off to test the raw wall gap.
 @export var build_doors: bool = true
@@ -67,8 +70,6 @@ var rooms: Array[Room] = []
 var doorways: Array[Doorway] = []
 
 var _materials: Dictionary = {}
-# line key -> Array[Vector2] of [min, max] spans already built on that line.
-var _spans: Dictionary = {}
 var _built_root: Node3D = null
 
 
@@ -104,7 +105,6 @@ func clear() -> void:
 	if _built_root != null and is_instance_valid(_built_root):
 		_built_root.free()
 	_built_root = null
-	_spans.clear()
 	_materials.clear()
 
 
@@ -131,6 +131,7 @@ func build() -> Node3D:
 
 func _build_door(doorway: Doorway) -> void:
 	var door := SlidingDoor.new()
+	door.open_reveal = door_open_reveal
 	_built_root.add_child(door)
 	door.build(
 		doorway,
@@ -246,96 +247,52 @@ func _build_walls(room: Room) -> void:
 	var material := _material("wall_" + room.id, room.wall_color)
 	for wall in room.perimeter_walls():
 		for segment in wall_segments(wall["start"], wall["end"], doorways):
-			_emit_wall_span(segment, room, material)
+			_create_wall(segment, room, material, wall["inward"])
 
 
-func _emit_wall_span(segment: Dictionary, room: Room, material: StandardMaterial3D) -> void:
+# Each room builds its OWN skin on its OWN side of the wall line: half the full wall
+# thickness, offset inward. Two adjacent rooms therefore produce the two halves of the
+# wall between them, each in its own colour.
+#
+# This replaces an earlier model that built each shared wall once and deduplicated by
+# span. That was wrong twice over: the first room to build claimed the span AND supplied
+# the material, so a shared wall wore the neighbour's colour; and coverage had to be
+# tracked in height as well, or a taller room left a gap above a shorter neighbour.
+# Per-room skins make both problems structurally impossible — every room is a closed box.
+func _create_wall(segment: Dictionary, room: Room, material: StandardMaterial3D, inward: Vector2) -> void:
 	var start: Vector2 = segment["start"]
 	var end: Vector2 = segment["end"]
 	var has_door: bool = segment["has_door"]
+
+	var length := start.distance_to(end) * tile_size
+	if length < 0.01:
+		return
+
+	# Above a doorway only a lintel remains.
+	var y_bottom := doorway_height if has_door else 0.0
+	var wall_height := room.height - y_bottom
+	if wall_height <= 0.01:
+		return
+
+	var skin := wall_thickness * 0.5
 	var runs_along_x := absf(end.x - start.x) > absf(end.y - start.y)
+	var size := Vector3(length, wall_height, skin)
+	if not runs_along_x:
+		size = Vector3(skin, wall_height, length)
 
-	var key := ("H:%.3f" % start.y) if runs_along_x else ("V:%.3f" % start.x)
-	var lo := minf(start.x, end.x) if runs_along_x else minf(start.y, end.y)
-	var hi := maxf(start.x, end.x) if runs_along_x else maxf(start.y, end.y)
-	# What this room needs vertically here: full height, or a lintel above an opening.
-	var need_bottom := doorway_height if has_door else 0.0
-	var need_top := room.height
-	if need_top - need_bottom < 0.01:
-		return
-
-	# Coverage is tracked in TWO dimensions — along the line AND in height. Tracking
-	# only the span was a bug: a shorter room claiming a stretch first left the taller
-	# room's wall above it unbuilt, so you could see over the join into the void.
-	var existing: Array = _spans.get(key, [])
-
-	# Cut the span at every existing edge inside it, so each sub-span has uniform
-	# vertical coverage and can be handled with a plain 1D subtraction.
-	var cuts: Array[float] = [lo, hi]
-	for entry in existing:
-		if entry["hi"] <= lo or entry["lo"] >= hi:
-			continue
-		if entry["lo"] > lo and entry["lo"] < hi:
-			cuts.append(entry["lo"])
-		if entry["hi"] > lo and entry["hi"] < hi:
-			cuts.append(entry["hi"])
-	cuts.sort()
-
-	var added: Array = []
-	for i in cuts.size() - 1:
-		var a: float = cuts[i]
-		var b: float = cuts[i + 1]
-		if b - a < 0.01:
-			continue
-		var mid := (a + b) * 0.5
-		var covered: Array[Vector2] = []
-		for entry in existing:
-			if entry["lo"] <= mid and entry["hi"] >= mid:
-				covered.append(Vector2(entry["y0"], entry["y1"]))
-		for band in subtract_spans(Vector2(need_bottom, need_top), covered):
-			if band.y - band.x < 0.01:
-				continue
-			_create_wall(a, b, band.x, band.y, start, runs_along_x, room, material)
-			added.append({"lo": a, "hi": b, "y0": band.x, "y1": band.y})
-	for entry in added:
-		existing.append(entry)
-	_spans[key] = existing
-
-
-# One wall box: `a`..`b` along the line, `y_bottom`..`y_top` in height.
-func _create_wall(
-	a: float,
-	b: float,
-	y_bottom: float,
-	y_top: float,
-	line: Vector2,
-	runs_along_x: bool,
-	room: Room,
-	material: StandardMaterial3D
-) -> void:
-	var length := (b - a) * tile_size
-	var wall_height := y_top - y_bottom
-	if length < 0.01 or wall_height < 0.01:
-		return
-
-	var size := Vector3(length, wall_height, wall_thickness)
-	var centre: Vector2
-	if runs_along_x:
-		centre = grid_to_world((a + b) * 0.5, line.y)
-	else:
-		size = Vector3(wall_thickness, wall_height, length)
-		centre = grid_to_world(line.x, (a + b) * 0.5)
+	var centre := grid_to_world((start.x + end.x) * 0.5, (start.y + end.y) * 0.5)
+	# Sit the skin between the wall line and the room interior.
+	var offset := Vector3(inward.x, 0.0, inward.y) * (skin * 0.5)
 
 	var body := _make_box(
-		"Wall_%s_%.1f_%.1f" % [room.id, a, y_bottom],
+		"Wall_%s_%.1f_%.1f" % [room.id, start.x, start.y],
 		size,
-		Vector3(centre.x, y_bottom + wall_height * 0.5, centre.y),
+		Vector3(centre.x, y_bottom + wall_height * 0.5, centre.y) + offset,
 		material,
 		true
 	)
 	body.add_to_group(GROUP_WALL)
-	if y_bottom > 0.01:
-		# Sits above an opening (a lintel) or above a shorter neighbour's wall.
+	if has_door:
 		body.set_meta("lintel", true)
 
 
@@ -378,23 +335,6 @@ static func wall_segments(wall_start: Vector2, wall_end: Vector2, all_doorways: 
 	if cursor.distance_to(wall_end) > 0.01:
 		segments.append({"start": cursor, "end": wall_end, "has_door": false})
 	return segments
-
-
-## Subtract already-built spans from [span.x, span.y], returning what's left.
-static func subtract_spans(span: Vector2, existing: Array) -> Array[Vector2]:
-	var pieces: Array[Vector2] = [span]
-	for taken in existing:
-		var next: Array[Vector2] = []
-		for piece in pieces:
-			if taken.y <= piece.x or taken.x >= piece.y:
-				next.append(piece)  # no overlap
-				continue
-			if taken.x > piece.x:
-				next.append(Vector2(piece.x, taken.x))
-			if taken.y < piece.y:
-				next.append(Vector2(taken.y, piece.y))
-		pieces = next
-	return pieces
 
 
 # --- helpers ----------------------------------------------------------------

@@ -12,8 +12,9 @@ Two panels that slide apart as the player approaches, ported from GMTK 2025's
 `RoomBuilder` for every `Doorway`:
 
 - **two panels**, each half the opening's width, meeting in the middle
-- **slide apart** by `width * 0.6` on a 0.4s `TRANS_SINE` / `EASE_OUT` tween — far enough that each
-  panel tucks fully into the wall, as if into a pocket
+- **slide apart** on a 0.4s `TRANS_SINE` / `EASE_OUT` tween, stopping so `open_reveal` (6cm) of
+  each panel still shows in the opening. Retracting fully into the wall made an open doorway read
+  as a plain hole; leaving a sliver keeps it legible as a door.
 - an **`Area3D` across the opening** (reaching `door_approach` = 1.6m either side) drives open on
   enter and close on exit
 - the metallic look from 2025 (`albedo 0.70,0.72,0.78`, `metallic 0.35`, `roughness 0.3`)
