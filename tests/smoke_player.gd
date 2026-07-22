@@ -81,7 +81,27 @@ func _run() -> void:
 	current_scene = game
 	await process_frame
 
+	# The game is gated behind the START prompt (needed for browser pointer lock).
 	var player: CharacterBody3D = game.get_node("Player")
+	_check("player is frozen before START", player.process_mode == Node.PROCESS_MODE_DISABLED)
+	_check("start prompt is visible before START", game.get_node("StartPrompt").visible)
+	# Cursor must be free while the prompt is up, and captured by START itself —
+	# capturing inside the button handler is what makes pointer lock legal on web.
+	# Probe with CAPTURED specifically: headless accepts VISIBLE but silently
+	# refuses capture, so probing with VISIBLE would wrongly claim testability.
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	var cursor_testable := Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	if cursor_testable:
+		_check("cursor is free while the START prompt is up", Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE)
+
+	game.start_game()
+	await process_frame
+	_check("start prompt hidden after START", not game.get_node("StartPrompt").visible)
+	_check("player runs after START", player.process_mode == Node.PROCESS_MODE_INHERIT)
+	if cursor_testable:
+		_check("START captures the cursor", Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED)
+
 	var spawn: Marker3D = game.get_node("PlayerSpawn")
 	# Horizontally exact; vertically loose, because gravity has already acted by now.
 	var spawn_pos := spawn.global_position

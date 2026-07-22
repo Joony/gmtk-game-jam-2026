@@ -11,6 +11,9 @@ signal paused
 signal resumed
 
 var is_paused: bool = false
+## Set false to make Esc inert — the game scene disables it until the player
+## clicks START, so pausing can't happen before the game has begun.
+var enabled: bool = true
 
 
 func _ready() -> void:
@@ -21,6 +24,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not enabled:
+		return
 	if event.is_action_pressed("pause"):
 		toggle()
 		get_viewport().set_input_as_handled()

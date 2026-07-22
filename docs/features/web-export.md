@@ -1,60 +1,65 @@
 # Feature: Web export (step 7)
 
 **Date:** 2026-07-22
-**Status:** ⚠️ **BLOCKED** — preset ready, export templates not installed
+**Status:** Exported and running in a browser. **One item unverifiable here — see Pointer lock.**
 
 ## What was done
 
-- [export_presets.cfg](../../export_presets.cfg) — a `Web` preset targeting `build/web/index.html`,
-  suitable for an itch.io upload:
-  - `variant/thread_support=false` — no threads are used anywhere in game code (verified by grep),
-    and no-thread builds avoid itch.io's cross-origin-isolation header requirements
-  - `html/canvas_resize_policy=2` (adaptive) and `focus_canvas_on_start=true`
-  - `exclude_filter="tests/*, docs/*"` so the test harness and docs don't ship
-- `/build/` added to `.gitignore`.
+- [export_presets.cfg](../../export_presets.cfg) — `Web` preset targeting `build/web/index.html`:
+  - `variant/thread_support=false` — no threads in game code, and no-thread builds avoid itch.io's
+    cross-origin-isolation header requirements
+  - `html/canvas_resize_policy=2` (adaptive), `focus_canvas_on_start=true`
+  - `exclude_filter="tests/*, docs/*"` so the harness and docs don't ship
+- `/build/` gitignored. [.claude/launch.json](../../.claude/launch.json) serves `build/web` on
+  port 8099 for local testing.
 
-## The blocker
-
-Export templates for **4.7.1.stable are not installed**. Only `4.0.3`, `4.2.1` and `4.4.1` are
-present in `~/Library/Application Support/Godot/export_templates/`.
-
-Attempting the export fails at exactly that point — the preset itself validates:
-
-```
-ERROR: Cannot export project with preset "Web" due to configuration errors:
-No export template found at the expected path:
-  .../export_templates/4.7.1.stable/web_nothreads_debug.zip
-  .../export_templates/4.7.1.stable/web_nothreads_release.zip
-```
-
-**To unblock:** install the 4.7.1 templates, either from the editor (Editor → Manage Export
-Templates → Download and Install) or by placing the official `.tpz` contents in the path above.
-Then run:
+Export command:
 
 ```
 godot --headless --path . --export-release "Web" build/web/index.html
 ```
 
-## Compatibility audit (done without exporting)
+Output is ~38 MB, dominated by `index.wasm` (39 MB uncompressed; itch.io serves it gzipped).
 
-- **Renderer: OK.** `gl_compatibility` is already set, which is what the web needs — Forward+ on
-  the web requires WebGPU. This was chosen deliberately in step 4; see
-  [player-controller.md](player-controller.md).
-- **Threads: OK.** No `Thread`, `OS.execute`, `FileAccess`, `DirAccess` or `DisplayServer` use in
-  game code.
-- **No Quit button**, so the usual `OS.has_feature("web")` special case doesn't arise.
+## Verified in a real browser
 
-### ⚠️ Known risk to check the moment templates exist
+Served over HTTP and loaded at `http://localhost:8099`:
 
-`game.gd:15` calls `Input.set_mouse_mode(MOUSE_MODE_CAPTURED)` from `_ready()`. **Browsers only
-grant pointer lock from within a user-gesture handler**, and `_ready()` after a scene transition may
-not qualify — the player could land in the game with a free cursor and no mouse look until they
-click. Desktop is unaffected.
+- Boots cleanly — no errors in the console
+- `OpenGL ES 3.0 (WebGL 2.0)` compatibility renderer, `single-threaded, no GDExtension support`
+- The intro renders with the AbolitionTest font, correctly
+- Buttons respond (SKIP, START) and `SceneManager` transitions run — the console shows
+  `[SceneManager] changed scene to res://scenes/game.tscn`
+- The 3D game scene renders correctly (floor, crates, shadows) under WebGL2
+- The START prompt appears and starting the game hides it and reveals the game
 
-The standard fix is a click-to-capture fallback in the game scene (capture on first click when not
-paused), or a "click to play" overlay. Deliberately **not implemented yet**: it can't be verified
-without a working export, and if the browser does accept the capture it's needless complexity.
-Verify first, then fix.
+## ⚠️ Pointer lock — could NOT be verified in this environment
 
-Also worth re-checking on web when step 13 adds audio: browsers block audio playback until a user
-gesture too.
+The automated browser pane runs the page with `document.visibilityState === "hidden"`, and **the
+browser refuses pointer lock outright** in that state. Calling `canvas.requestPointerLock()`
+directly from the console — bypassing our code entirely — is rejected with:
+
+```
+WrongDocumentError: The root document of this element is not valid for pointer lock.
+```
+
+So this says nothing about whether our implementation is correct; the environment cannot grant
+pointer lock to any code. **Verify by opening `http://localhost:8099` in a normal, visible browser
+tab, clicking START, and confirming the cursor is captured and mouse look works.**
+
+What *is* proven is our side of the contract: `smoke_player.gd` (run windowed) asserts that the
+cursor is free while the START prompt is up and that **START itself captures it**. Capture happens
+inside the button's `pressed` handler, which is a genuine user gesture — the condition browsers
+require. That is the standard fix and there is no reason to expect it to fail; it simply hasn't
+been observed working yet.
+
+Same caveat for the countdown: the hidden tab throttles `requestAnimationFrame` to near zero, so
+the intro appeared frozen at `10` and only advanced when a click briefly woke the tab. Timing is
+verified on desktop instead; re-check it in a visible tab when convenient.
+
+## Still to do before submitting
+
+- [ ] Open the build in a real browser tab and confirm pointer lock + countdown timing
+- [ ] Upload to itch.io and confirm it runs there (different headers/CDN than localhost)
+- [ ] Re-check when step 13 adds audio — browsers block playback until a user gesture. The START
+      button is a convenient place to hang audio initialisation off.

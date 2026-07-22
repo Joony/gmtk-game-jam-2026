@@ -43,19 +43,29 @@ func _run() -> void:
 	if label.get_theme_font_size("font_size") < 100:
 		_failures.append("countdown font size %d is not big" % label.get_theme_font_size("font_size"))
 
-	# Countdown should tick down and auto-advance to the main menu.
-	# current_scene is briefly null mid-change, so only test the name when set.
+	# Countdown ticks down in two digits, holds on 01 (never reaches 00), then
+	# advances to the game. current_scene is briefly null mid-change, so only
+	# test the name when it is set.
+	var seen_two_digit := false
+	var seen_one := false
 	var seen_zero := false
 	var frames := 0
-	while frames < MAX_FRAMES and not _current_scene_is("MainMenu"):
-		if is_instance_valid(label) and label.text == "0":
-			seen_zero = true
+	while frames < MAX_FRAMES and not _current_scene_is("Game"):
+		if is_instance_valid(label):
+			match label.text:
+				"09": seen_two_digit = true
+				"01": seen_one = true
+				"00", "0": seen_zero = true
 		await process_frame
 		frames += 1
-	if not seen_zero:
-		_failures.append("countdown never displayed 0")
-	if not _current_scene_is("MainMenu"):
-		_failures.append("countdown did not auto-advance to MainMenu within %d frames" % MAX_FRAMES)
+	if not seen_two_digit:
+		_failures.append("countdown is not zero-padded to two digits (never displayed '09')")
+	if not seen_one:
+		_failures.append("countdown never displayed '01'")
+	if seen_zero:
+		_failures.append("countdown reached zero — it should hold on 01 and never show 00")
+	if not _current_scene_is("Game"):
+		_failures.append("countdown did not auto-advance to the game scene within %d frames" % MAX_FRAMES)
 
 	# Skip button: go back to the intro, press Skip, expect a transition
 	# triggered by the button (countdown timer stopped), not the countdown.
@@ -76,11 +86,11 @@ func _run() -> void:
 		if not countdown_timer.is_stopped():
 			_failures.append("skip did not stop the countdown timer")
 		frames = 0
-		while frames < MAX_FRAMES and not _current_scene_is("MainMenu"):
+		while frames < MAX_FRAMES and not _current_scene_is("Game"):
 			await process_frame
 			frames += 1
-		if not _current_scene_is("MainMenu"):
-			_failures.append("skip button did not reach MainMenu")
+		if not _current_scene_is("Game"):
+			_failures.append("skip button did not reach the game scene")
 	else:
 		_failures.append("could not return to Intro to test the skip button")
 

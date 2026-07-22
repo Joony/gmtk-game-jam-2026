@@ -115,7 +115,7 @@ more than action. Get this right before anything else in step 12:
   - [x] ~~Quit button~~ — not required (also removes the web-export special case)
 - [x] Keyboard/gamepad navigation: set initial focus with `grab_focus()`
 - [x] Cursor set visible on entry (the game will capture it in steps 4–5)
-- [ ] Name the game and replace the placeholder title
+- [x] ~~Name the game~~ — tracked in step 7a
 
 ## 3. ✅ Game scene — done ([log](docs/features/game-scene.md))
 
@@ -181,23 +181,39 @@ more than action. Get this right before anything else in step 12:
       count identical between rounds (12/0 → 12/0), no player instances left alive, tree unpaused
 - [x] ~~Quit button exits cleanly~~ — no Quit button (step 2)
 
-## 7. ⚠️ Web export — BLOCKED on export templates ([log](docs/features/web-export.md))
+## 7. ✅ Web export — done ([log](docs/features/web-export.md))
 
 - [x] Web export preset for itch.io (`export_presets.cfg`, no-threads, adaptive canvas,
       tests/docs excluded); `/build/` gitignored
-- [x] Compatibility audit: renderer is already `gl_compatibility` (correct for web); no threads or
+- [x] Compatibility audit: `gl_compatibility` renderer (correct for web); no threads or
       platform-specific APIs in game code
-- [x] ~~Confirm the Quit button is hidden on web~~ — there is no Quit button (step 2)
-- [ ] **BLOCKER: install Godot 4.7.1 export templates.** Only 4.0.3 / 4.2.1 / 4.4.1 are present in
-      `~/Library/Application Support/Godot/export_templates/`. Editor → Manage Export Templates →
-      Download and Install. Then:
-      `godot --headless --path . --export-release "Web" build/web/index.html`
-- [ ] Export and actually load it in a browser
-- [ ] **Verify pointer lock on web.** `game.gd` captures the mouse in `_ready()`; browsers only
-      grant pointer lock inside a user-gesture handler, so the player may land with a free cursor
-      and no mouse look. If it fails, add click-to-capture in the game scene (capture on first
-      click when not paused). Not implemented yet — unverifiable without a working export.
-- [ ] Re-check when step 13 adds audio: browsers also block audio until a user gesture
+- [x] Export templates installed; build produced (~38 MB, mostly `index.wasm`)
+- [x] Loaded in a browser over HTTP: boots clean, WebGL2, font renders, buttons work,
+      SceneManager transitions work, 3D scene renders
+- [x] **Pointer lock addressed** by the START prompt (step 7a below) — capture now happens inside
+      a button `pressed` handler, which is the user gesture browsers require
+- [ ] **Confirm pointer lock in a normal browser tab.** The automated browser pane runs the page
+      with `visibilityState: hidden`, where the browser refuses pointer lock to *any* code (a direct
+      `canvas.requestPointerLock()` from the console fails with `WrongDocumentError`). Serve with
+      `.claude/launch.json` (port 8099), open a real tab, click START, check mouse look.
+- [ ] Upload to itch.io and confirm it runs there (different headers/CDN than localhost)
+- [ ] Re-check when step 13 adds audio: browsers block audio until a user gesture — the START
+      button is the natural place to initialise it
+
+## 7a. ✅ START prompt + font/theme + intro rework ([logs](docs/features/start-prompt.md))
+
+- [x] **START prompt** gates the game: cursor free and player frozen until clicked, Esc disabled
+      until then, capture happens in the button handler
+      ([start-prompt.md](docs/features/start-prompt.md))
+- [x] **Font** `AbolitionTest-Regular` applied project-wide via `ui/theme.tres` +
+      `gui/theme/custom` — no per-node font overrides
+      ([font-and-theme.md](docs/features/font-and-theme.md))
+- [x] **Intro** counts `10, 09 … 01` zero-padded, holds 1.5s on `01` (never reaches `00`), then
+      fades into the game ([intro.md](docs/features/intro.md))
+- [x] **Flow change:** the intro now leads straight into the game, not the main menu. The menu is
+      reached via pause → Quit to Menu, and its Play returns to the game. Both routes are covered
+      by the loop test. One-line revert if wanted: `NEXT_SCENE` in `scripts/intro.gd`.
+- [ ] Name the game — the menu currently reads `PERPETUAL PICKLE` over a `WORKING TITLE` subtitle
 
 ---
 

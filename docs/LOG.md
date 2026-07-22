@@ -12,4 +12,7 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | Player controller (step 4): FPS movement + camera, ported from Doortal | Done, verified | [player-controller.md](features/player-controller.md) |
 | 2026-07-22 | Pause menu (step 5): Esc pauses + releases cursor, Quit to Menu | Done, verified | [pause-menu.md](features/pause-menu.md) |
 | 2026-07-22 | Full loop verification (step 6): two round-trips, no leaks | Done, verified | [loop-verification.md](features/loop-verification.md) |
-| 2026-07-22 | Web export (step 7): preset + audit | ⚠️ Blocked on 4.7.1 export templates | [web-export.md](features/web-export.md) |
+| 2026-07-22 | Web export (step 7): exported, runs in browser | Done — pointer lock unverifiable in automated browser | [web-export.md](features/web-export.md) |
+| 2026-07-22 | Font + project-wide UI theme (AbolitionTest) | Done, verified | [font-and-theme.md](features/font-and-theme.md) |
+| 2026-07-22 | Intro reworked: two-digit countdown, holds on 01, leads into the game | Done, verified | [intro.md](features/intro.md) |
+| 2026-07-22 | START prompt: click-to-begin gate for browser pointer lock | Done, verified | [start-prompt.md](features/start-prompt.md) |

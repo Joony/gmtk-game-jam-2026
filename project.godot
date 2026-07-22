@@ -19,6 +19,10 @@ config/icon="res://icon.svg"
 
 SceneManager="*res://scripts/scene_manager.gd"
 
+[gui]
+
+theme/custom="res://ui/theme.tres"
+
 [display]
 
 window/stretch/mode="canvas_items"

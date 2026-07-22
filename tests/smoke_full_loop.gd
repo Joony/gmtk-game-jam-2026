@@ -60,36 +60,51 @@ func _metrics() -> Dictionary:
 func _loop_once(round_number: int) -> void:
 	var tag := "round %d" % round_number
 
+	# Path A: launch route — intro drops straight into the game.
 	await _wait_for_transition_idle()
 	_scene_manager.change_scene(INTRO_SCENE)
 	_check("%s: reached the intro" % tag, await _wait_for_scene("Intro"))
 	if not _current_scene_is("Intro"):
 		return
 
-	# Skip rather than sitting through the 11s countdown.
+	# Skip rather than sitting through the countdown.
 	await _wait_for_transition_idle()
 	current_scene.get_node("SkipButton").pressed.emit()
-	_check("%s: intro skip reached the main menu" % tag, await _wait_for_scene("MainMenu"))
+	_check("%s: intro skip reached the game" % tag, await _wait_for_scene("Game"))
+	if not _current_scene_is("Game"):
+		return
+
+	await _play_a_bit(tag + " (from intro)")
+	_check("%s: back at the main menu" % tag, await _wait_for_scene("MainMenu"))
 	if not _current_scene_is("MainMenu"):
 		return
 
+	# Path B: menu route — Play returns to the game.
 	await _wait_for_transition_idle()
 	current_scene.get_node("%PlayButton").pressed.emit()
 	_check("%s: Play reached the game" % tag, await _wait_for_scene("Game"))
 	if not _current_scene_is("Game"):
 		return
 
-	# The game must be live: player present, on the floor, tree not paused.
+	await _play_a_bit(tag + " (from menu)")
+	_check("%s: Quit to Menu reached the main menu" % tag, await _wait_for_scene("MainMenu"))
+
+
+# START the game, confirm it's live, then pause and quit back to the menu.
+func _play_a_bit(tag: String) -> void:
 	var game := current_scene
 	var player: CharacterBody3D = game.get_node_or_null("Player")
 	_check("%s: game has a player" % tag, player != null)
 	_check("%s: tree is not paused on entry" % tag, not paused)
+	_check("%s: game waits behind the START prompt" % tag, not game.is_started)
+	game.start_game()
+	await process_frame
+	_check("%s: START began the game" % tag, game.is_started)
 	for i in 30:
 		await physics_frame
 	if player != null:
 		_check("%s: player is standing on the floor" % tag, player.is_on_floor())
 
-	# Pause, then quit to the menu.
 	_press_escape()
 	await process_frame
 	var pause_menu: CanvasLayer = game.get_node_or_null("PauseMenu")
@@ -97,7 +112,6 @@ func _loop_once(round_number: int) -> void:
 	pause_menu.get_node("%QuitButton").pressed.emit()
 	await process_frame
 	_check("%s: quitting unpaused the tree" % tag, not paused)
-	_check("%s: Quit to Menu reached the main menu" % tag, await _wait_for_scene("MainMenu"))
 
 
 func _run() -> void:
