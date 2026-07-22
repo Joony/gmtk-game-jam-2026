@@ -149,7 +149,7 @@ more than action. Get this right before anything else in step 12:
 - [ ] Tune once there are real rooms: `floor_snap_length` may need reducing so bunny-hops aren't
       snapped back to the floor (carried over from Doortal's note)
 
-## 5. In-game pause menu
+## 5. ✅ In-game pause menu — done ([log](docs/features/pause-menu.md))
 
 > **Testing note:** cursor capture doesn't work under `--headless`, so anything cursor-related must
 > be verified windowed:
@@ -157,29 +157,33 @@ more than action. Get this right before anything else in step 12:
 > The headless run *skips* those checks (it says so) rather than failing, so a headless-only pass
 > does not prove cursor behaviour.
 
-- [ ] `game.gd.capture_mouse()` already exists — the pause menu should call it on resume rather
-      than setting the mouse mode itself, keeping one owner of capture state
-- [ ] `ui/pause_menu.tscn` — CanvasLayer, hidden by default
-  - [ ] Set pause menu's `process_mode` to `Always` so it works while paused
-  - [ ] **Resume** button (also Esc again)
-  - [ ] **Quit to Menu** button → unpause, then `SceneManager.change_scene` to main menu
-  - [ ] Dim background (semi-transparent ColorRect)
-- [ ] Instance the pause menu into `scenes/game.tscn` (or add it via the game scene root)
-- [ ] **Esc behaviour — one action does all three:** release the mouse cursor
-      (`Input.MOUSE_MODE_VISIBLE`), show the menu, and `get_tree().paused = true`
-  - [ ] Esc again (or Resume) reverses all three: hide menu, unpause, re-capture the cursor
-        (`Input.MOUSE_MODE_CAPTURED`)
-  - [ ] The pause menu owns Esc — `CameraController` must NOT also release the cursor on
-        `ui_cancel` (stripped in step 4)
-  - [ ] Quit to Menu leaves the cursor visible — the main menu needs it
-  - [ ] Consume the input event (`get_viewport().set_input_as_handled()`) so nothing else sees it
-- [ ] Make sure Esc is ignored during intro/main menu
+- [x] `ui/pause_menu.tscn` — CanvasLayer, hidden by default
+  - [x] `process_mode = ALWAYS` so it works while paused
+  - [x] **Resume** button (also Esc again), focused on open
+  - [x] **Quit to Menu** button → unpause, then `SceneManager.change_scene` to main menu
+  - [x] Dim background (semi-transparent ColorRect)
+- [x] Instanced into `scenes/game.tscn`
+- [x] **Esc behaviour — one action does all three:** release the cursor, show the menu, pause
+  - [x] Esc again (or Resume) reverses all three
+  - [x] The pause menu owns Esc and *all* cursor state (camera's capture stripped in step 4)
+  - [x] Quit to Menu leaves the cursor visible — the main menu needs it
+  - [x] Consume the input event (`get_viewport().set_input_as_handled()`)
+- [x] Esc is inert in the intro/main menu (the pause menu only exists in the game scene) — asserted
+- [x] Emits `paused` / `resumed` signals — step 12's oxygen countdown must not drain while paused
 
 ## 6. Verify the loop
 
-- [ ] Intro → auto/skip → Main Menu → Play → Game → Esc → Quit to Menu → Play again (no leaks/errors)
-- [ ] Quit button exits cleanly
-- [ ] Mouse capture correct at every stage (captured in game, visible in menus)
+Most of this is already covered piecewise by the step 2–5 suites (intro→menu, menu→game,
+game→Esc→Quit to Menu→menu, cursor state at each stage). What's left is proving it end-to-end in
+one run, and that going round *twice* leaks nothing.
+
+- [x] Intro → Main Menu (intro suite) — auto-advance and skip
+- [x] Main Menu → Play → Game (main menu suite)
+- [x] Game → Esc → Quit to Menu → Main Menu (pause menu suite)
+- [x] Mouse capture correct at every stage (verified windowed)
+- [ ] One test that walks the whole loop **twice** in a single run, asserting no orphaned nodes,
+      no leaked players, and that the second Play behaves identically to the first
+- [ ] ~~Quit button exits cleanly~~ — no Quit button (step 2)
 
 ## 7. Web export smoke test
 

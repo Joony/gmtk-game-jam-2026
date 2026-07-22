@@ -10,3 +10,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | Main menu (step 2): title + Play, no Quit | Done, verified | [main-menu.md](features/main-menu.md) |
 | 2026-07-22 | Game scene (step 3): floor, light, crates, spawn point | Done, verified | [game-scene.md](features/game-scene.md) |
 | 2026-07-22 | Player controller (step 4): FPS movement + camera, ported from Doortal | Done, verified | [player-controller.md](features/player-controller.md) |
+| 2026-07-22 | Pause menu (step 5): Esc pauses + releases cursor, Quit to Menu | Done, verified | [pause-menu.md](features/pause-menu.md) |

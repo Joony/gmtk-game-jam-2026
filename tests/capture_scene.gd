@@ -11,6 +11,9 @@ func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var scene_path: String = args[0] if args.size() > 0 else "res://scenes/main_menu.tscn"
 	var out_path: String = args[1] if args.size() > 1 else "user://capture.png"
+	# Optional 3rd arg: an input action to fire before capturing (e.g. "pause"),
+	# so states that only exist after input can be eyeballed too.
+	var action: String = args[2] if args.size() > 2 else ""
 
 	var packed: PackedScene = load(scene_path)
 	if packed == null:
@@ -25,6 +28,15 @@ func _run() -> void:
 	# Let layout settle and the frame actually draw.
 	for i in 5:
 		await process_frame
+
+	if action != "":
+		var event := InputEventAction.new()
+		event.action = action
+		event.pressed = true
+		root.push_input(event)
+		for i in 5:
+			await process_frame
+
 	await RenderingServer.frame_post_draw
 
 	var image := root.get_texture().get_image()
