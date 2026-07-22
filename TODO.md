@@ -256,7 +256,9 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] One box per surface instead of one per tile (2025: 800 nodes for a 20×20 room)
 - [x] **Shared walls built once** via per-line span subtraction — handles partial overlap between
       differently-sized rooms; replaces 2025's z-fighting nudge offsets
-- [x] No `flags_unshaded`; lighting is one omni per room in the `room_lights` group for step 10
+- [x] No `flags_unshaded`; **flat interior lighting** — a shadowless grid of ceiling omnis plus
+      emissive panels, no directional sun, ambient 0.45, per Doortal ADR 0010 and GMTK 2025
+      ([log](docs/features/flat-lighting.md)). Grouped `room_lights` / `room_light_panels`.
 - [x] Code-first API: `add_room(Rect2i(...), {...})` / `add_doorway(...)` / `build()`
 - [x] **Hand-authored ship** (`scripts/level/ship_layout.gd`): pod bay, corridor, engine room,
       two doorways — replaces the flat sandbox floor in `scenes/game.tscn`
@@ -307,6 +309,10 @@ lighting so rooms subscribe rather than each managing its own lights.
 **Driven by malfunctions:** red while any malfunction is active, white once all are repaired.
 Consider making alert *local* to the affected room as well as ship-wide — a red-lit corridor is
 free wayfinding toward the problem, which matters when oxygen is ticking and the player is lost.
+
+> Groundwork done in step 9: fixtures are in `room_lights` and their emissive housings in
+> `room_light_panels`, so this step retints existing nodes rather than building any. Keep them
+> **shadowless** — that is what makes the interior read as flat.
 
 - [ ] `LightingController` (autoload or a node in the game scene — decide when building it)
   - [ ] `enum Mode { NORMAL, ALERT }` + `set_mode(mode)` and a `mode_changed` signal
