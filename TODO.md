@@ -2,11 +2,11 @@
 
 Godot 4.7 project. Core flow: Intro → Main Menu → Game ⇄ Pause Menu.
 
-## Project structure
+## Project structure — done ([log](docs/features/project-structure.md))
 
-- [ ] Create folder layout: `scenes/`, `scripts/`, `ui/`, `assets/`
-- [ ] Add input map action `pause` bound to Esc (Project Settings → Input Map)
-- [ ] Set the main scene in Project Settings (intro scene)
+- [x] Create folder layout: `scenes/`, `scripts/`, `ui/`, `assets/`
+- [x] Add input map action `pause` bound to Esc (physical keycode, in `project.godot`)
+- [x] Set the main scene in Project Settings (stub `scenes/intro.tscn` for now — replaced by the Intro feature)
 
 ## Scene loading system (do this first — everything else uses it)
 
