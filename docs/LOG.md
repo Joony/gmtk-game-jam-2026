@@ -17,3 +17,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | Intro reworked: two-digit countdown, holds on 01, leads into the game | Done, verified | [intro.md](features/intro.md) |
 | 2026-07-22 | START prompt: click-to-begin gate for browser pointer lock | Done, verified | [start-prompt.md](features/start-prompt.md) |
 | 2026-07-22 | Interaction & carry (step 8): raycast detection, physics carry, reticle | Done, verified | [interaction-and-carry.md](features/interaction-and-carry.md) |
+| 2026-07-22 | Room builder (step 9): rooms, doorway splitting, hand-authored ship | Done, verified | [room-builder.md](features/room-builder.md) |

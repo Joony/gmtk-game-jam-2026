@@ -244,45 +244,34 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] Held-item rotation is not swept, only translation — a fast turn can clip a long item into
       a wall corner. Fine for small props; revisit if the repair parts get big.
 
-## 9. Procedural room builder (port from GMTK 2025)
+## 9. ✅ Procedural room builder — done ([log](docs/features/room-builder.md))
 
-Confirmed needed by the hook — walking distance between the pod and a malfunction *is* the oxygen
-cost, so the ship layout is core mechanic, not set dressing.
+- [x] Port `V1/Room.gd` → `scripts/level/room.gd` (Rect2i, `GameTypes.TileType` dropped)
+- [x] Port `V1/SlidingDoor.gd` → `scripts/level/doorway.gd` — **renamed `Doorway`**, nothing
+      slides; kept the wall-intersection maths, left the panels/animation behind
+- [x] Port `V1/RoomBuilder.gd` — perimeter walls with door-aware splitting, material cache
+- [x] **ONE coordinate convention.** Grid coords *are* boundary coords: grid (x,y) → world
+      (x·tile, y·tile), centres at +0.5. Dropped 2025's dual convention AND its `level_width/2`
+      centring, which made world position depend on the level's declared size.
+- [x] One box per surface instead of one per tile (2025: 800 nodes for a 20×20 room)
+- [x] **Shared walls built once** via per-line span subtraction — handles partial overlap between
+      differently-sized rooms; replaces 2025's z-fighting nudge offsets
+- [x] No `flags_unshaded`; lighting is one omni per room in the `room_lights` group for step 10
+- [x] Code-first API: `add_room(Rect2i(...), {...})` / `add_doorway(...)` / `build()`
+- [x] **Hand-authored ship** (`scripts/level/ship_layout.gd`): pod bay, corridor, engine room,
+      two doorways — replaces the flat sandbox floor in `scenes/game.tscn`
+- [x] **Left behind:** `ItemManager.gd`, `Puzzles/`, `items/`, `Models/`, `AudioController`,
+      `GameTypes`, and `V1/LevelManager.gd` (~300 of its 453 lines are the 2025 day-loop)
+- [x] Tested: span maths, counts, no duplicate shared walls, doorway passable + lintel solid,
+      idempotent rebuild, and the real ship walkable
 
-**But: prefer a hand-authored layout over random generation.** The hook depends on carefully tuned
-travel distances (pod → each malfunction site), and randomising those randomises the difficulty.
-Use the room builder as a *construction tool* — build one deliberately designed ship in code, where
-distances are chosen — rather than as a generator. Randomise *which* systems fail and when, not the
-geometry. This also cuts scope: no need for connectivity/solvability guarantees.
+### Follow-ups (not blocking)
 
-Source: `/Users/joony/gmtk-game-jam-2025/V1/`. **Note:** there is no level editor in that project —
-levels are authored by typing GDScript. What's worth taking is the runtime geometry kit: rectangular
-rooms with auto-generated perimeter walls that split correctly around doors. That project is Godot
-**4.4**, ours is 4.7. Beware: the root-level `LevelGenerator.gd`/`LevelManager.gd`/`Room.gd` etc. are
-100% commented-out dead code — the live implementation is in `V1/` despite the name.
-
-- [ ] Port `V1/Room.gd` (65 lines, Resource + `get_perimeter_walls()`)
-  - [ ] Delete the `GameTypes.TileType` reference (autoload we're not bringing over; never read anyway)
-- [ ] Port `V1/SlidingDoor.gd` (91 lines, Resource + wall-intersection math)
-- [ ] Port `V1/RoomBuilder.gd` (252 lines — floors/ceilings/wall segments, material cache,
-      door-aware wall splitting). Zero game-specific references; the genuinely non-trivial part.
-- [ ] **Pick ONE coordinate convention up front.** 2025 has two subtly different ones —
-      `grid_to_world` (tile centres, `+0.5`) vs `grid_boundary_to_world` (tile edges, no offset) —
-      defined in three files with different signatures. That inconsistency is why Level 1's item
-      positions are hand-tuned floats like `Vector3(11.4, 1.285, 6.07)`. Don't inherit it.
-- [ ] Replace `flags_unshaded` (deprecated alias in 4.7) where it appears
-- [ ] Write our own thin `LevelBuilder` — take only `build_rooms()`/`build_doors()` and the grid
-      helpers from `V1/LevelManager.gd`. Do NOT port that file: ~300 of its 453 lines are the 2025
-      day-loop, puzzles, HUD and audio, including `hud_node = current.get_child(2)`.
-- [ ] Code-first API goal: build a room in a few lines, e.g.
-      `builder.add_room(Rect2i(0, 0, 8, 6), {height = 3.0, wall_color = ...})`
-- [ ] Skip `V1/LightingSystem.gd` as-is — one OmniLight3D **per floor tile** is a GL-compatibility
-      hack (hundreds of lights on a 50×50 level). Write something appropriate for our renderer,
-      and wire the lights to step 10 rather than hardcoding white.
-- [ ] **Leave behind:** `ItemManager.gd` (hardcodes 24 office props + their .blend models),
-      `Puzzles/`, `items/`, `Models/`, `AudioController`, `GameTypes`
-- [ ] Test: headless — build a known room, assert floor/ceiling/wall counts, wall segments split
-      around a door, and that room bounds match the requested Rect2i
+- [ ] Doorways currently cut an opening with a lintel; actual sliding doors (or just a frame mesh)
+      are dressing for later
+- [ ] Rooms must not overlap — the builder doesn't check. Fine for a hand-authored ship.
+- [ ] Copy `smoke_room_builder.gd`'s **watchdog** into the other async tests: a script error inside
+      an awaited coroutine silently hangs the test instead of failing it
 
 ## 10. Lighting modes
 
