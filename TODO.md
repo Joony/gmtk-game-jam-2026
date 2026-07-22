@@ -267,8 +267,24 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 
 ### Follow-ups (not blocking)
 
-- [ ] Doorways currently cut an opening with a lintel; actual sliding doors (or just a frame mesh)
-      are dressing for later
+- [ ] **Sliding doors** — 2025 had proper ones that slid apart as you approached, and they're
+      worth bringing over. Source: `/Users/joony/gmtk-game-jam-2025/V1/DoorManager.gd` (307 lines,
+      but only ~120 matter). Per doorway:
+  - two panels either side of the opening, each sized `width/2`, slid apart by `width * 0.6`
+    on a 0.4s `TRANS_SINE / EASE_OUT` tween (`animate_door_open`, `close_door`)
+  - an `Area3D` across the opening drives open/close on body enter/exit
+  - metallic "Star Trek" material (`albedo 0.7,0.7,0.8`, `metallic 0.2`, `roughness 0.3`)
+  - `door_opened` / `door_closed` signals
+  - **Upgrade on port:** use `AnimatableBody3D`, not 2025's `StaticBody3D`. Moving a StaticBody3D
+    doesn't push or properly collide with the player — it can clip or trap you mid-slide.
+  - **Leave behind:** `create_door_control_panel` (already commented out in 2025),
+    `is_player_near_door`'s manual distance check (the Area3D supersedes it), `player_node`
+    coupling, and its `grid_boundary_to_world` (our convention differs — see step 9)
+  - RoomBuilder already knows each opening's position, axis, width and room height, so it can
+    build the panels where it currently leaves a gap
+  - **Ties into step 12d:** a door that *won't* open is an obvious, cheap repair archetype —
+    reuses the interaction system with no new mechanics, and a jammed door between the pod and a
+    malfunction directly taxes the oxygen budget
 - [ ] Rooms must not overlap — the builder doesn't check. Fine for a hand-authored ship.
 - [x] ~~Gap above the join when a shorter room meets a taller one~~ — fixed: wall coverage is
       tracked in height as well as along the line, so the taller room fills the band above its
