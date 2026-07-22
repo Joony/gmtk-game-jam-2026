@@ -11,3 +11,5 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | Game scene (step 3): floor, light, crates, spawn point | Done, verified | [game-scene.md](features/game-scene.md) |
 | 2026-07-22 | Player controller (step 4): FPS movement + camera, ported from Doortal | Done, verified | [player-controller.md](features/player-controller.md) |
 | 2026-07-22 | Pause menu (step 5): Esc pauses + releases cursor, Quit to Menu | Done, verified | [pause-menu.md](features/pause-menu.md) |
+| 2026-07-22 | Full loop verification (step 6): two round-trips, no leaks | Done, verified | [loop-verification.md](features/loop-verification.md) |
+| 2026-07-22 | Web export (step 7): preset + audit | ⚠️ Blocked on 4.7.1 export templates | [web-export.md](features/web-export.md) |

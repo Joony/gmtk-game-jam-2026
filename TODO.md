@@ -171,29 +171,33 @@ more than action. Get this right before anything else in step 12:
 - [x] Esc is inert in the intro/main menu (the pause menu only exists in the game scene) — asserted
 - [x] Emits `paused` / `resumed` signals — step 12's oxygen countdown must not drain while paused
 
-## 6. Verify the loop
-
-Most of this is already covered piecewise by the step 2–5 suites (intro→menu, menu→game,
-game→Esc→Quit to Menu→menu, cursor state at each stage). What's left is proving it end-to-end in
-one run, and that going round *twice* leaks nothing.
+## 6. ✅ Verify the loop — done ([log](docs/features/loop-verification.md))
 
 - [x] Intro → Main Menu (intro suite) — auto-advance and skip
 - [x] Main Menu → Play → Game (main menu suite)
 - [x] Game → Esc → Quit to Menu → Main Menu (pause menu suite)
 - [x] Mouse capture correct at every stage (verified windowed)
-- [ ] One test that walks the whole loop **twice** in a single run, asserting no orphaned nodes,
-      no leaked players, and that the second Play behaves identically to the first
-- [ ] ~~Quit button exits cleanly~~ — no Quit button (step 2)
+- [x] `tests/smoke_full_loop.gd` walks the whole loop **twice** in one run — node count and orphan
+      count identical between rounds (12/0 → 12/0), no player instances left alive, tree unpaused
+- [x] ~~Quit button exits cleanly~~ — no Quit button (step 2)
 
-## 7. Web export smoke test
+## 7. ⚠️ Web export — BLOCKED on export templates ([log](docs/features/web-export.md))
 
-Deliberately early. Leaving this to jam-day is how you find out at hour 46 that the export is
-broken. ~20 minutes against the trivial shell, and it de-risks submission entirely. Matters more
-than usual here because the renderer choice (step 4) interacts with it.
-
-- [ ] Web export preset for itch.io, exported and actually loaded in a browser
-- [ ] Confirm the Quit button is hidden on web
-- [ ] Note any renderer/shader constraints this imposes before step 10 and 11 build on them
+- [x] Web export preset for itch.io (`export_presets.cfg`, no-threads, adaptive canvas,
+      tests/docs excluded); `/build/` gitignored
+- [x] Compatibility audit: renderer is already `gl_compatibility` (correct for web); no threads or
+      platform-specific APIs in game code
+- [x] ~~Confirm the Quit button is hidden on web~~ — there is no Quit button (step 2)
+- [ ] **BLOCKER: install Godot 4.7.1 export templates.** Only 4.0.3 / 4.2.1 / 4.4.1 are present in
+      `~/Library/Application Support/Godot/export_templates/`. Editor → Manage Export Templates →
+      Download and Install. Then:
+      `godot --headless --path . --export-release "Web" build/web/index.html`
+- [ ] Export and actually load it in a browser
+- [ ] **Verify pointer lock on web.** `game.gd` captures the mouse in `_ready()`; browsers only
+      grant pointer lock inside a user-gesture handler, so the player may land with a free cursor
+      and no mouse look. If it fails, add click-to-capture in the game scene (capture on first
+      click when not paused). Not implemented yet — unverifiable without a working export.
+- [ ] Re-check when step 13 adds audio: browsers also block audio until a user gesture
 
 ---
 
