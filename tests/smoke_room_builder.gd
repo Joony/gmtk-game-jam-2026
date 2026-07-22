@@ -264,6 +264,12 @@ func _run() -> void:
 		return
 	_check("door has two panels", door.get_node_or_null("Panel_0") != null and door.get_node_or_null("Panel_1") != null)
 	_check("door has a proximity trigger", door.get_node_or_null("Trigger") != null)
+
+	# Doors must stay matte. Under GL Compatibility there is no reflection probe or sky,
+	# so a metallic/glossy panel falls back to hard specular off the omnis and streaks.
+	var door_mat: StandardMaterial3D = door.get_node("Panel_0/Mesh").material_override
+	_check("door material is not metallic (%.2f)" % door_mat.metallic, door_mat.metallic <= 0.01)
+	_check("door material is rough, not glossy (%.2f)" % door_mat.roughness, door_mat.roughness >= 0.6)
 	_check("panels are AnimatableBody3D (they must sweep, not clip)", door.get_node("Panel_0") is AnimatableBody3D)
 	_check("door starts closed", not door.is_open)
 

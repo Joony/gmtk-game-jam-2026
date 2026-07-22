@@ -50,6 +50,12 @@ const GROUP_LIGHT_PANEL := &"room_light_panels"
 @export var door_thickness: float = 0.08
 ## Sliver of each door panel left showing when fully open — see SlidingDoor.open_reveal.
 @export var door_open_reveal: float = 0.06
+## Doors read as distinct by being LIGHTER than the walls, not by being shiny. Under GL
+## Compatibility there is no reflection probe or sky for a metallic surface to reflect,
+## so metallic/low-roughness materials fall back to hard specular off the omni lights —
+## which showed up as odd bright streaks sliding across the panels.
+@export var door_color: Color = Color(0.66, 0.69, 0.74)
+@export var door_roughness: float = 0.85
 @export var build_lights: bool = true
 ## Sliding door panels in each opening. Turn off to test the raw wall gap.
 @export var build_doors: bool = true
@@ -148,9 +154,9 @@ func _door_material() -> StandardMaterial3D:
 	if _materials.has("door"):
 		return _materials["door"]
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.70, 0.72, 0.78)
-	material.metallic = 0.35
-	material.roughness = 0.3
+	material.albedo_color = door_color
+	material.metallic = 0.0
+	material.roughness = door_roughness
 	_materials["door"] = material
 	return material
 

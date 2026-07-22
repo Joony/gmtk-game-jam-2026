@@ -17,7 +17,7 @@ Two panels that slide apart as the player approaches, ported from GMTK 2025's
   as a plain hole; leaving a sliver keeps it legible as a door.
 - an **`Area3D` across the opening** (reaching `door_approach` = 1.6m either side) drives open on
   enter and close on exit
-- the metallic look from 2025 (`albedo 0.70,0.72,0.78`, `metallic 0.35`, `roughness 0.3`)
+- a **matte** finish — see below; 2025's metallic look does not survive this renderer
 - `opened` / `closed` signals
 
 Of the original 307 lines, roughly 120 mattered. Left behind: `create_door_control_panel` (already
@@ -54,6 +54,22 @@ Two seams removed, both by making surfaces never share a plane:
 Both are asserted in the test (`panel depth < wall_thickness`, `panel height > doorway_height`),
 because they are geometric invariants: a still screenshot cannot prove flicker is absent, but
 "no two surfaces share a plane" can be checked exactly.
+
+## Matte, not metallic (2026-07-23)
+
+Reported in play: the doors were too glossy with weird reflections. 2025's material was
+`metallic 0.2, roughness 0.3`, and I had ported it as `metallic 0.35, roughness 0.3`.
+
+Under **GL Compatibility there is no reflection probe and no sky**, so a metallic, low-roughness
+surface has nothing to reflect. It falls back to hard specular off the omni fixtures, which slid
+across the panels as bright streaks — especially visible on the slivers left showing in an open
+doorway.
+
+Doors are now `metallic 0.0`, `roughness 0.85`, and read as distinct by being **lighter than the
+walls** (`albedo 0.66, 0.69, 0.74`) rather than shinier. That is the right approach for a flat-lit
+interior anyway — see [flat-lighting.md](flat-lighting.md). Both values are exported
+(`door_color`, `door_roughness`) and asserted in the test, since this is the second gloss-related
+regression risk in this area.
 
 ## `jammed`
 
