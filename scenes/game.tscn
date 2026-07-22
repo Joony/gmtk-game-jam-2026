@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+; Placeholder — step 3 adds the floor, lighting and player spawn point.
+
+[node name="Game" type="Node3D"]
+
+[node name="PlaceholderUI" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="PlaceholderUI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Game scene (stub)"
+horizontal_alignment = 1
+vertical_alignment = 1

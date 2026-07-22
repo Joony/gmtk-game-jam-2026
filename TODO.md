@@ -106,23 +106,25 @@ more than action. Get this right before anything else in step 12:
 - [ ] Carry system (step 8c) is confirmed needed — fetching a part to a broken panel is the repair
       loop, and it makes distance cost double (go get it, carry it back).
 
-## 2. Main menu
+## 2. ✅ Main menu — done ([log](docs/features/main-menu.md))
 
-~30 minutes, and step 6 can't close without it.
-
-- [ ] `scenes/main_menu.tscn` — Control-based UI
-  - [ ] Title label
-  - [ ] **Play** button → `SceneManager.change_scene("res://scenes/game.tscn")`
-  - [ ] **Options** button (stub for now — volume slider later if time allows)
-  - [ ] **Quit** button → `get_tree().quit()` (hide on web export — `OS.has_feature("web")`)
-- [ ] Keyboard/gamepad navigation: set initial focus with `grab_focus()`
+- [x] `scenes/main_menu.tscn` — Control-based UI
+  - [x] Title label (`STASIS` — **placeholder, needs a real name**)
+  - [x] **Play** button → `SceneManager.change_scene("res://scenes/game.tscn")`
+  - [x] ~~Options button~~ — deferred to step 13, where the volume slider it opens lives
+  - [x] ~~Quit button~~ — not required (also removes the web-export special case)
+- [x] Keyboard/gamepad navigation: set initial focus with `grab_focus()`
+- [x] Cursor set visible on entry (the game will capture it in steps 4–5)
+- [ ] Name the game and replace the placeholder title
 
 ## 3. Game scene (bare stub)
 
 Just enough for the Play button to land somewhere. The player arrives in step 4, the pause menu
 in step 5.
 
-- [ ] `scenes/game.tscn` — flat floor + a light, enough to stand on until step 9
+- [x] `scenes/game.tscn` exists as a placeholder (Node3D + label), created during step 2 so Play
+      could be proven end-to-end
+- [ ] Flat floor + a light, enough to stand on until step 9
 - [ ] Spawn point marker for the player
 - [ ] **Dev convenience:** a way to boot straight into this scene while working — the 11s intro
       countdown gets old fast when relaunching. Temporarily repoint `run/main_scene`, or add a
@@ -479,7 +481,8 @@ Only worth doing on 2–3 problems, not every one. Ranked by implementation cost
 ## 13. Polish / remaining
 
 - [ ] Audio: menu music, button click SFX (AudioController pattern from 2025 project)
-- [ ] Options menu: master volume slider
+- [ ] Options menu: master volume slider, plus the **Options button** on the main menu that opens
+      it (deliberately deferred from step 2 — no button until there's something behind it)
 - [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown
       becomes the pod's revival cycle (klaxon, lid opening) instead of a title card
 - [ ] Re-run the web export from step 7 with the finished game before submitting
