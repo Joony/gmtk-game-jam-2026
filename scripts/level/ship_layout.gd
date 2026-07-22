@@ -21,7 +21,7 @@ func build_ship() -> void:
 		"height": 3.0,
 		"floor_color": Color(0.28, 0.30, 0.34),
 		"wall_color": Color(0.50, 0.53, 0.58),
-		"ceiling_color": Color(0.22, 0.24, 0.28),
+		"ceiling_color": Color(0.44, 0.46, 0.50),
 	})
 
 	# Spine corridor. Narrow and lower, so the walk between systems reads as a cost.
@@ -30,7 +30,7 @@ func build_ship() -> void:
 		"height": 2.6,
 		"floor_color": Color(0.24, 0.26, 0.29),
 		"wall_color": Color(0.42, 0.45, 0.50),
-		"ceiling_color": Color(0.18, 0.20, 0.23),
+		"ceiling_color": Color(0.38, 0.40, 0.44),
 	})
 
 	# Engine room — taller, further away, where the expensive repairs will live.
@@ -39,7 +39,7 @@ func build_ship() -> void:
 		"height": 4.0,
 		"floor_color": Color(0.26, 0.24, 0.22),
 		"wall_color": Color(0.46, 0.42, 0.38),
-		"ceiling_color": Color(0.18, 0.17, 0.16),
+		"ceiling_color": Color(0.38, 0.36, 0.34),
 	})
 
 	add_doorway(Vector2(0.5, -4), Doorway.Axis.X, 1.8)

@@ -11,10 +11,10 @@
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
-background_color = Color(0.05, 0.06, 0.09, 1)
+background_color = Color(0.1, 0.11, 0.13, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.5, 0.55, 0.65, 1)
-ambient_light_energy = 0.35
+ambient_light_color = Color(0.62, 0.66, 0.72, 1)
+ambient_light_energy = 0.45
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_socket"]
 size = Vector3(0.8, 1.2, 0.3)
@@ -33,11 +33,6 @@ environment = SubResource("Environment_game")
 
 [node name="Ship" type="Node3D" parent="."]
 script = ExtResource("8_ship")
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.86, -0.25, 0.44, 0, 0.87, 0.49, -0.51, -0.42, 0.75, 0, 12, 0)
-light_energy = 0.9
-shadow_enabled = true
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 4)

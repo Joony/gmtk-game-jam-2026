@@ -34,6 +34,7 @@ const GROUP_CEILING := &"room_ceiling"
 const GROUP_WALL := &"room_wall"
 const GROUP_LIGHT := &"room_lights"
 const GROUP_DOOR := &"room_door"
+const GROUP_LIGHT_PANEL := &"room_light_panels"
 
 @export var tile_size: float = 1.0
 @export var wall_thickness: float = 0.15
@@ -47,8 +48,15 @@ const GROUP_DOOR := &"room_door"
 ## How far from an opening the player has to be for its door to slide apart.
 @export var door_approach: float = 1.6
 ## Fallback light colour. Step 10's LightingController drives these once it exists.
-@export var light_color: Color = Color(1.0, 0.97, 0.92)
-@export var light_energy: float = 1.4
+@export var light_color: Color = Color(0.95, 0.96, 1.0)
+@export var light_energy: float = 1.6
+## Roughly how far apart ceiling fixtures sit. A GRID of shadowless omnis is what
+## gives the flat, evenly-lit interior look — one lamp per room leaves a hotspot in
+## the middle and dark corners.
+@export var light_spacing: float = 5.0
+@export var light_range: float = 9.0
+## Emissive housings under each fixture, so the lights are visibly the source.
+@export var build_light_panels: bool = true
 
 var rooms: Array[Room] = []
 var doorways: Array[Doorway] = []
@@ -170,17 +178,61 @@ func _build_ceiling(room: Room) -> void:
 
 
 func _build_light(room: Room) -> void:
-	var light := OmniLight3D.new()
-	light.name = "Light_%s" % room.id
-	var centre := grid_to_world(room.center().x, room.center().y)
-	light.position = Vector3(centre.x, room.height - 0.4, centre.y)
-	var span: float = maxf(room.rect.size.x, room.rect.size.y) * tile_size
-	light.omni_range = span * 1.1
-	light.light_color = light_color
-	light.light_energy = light_energy
-	light.shadow_enabled = false
-	light.add_to_group(GROUP_LIGHT)
-	_built_root.add_child(light)
+	# Grid of shadowless omnis across the ceiling. Both reference projects landed here:
+	# Doortal ADR 0010 ("all lights are shadowless for an even, flat test-chamber look",
+	# a 2x2 grid in a 12x12 room) and GMTK 2025 (shadowless omnis + emissive panels).
+	var width := room.rect.size.x * tile_size
+	var depth := room.rect.size.y * tile_size
+	var cols := maxi(1, int(round(width / light_spacing)))
+	var rows := maxi(1, int(round(depth / light_spacing)))
+
+	for i in cols:
+		for j in rows:
+			var u := (i + 0.5) / float(cols)
+			var v := (j + 0.5) / float(rows)
+			var grid_x: float = room.rect.position.x + u * room.rect.size.x
+			var grid_y: float = room.rect.position.y + v * room.rect.size.y
+			var at := grid_to_world(grid_x, grid_y)
+
+			var light := OmniLight3D.new()
+			light.name = "Light_%s_%d_%d" % [room.id, i, j]
+			light.position = Vector3(at.x, room.height - 0.25, at.y)
+			light.omni_range = light_range
+			light.light_color = light_color
+			light.light_energy = light_energy
+			# Shadowless on purpose: shadows are what make interior lighting read as
+			# dramatic rather than flat, and they are expensive under GL Compatibility.
+			light.shadow_enabled = false
+			light.add_to_group(GROUP_LIGHT)
+			_built_root.add_child(light)
+
+			if build_light_panels:
+				_build_light_panel(room, at)
+
+
+func _build_light_panel(room: Room, at: Vector2) -> void:
+	var panel := MeshInstance3D.new()
+	panel.name = "LightPanel_%s_%.1f_%.1f" % [room.id, at.x, at.y]
+	var box := BoxMesh.new()
+	box.size = Vector3(0.9, 0.06, 0.9)
+	panel.mesh = box
+	panel.position = Vector3(at.x, room.height - 0.05, at.y)
+	panel.material_override = _panel_material()
+	panel.add_to_group(GROUP_LIGHT_PANEL)
+	_built_root.add_child(panel)
+
+
+func _panel_material() -> StandardMaterial3D:
+	if _materials.has("light_panel"):
+		return _materials["light_panel"]
+	var material := StandardMaterial3D.new()
+	material.albedo_color = light_color
+	material.emission_enabled = true
+	material.emission = light_color
+	material.emission_energy_multiplier = 1.6
+	material.roughness = 1.0
+	_materials["light_panel"] = material
+	return material
 
 
 # --- walls ------------------------------------------------------------------
