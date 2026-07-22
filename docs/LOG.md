@@ -8,3 +8,5 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-22 | SceneManager autoload (fade transitions, re-entrancy guard) | Done, verified | [scene-manager.md](features/scene-manager.md) |
 | 2026-07-22 | Intro: 10→0 red countdown on black, skip button | Done, verified | [intro.md](features/intro.md) |
 | 2026-07-22 | Main menu (step 2): title + Play, no Quit | Done, verified | [main-menu.md](features/main-menu.md) |
+| 2026-07-22 | Game scene (step 3): floor, light, crates, spawn point | Done, verified | [game-scene.md](features/game-scene.md) |
+| 2026-07-22 | Player controller (step 4): FPS movement + camera, ported from Doortal | Done, verified | [player-controller.md](features/player-controller.md) |

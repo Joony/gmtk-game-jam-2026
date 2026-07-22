@@ -117,54 +117,48 @@ more than action. Get this right before anything else in step 12:
 - [x] Cursor set visible on entry (the game will capture it in steps 4–5)
 - [ ] Name the game and replace the placeholder title
 
-## 3. Game scene (bare stub)
+## 3. ✅ Game scene — done ([log](docs/features/game-scene.md))
 
-Just enough for the Play button to land somewhere. The player arrives in step 4, the pause menu
-in step 5.
+- [x] `scenes/game.tscn` — 40×40 floor, directional light + environment, three crate landmarks
+- [x] Spawn point marker for the player, applied in `game.gd._ready()`
+- [x] **Dev convenience:** `godot --path . scenes/game.tscn` boots straight in, skipping the intro.
+      No debug flag needed — Godot takes a scene path directly.
 
-- [x] `scenes/game.tscn` exists as a placeholder (Node3D + label), created during step 2 so Play
-      could be proven end-to-end
-- [ ] Flat floor + a light, enough to stand on until step 9
-- [ ] Spawn point marker for the player
-- [ ] **Dev convenience:** a way to boot straight into this scene while working — the 11s intro
-      countdown gets old fast when relaunching. Temporarily repoint `run/main_scene`, or add a
-      debug flag.
+## 4. ✅ Player controller — done ([log](docs/features/player-controller.md))
 
-## 4. Player controller (port from Doortal)
-
-Source: `/Users/joony/Games/doortal`. Only two files matter — `scripts/Player.gd` (66 lines,
-Source/Quake-style ground friction + air-strafe) and `scripts/CameraController.gd` (84 lines,
-first-person mouse look). No autoloads, no addons, no signals — a clean lift.
-
-Do this *before* the pause menu: the two share the mouse-capture state machine, and building the
-menu first means writing cursor handling twice.
-
-- [ ] Copy `Player.gd` + `CameraController.gd` into `scripts/player/`
-  - [ ] Strip the portal-only methods from CameraController: `resync_now()`, `adopt_body_yaw()`
-  - [ ] Keep `event.screen_relative` (NOT `relative`) — required under our `canvas_items` stretch mode
-- [ ] Build `scenes/player.tscn` — Doortal has **no player scene**; the rig is inline in `test.tscn`
-      lines 206–241. Open that scene and use "Save Branch as Scene" rather than rebuilding by hand.
-  - [ ] Required tree: `Player(CharacterBody3D)` → `CameraAnchor(Marker3D)`, `CameraRig(Node3D)` →
-        `Camera3D`. CameraRig must keep `top_level = true` and `physics_interpolation_mode = Off`.
-  - [ ] Swap the imported 41-point ConvexPolygonShape3D for a plain CapsuleShape3D
-  - [ ] Drop `collision_layer = 32769` (layer 16 was Doortal's "Teleportable") — use layer 1
-- [ ] Add input actions: `forward`, `back`, `left`, `right`, `jump` (we only define `pause` today)
-- [ ] Enable `physics/common/physics_interpolation = true` — **silent prerequisite**, the camera's
-      `get_global_transform_interpolated()` design assumes it. Without it the camera just feels
-      subtly wrong with no error to chase.
-- [ ] Decide renderer: Doortal is Forward+, we're on GL Compatibility. Movement code doesn't care,
-      but pick deliberately before building lighting on top of it (step 10).
-- [ ] Strip CameraController's own Esc handling (`ui_cancel` → release mouse) and its click-to-
-      capture. The pause menu owns Esc and all mouse-capture state — see step 5.
-- [ ] Instance `scenes/player.tscn` into `scenes/game.tscn` at the spawn marker
-  - [ ] Capture the mouse on game start
-- [ ] **Leave behind:** `Carry.gd` (755-line portal god-script), `PortalTeleportFixup.gd`,
-      `PickableObject.gd`, `player_old.gd`. Object pickup is step 8, which builds on this.
-- [ ] Test: headless movement test (Doortal has one at `scripts/tests/movement_test.gd` to crib from)
-      — accelerate/friction static funcs, plus gravity and floor contact over N physics frames
+- [x] Copy `Player.gd` + `CameraController.gd` into `scripts/player/`
+  - [x] Strip the portal-only `resync_now()` (kept `adopt_body_yaw()` — it isn't portal-specific)
+  - [x] Keep `event.screen_relative` (NOT `relative`) — required under our `canvas_items` stretch mode
+- [x] Build `scenes/player.tscn` — rebuilt the rig that was inline in Doortal's `test.tscn`
+  - [x] `Player(CharacterBody3D)` → `CameraAnchor`, `CameraRig(top_level, interpolation Off)` →
+        `Camera3D` → `HoldPoint`
+  - [x] Swapped the 41-point ConvexPolygonShape3D for a CapsuleShape3D (r=0.4, h=1.8)
+  - [x] `collision_layer = 1`
+- [x] Input actions `forward`, `back`, `left`, `right` (WASD + arrows), `jump` (Space), by
+      physical keycode
+- [x] Enabled `physics/common/physics_interpolation = true` (asserted in the test, since a
+      regression here is silent)
+- [x] **Renderer decided: stay on GL Compatibility.** Doortal's ADR 0024 switched to Forward+ purely
+      for portal SubViewport quality; we have no portals, and web export (step 7) requires GL
+      Compatibility because Forward+ on the web needs WebGPU.
+- [x] Stripped CameraController's own mouse capture — the pause menu (step 5) owns cursor state
+- [x] Instanced into `scenes/game.tscn` at the spawn marker, mouse captured on game start
+- [x] **Left behind:** `Carry.gd`, `PortalTeleportFixup.gd`, `PickableObject.gd`, `player_old.gd`
+- [x] Test: pure movement maths, project settings, scene contract, live physics (spawn/fall/land/
+      walk/stop), and mouse look with pitch clamping
+- [ ] Tune once there are real rooms: `floor_snap_length` may need reducing so bunny-hops aren't
+      snapped back to the floor (carried over from Doortal's note)
 
 ## 5. In-game pause menu
 
+> **Testing note:** cursor capture doesn't work under `--headless`, so anything cursor-related must
+> be verified windowed:
+> `godot --path . --resolution 640x360 --position 3000,3000 -s tests/<test>.gd`
+> The headless run *skips* those checks (it says so) rather than failing, so a headless-only pass
+> does not prove cursor behaviour.
+
+- [ ] `game.gd.capture_mouse()` already exists — the pause menu should call it on resume rather
+      than setting the mouse mode itself, keeping one owner of capture state
 - [ ] `ui/pause_menu.tscn` — CanvasLayer, hidden by default
   - [ ] Set pause menu's `process_mode` to `Always` so it works while paused
   - [ ] **Resume** button (also Esc again)
