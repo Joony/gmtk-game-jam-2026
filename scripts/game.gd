@@ -60,8 +60,14 @@ func _ready() -> void:
 	_readout.bind(_motion)
 	# The cursor is visible while paused, so the reticle would be a second,
 	# misleading pointer.
-	_pause_menu.paused.connect(func() -> void: _reticle.visible = false)
-	_pause_menu.resumed.connect(func() -> void: _reticle.visible = true)
+	# Pausing the SceneTree does NOT pause audio in Godot — streams carry on regardless — so
+	# the klaxon and the music kept going over the pause menu until this was explicit.
+	_pause_menu.paused.connect(func() -> void:
+		_reticle.visible = false
+		Audio.set_paused(true))
+	_pause_menu.resumed.connect(func() -> void:
+		_reticle.visible = true
+		Audio.set_paused(false))
 
 	_pod.interacted_with.connect(_on_pod_used)
 	_run.stasis_changed.connect(_on_stasis_changed)
@@ -84,13 +90,13 @@ func _ready() -> void:
 ## and RunState already emits the events, so this is purely connections — none of the systems
 ## below had to learn that audio exists.
 func _wire_audio() -> void:
+	# The IMPACT is an event — a one-shot on the frame the fault fires. The KLAXON is not;
+	# it belongs to the fault's whole lifetime and is driven from state below.
 	_run.alarm.connect(func(malfunction: Malfunction, _patch_failure: bool) -> void:
-		Audio.alarm(malfunction.severity == Malfunction.Severity.CRITICAL))
-	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_music())
-	_run.systems_changed.connect(_update_music)
-	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void:
-		Audio.set_breathing(0.0)
-		Audio.stop_music())
+		Audio.impact(malfunction.severity == Malfunction.Severity.CRITICAL))
+	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_ship_audio())
+	_run.systems_changed.connect(_update_ship_audio)
+	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void: Audio.stop_all())
 	_run.oxygen_changed.connect(_on_oxygen_for_audio)
 
 	# The repair sounds are per-fault, and they are the ones that matter most: the ratchet
@@ -121,19 +127,25 @@ func _wire_audio() -> void:
 	_pod.entered.connect(func() -> void: Audio.play_at(&"plug", _pod.global_position, -2.0))
 
 
-## Music follows the ship's state: stasis wins over everything, then any CRITICAL fault,
-## then normal. Driven off signals that already existed rather than polled.
-func _update_music() -> void:
+## Music AND klaxon follow the ship's state: stasis wins over everything, then any CRITICAL
+## fault, then normal. Driven off signals that already existed rather than polled — and both
+## from the same function, so the alarm and the score can never disagree about the situation.
+func _update_ship_audio() -> void:
 	if _run.finished:
 		return
 	if _run.in_stasis:
+		# Sealed in the pod. An alarm loud enough to wake you has already done its job.
+		Audio.set_alarm(false)
 		Audio.play_music(Audio.Music.STASIS)
 		return
+
+	var critical := false
 	for malfunction in _run.malfunctions():
 		if malfunction.is_critical():
-			Audio.play_music(Audio.Music.PANIC)
-			return
-	Audio.play_music(Audio.Music.NORMAL)
+			critical = true
+			break
+	Audio.set_alarm(critical)
+	Audio.play_music(Audio.Music.PANIC if critical else Audio.Music.NORMAL)
 
 
 ## Breathing starts at the same threshold the HUD's vignette does, so the two escalate
@@ -170,13 +182,21 @@ func start_game() -> void:
 	_pause_menu.enabled = true
 	# Only now does either countdown begin — neither should run down behind the prompt.
 	_run.start()
-	Audio.play_music(Audio.Music.NORMAL)
+	Audio.set_paused(false)
+	_update_ship_audio()
 	capture_mouse()
 	started.emit()
 
 
 func capture_mouse() -> void:
 	MouseCapture.capture()
+
+
+## The Audio autoload outlives this scene, so anything still playing would follow the player
+## out to the main menu. Covers every exit: Quit to Menu, the end-of-run summary, and any
+## future path out of the game.
+func _exit_tree() -> void:
+	Audio.stop_all()
 
 
 func _unhandled_input(event: InputEvent) -> void:

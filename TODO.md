@@ -548,7 +548,22 @@ them to disk with `tests/forge_sounds.gd` to listen.
 - [x] **Door sounds** from GMTK 2025's `Sounds/` folder, where they were sitting unused —
       nothing in that project ever played them. 0.81s each, 34 KB the pair.
 
+- [x] **The klaxon is state-driven, not event-driven.** It has its own player and is on
+      exactly while a critical fault is unrepaired — so repairing it, pausing, entering the
+      pod, ending the run and leaving the scene all silence it without knowing it exists.
+- [x] `Audio.set_paused()` on the pause menu, `Audio.stop_all()` on `Game._exit_tree()`.
+      **Pausing the SceneTree does NOT pause audio in Godot** — streams carry on regardless.
+
 #### Audio follow-ups
+
+- [ ] A looping klaxon runs for as long as the fault does, which may prove maddening over a
+      long walk to the engine room. If so it is a volume or duration tweak, not a redesign.
+- [ ] Godot silently refuses to store `stream_paused` on a player with **no stream**, so the
+      music's pause behaviour is untestable until the tracks exist. Verified directly; the
+      music goes through the same `set_paused()` loop and will pause once there is a stream.
+- [ ] **A GDScript parse error makes a test exit 0**, i.e. a broken test reports success.
+      The regression sweep now greps for `Parse Error` and a summary line as well as the
+      exit code. Worth folding into a single runner script.
 
 - [ ] **The three music tracks.** Everything else is done and waiting; drop the `.ogg`s into
       `assets/audio/` (see the README there) and they start working with no code change.

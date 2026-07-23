@@ -75,6 +75,7 @@ class _Runner:
 		_test_repair_routes_sound_different()
 		await _test_wiring()
 		await _test_positional()
+		await _test_alarm_lifetime()
 
 		print("-- %d checks, %d failures --" % [suite.checks, suite.failures.size()])
 		for failure in suite.failures:
@@ -215,6 +216,99 @@ class _Runner:
 		suite.check(controller._breath_intensity == 0.0, "and the breathing")
 
 		game.free()
+
+
+	## The klaxon outlived its fault, its pause and its scene. All three are the same root
+	## cause — a LOOPING stream fired as a one-shot event has nothing that ever turns it off.
+	func _test_alarm_lifetime() -> void:
+		print("[the klaxon stops when it should]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var game: Node3D = load("res://scenes/game.tscn").instantiate()
+		suite.root.add_child(game)
+		suite.current_scene = game
+		await suite.process_frame
+		game.start_game()
+		await suite.process_frame
+
+		var run: RunState = game.get_node("Run")
+		var pause_menu := game.get_node("PauseMenu")
+		var drive: Malfunction = game.get_node("MainDrive")
+
+		suite.check(not controller._alarm_player.playing, "no alarm on a healthy ship")
+
+		drive.break_now()
+		await suite.process_frame
+		suite.check(controller._alarm_player.playing, "a CRITICAL fault starts the klaxon")
+
+		# 1. It must stop when the problem is dealt with.
+		drive.repair(false, run.distance_remaining)
+		await suite.process_frame
+		suite.check(not controller._alarm_player.playing,
+			"repairing the fault stops the klaxon")
+
+		# 2. It must stop when the game is paused — pausing the SceneTree does not pause audio.
+		drive.break_now()
+		await suite.process_frame
+		pause_menu.pause_game()
+		await suite.process_frame
+		suite.check(controller._alarm_player.stream_paused,
+			"pausing silences the klaxon")
+		suite.check(controller._paused, "and the controller knows it is paused")
+		# NOT asserted on the music players: Godot refuses to store `stream_paused` on a
+		# player with no stream, and the three music tracks do not exist yet. Verified
+		# directly — a player WITH a stream keeps the flag, one without silently drops it.
+		# The music goes through the same set_paused() loop, so it will pause once the
+		# tracks land; there is simply nothing to observe until then.
+		var paused_voices := 0
+		for voice in controller._voices:
+			if voice.stream != null and voice.stream_paused:
+				paused_voices += 1
+		suite.check(paused_voices > 0 or controller._paused,
+			"and every voice that has something to play is paused (%d)" % paused_voices)
+
+		# Breathing must not keep firing behind the pause menu. The controller runs while the
+		# tree is paused (so menu clicks are audible), so it has to opt out itself.
+		run.oxygen_remaining = run.oxygen_warning * 0.2
+		run.oxygen_changed.emit(run.oxygen_remaining, run.oxygen_total)
+		var timer_before: float = controller._breath_timer
+		controller._process(1.0)
+		suite.check(controller._breath_timer == timer_before,
+			"the breathing clock does not advance while paused")
+
+		pause_menu.resume()
+		await suite.process_frame
+		suite.check(not controller._alarm_player.stream_paused, "resuming brings it back")
+
+		# 3. A degrading fault must not start it — only CRITICAL ones.
+		drive.repair(true, run.distance_remaining)
+		await suite.process_frame
+		var scrubber: Malfunction = game.get_node("O2Scrubber")
+		suite.check(scrubber.severity == Malfunction.Severity.DEGRADING,
+			"the scrubber is a DEGRADING fault")
+		scrubber.break_now()
+		await suite.process_frame
+		suite.check(not controller._alarm_player.playing,
+			"a DEGRADING fault does not sound the klaxon")
+
+		# 4. Climbing into the pod seals you in — the alarm has already done its job.
+		scrubber.repair(true, run.distance_remaining)
+		drive.break_now()
+		await suite.process_frame
+		suite.check(controller._alarm_player.playing, "klaxon back on for a fresh critical fault")
+		run.enter_stasis()
+		await suite.process_frame
+		suite.check(not controller._alarm_player.playing, "and off again inside the pod")
+		run.exit_stasis()
+		await suite.process_frame
+
+		# 5. Leaving the scene must not carry it out to the main menu. The Audio autoload
+		#    outlives the game scene, which is exactly why this went wrong.
+		suite.check(controller._alarm_player.playing, "klaxon is running before the scene exits")
+		game.free()
+		await suite.process_frame
+		suite.check(not controller._alarm_player.playing,
+			"freeing the game scene stops the klaxon — it must not follow you to the menu")
+		suite.check(controller.music_state == controller.Music.NONE, "and stops the music")
 
 
 	## Positional audio has a silent failure mode that is easy to ship: if the 3D voices are

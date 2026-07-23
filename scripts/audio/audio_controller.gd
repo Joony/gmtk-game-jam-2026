@@ -65,6 +65,9 @@ var _voices_3d: Array[AudioStreamPlayer3D] = []
 var _next_voice_3d: int = 0
 var _sounds: Dictionary = {}
 
+var _alarm_player: AudioStreamPlayer
+var _paused: bool = false
+
 var _breath_intensity: float = 0.0
 var _breath_timer: float = 0.0
 var _warned_missing: Dictionary = {}
@@ -82,6 +85,10 @@ func _ready() -> void:
 		_voices.append(_make_player(SFX_BUS))
 	for i in SFX_3D_VOICES:
 		_voices_3d.append(_make_player_3d(SFX_BUS))
+	# The klaxon gets its own player, because it is the only sound with a LIFETIME rather
+	# than a moment. Played through the round-robin pool it looped forever and was only ever
+	# silenced by another sound stealing its voice — which is exactly what went wrong.
+	_alarm_player = _make_player(SFX_BUS)
 
 	_forge()
 
@@ -119,6 +126,7 @@ func _forge() -> void:
 		&"tape": SoundForge.tape_tear(),
 		&"breath": SoundForge.breath(),
 	}
+	_alarm_player.stream = _sounds[&"klaxon"]
 	for name in FILE_SOUNDS:
 		var path: String = FILE_SOUNDS[name]
 		if not ResourceLoader.exists(path):
@@ -164,14 +172,25 @@ func play_at(name: StringName, position: Vector3, volume_db: float = 0.0, pitch:
 	player.play()
 
 
-## The alarm: klaxon plus the hull taking it. Two sounds because a fault is an event AND an
-## impact, and the klaxon alone reads as a UI beep.
-func alarm(critical: bool) -> void:
-	if critical:
-		play(&"klaxon")
-		play(&"bump", -3.0)
+## The moment a fault fires: the hull taking it. A one-shot, because an impact IS a moment.
+## The klaxon is deliberately not here — see set_alarm().
+func impact(critical: bool) -> void:
+	play(&"bump" if critical else &"bump_soft", -3.0 if critical else -6.0)
+
+
+## The klaxon, driven by STATE rather than by the event that started it. This is the whole
+## fix for an alarm that outlived its fault: an event-triggered looping sound has nothing to
+## turn it off, so it ran through the repair, through the pause menu and out into the main
+## menu. Now it is on exactly while a critical fault is unrepaired, and every path that ends
+## that condition — repairing it, pausing, entering the pod, ending the run, leaving the
+## scene — silences it without having to know the klaxon exists.
+func set_alarm(active: bool) -> void:
+	if active == _alarm_player.playing:
+		return
+	if active:
+		_alarm_player.play()
 	else:
-		play(&"bump_soft", -6.0)
+		_alarm_player.stop()
 
 
 ## The two repair routes, which must never sound alike — see SoundForge. Positional: you
@@ -194,7 +213,38 @@ func set_breathing(intensity: float) -> void:
 		_breath_timer = 0.0
 
 
+## Silence everything, without forgetting what was playing. Godot keeps streams running when
+## the SceneTree pauses — pausing the tree does not pause audio — so this has to be explicit.
+func set_paused(paused: bool) -> void:
+	if _paused == paused:
+		return
+	_paused = paused
+	for player in _all_players():
+		player.stream_paused = paused
+
+
+## Hard stop. For leaving the game scene entirely, where "resume" is not coming.
+func stop_all() -> void:
+	stop_music()
+	set_alarm(false)
+	set_breathing(0.0)
+	set_paused(false)
+	for player in _all_players():
+		player.stop()
+
+
+func _all_players() -> Array[Node]:
+	var players: Array[Node] = [_music_a, _music_b, _alarm_player]
+	players.append_array(_voices)
+	players.append_array(_voices_3d)
+	return players
+
+
 func _process(delta: float) -> void:
+	# The controller runs while the tree is paused so the pause menu's own click is audible,
+	# which means everything below has to opt out of running while paused itself.
+	if _paused:
+		return
 	_music_since_change += delta
 	# Only ever a queued calm-down; escalations never queue.
 	if _music_pending != Music.NONE and _music_since_change >= MIN_DWELL:
