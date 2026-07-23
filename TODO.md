@@ -498,7 +498,42 @@ look out of.
 
 ## 13. Polish / remaining
 
-- [ ] Audio: menu music, button click SFX (AudioController pattern from 2025 project)
+### Audio
+
+**Music — three tracks, real files.** Not synthesisable; these need composing or sourcing.
+
+- [ ] `normal` — walking the ship, nothing wrong
+- [ ] `panic` — a CRITICAL fault is active
+- [ ] `stasis` — in the pod
+- [ ] Crossfade between them, do not cut. State comes straight off signals that already
+      exist: `RunState.stasis_changed` and `Malfunction.is_critical()` via `systems_changed`.
+      2025's `AudioController.gd` is only a `play_music()`/`stop_music()` pair on a single
+      track, so the crossfading part is from scratch — two `AudioStreamPlayer`s and a tween.
+- [ ] Tracks must loop seamlessly, and the loop points matter more than the composition does
+- [ ] Guard the transition: a fault clearing and re-breaking quickly must not machine-gun the
+      crossfade. Minimum dwell time per state.
+
+**Sound effects — synthesised, already built.** `scripts/audio/sound_forge.gd` generates
+these as `AudioStreamWAV`s at load: no files, no licences, nothing in the web build. Dump
+them to disk with `tests/forge_sounds.gd` to listen.
+
+- [x] `hull_bump(force)` — transient + pitch-swept sub + filtered-noise tail. 74% of its
+      energy is under 200Hz and it decays to 11% by the second half. `force` scales it, so
+      the same generator gives a distant knock and the one that costs you your grip.
+- [x] `klaxon()` — two-tone 466/349Hz with harmonics, loops seamlessly (seam discontinuity
+      0.0003). Fires on a CRITICAL fault.
+- [x] `ratchet()` vs `tape_tear()` — **the two repair routes must never sound alike.** The
+      ratchet is 6 mechanical teeth at 52ms, 63% above 2kHz; the tear is a 98.7% hiss. Doing
+      the job properly should sound like competence and a patch should sound like getting
+      away with something.
+- [x] `click()`, `plug_in()` — a press and a plug seating (the latter has a low thunk under
+      it so it sounds like it went *into* something)
+- [x] `breath()` — for the low-oxygen loop, played faster as the air runs down
+- [ ] Wire them all up: klaxon + bump on `RunState.alarm`, ratchet/tear on `Malfunction.repaired`
+      keyed on `permanent`, click on pickup/drop and menu buttons, breath under `oxygen_warning`
+- [ ] Bus layout: Master → Music / SFX, so the options slider has something to hold onto
+- [ ] Test: every generator returns a non-empty stream that never clips, the klaxon's loop
+      seam is continuous, and the two repair sounds stay spectrally distinct
 - [ ] Options menu: master volume slider, plus the **Options button** on the main menu that opens
       it (deliberately deferred from step 2 — no button until there's something behind it)
 - [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown
