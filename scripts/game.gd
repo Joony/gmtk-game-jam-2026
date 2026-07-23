@@ -94,15 +94,31 @@ func _wire_audio() -> void:
 	_run.oxygen_changed.connect(_on_oxygen_for_audio)
 
 	# The repair sounds are per-fault, and they are the ones that matter most: the ratchet
-	# and the tape are how the player hears which choice they just made.
+	# and the tape are how the player hears which choice they just made. Positional, so a
+	# fault you have not reached yet is quieter than the one under your hands.
 	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
-		(node as Malfunction).repaired.connect(func(_m: Malfunction, permanent: bool) -> void:
-			Audio.repair(permanent))
+		var fault := node as Malfunction
+		fault.repaired.connect(func(m: Malfunction, permanent: bool) -> void:
+			Audio.repair(permanent, m.global_position))
 
-	_carry.picked_up.connect(func(_item: Node3D) -> void: Audio.play(&"click"))
-	_carry.dropped.connect(func(_item: Node3D) -> void: Audio.play(&"click_low", -4.0))
-	_computer.opened.connect(func() -> void: Audio.play(&"click"))
-	_pod.entered.connect(func() -> void: Audio.play(&"plug", -2.0))
+	# Doors are built at runtime by the Ship node, whose _ready() has already run by the time
+	# this does — children are readied before their parent, which is the only reason these
+	# can be connected here rather than through a build callback.
+	for node in get_tree().get_nodes_in_group(RoomBuilder.GROUP_DOOR):
+		var door := node as SlidingDoor
+		if door == null:
+			continue
+		door.opened.connect(func() -> void: Audio.door(true, door.global_position))
+		door.closed.connect(func() -> void: Audio.door(false, door.global_position))
+
+	# Carried items make their noise where the player is, which is close enough to the
+	# camera that positional and non-positional are indistinguishable — but doing it
+	# positionally means a dropped crate sounds like it landed where it landed.
+	_carry.picked_up.connect(func(item: Node3D) -> void: Audio.play_at(&"click", item.global_position))
+	_carry.dropped.connect(func(item: Node3D) -> void:
+		Audio.play_at(&"click_low", item.global_position, -4.0))
+	_computer.opened.connect(func() -> void: Audio.play_at(&"click", _computer.global_position))
+	_pod.entered.connect(func() -> void: Audio.play_at(&"plug", _pod.global_position, -2.0))
 
 
 ## Music follows the ship's state: stasis wins over everything, then any CRITICAL fault,

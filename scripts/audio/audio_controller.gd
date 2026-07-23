@@ -32,6 +32,18 @@ const FADE_TIME := 1.4
 ## to de-escalation ONLY — see play_music().
 const MIN_DWELL := 2.5
 const SFX_VOICES := 8
+## Separate pool for positional sound. Doors are the heavy user — walking the ship opens and
+## shuts several, and each one is two sounds.
+const SFX_3D_VOICES := 8
+## Beyond this a door in the engine room is inaudible from the cryo bay, which is the point.
+const SFX_3D_RANGE := 26.0
+
+## Sounds that are real files rather than synthesised. Doors came from GMTK 2025's `Sounds/`
+## folder, where they were sitting unused — nothing in that project ever played them.
+const FILE_SOUNDS := {
+	&"door_open": "res://assets/audio/sfx/door_open.mp3",
+	&"door_close": "res://assets/audio/sfx/door_close.mp3",
+}
 
 ## Breathing interval at the moment the warning starts, and at zero air. Getting faster is
 ## most of what makes it frightening — the volume barely matters.
@@ -49,6 +61,8 @@ var _music_pending: Music = Music.NONE
 
 var _voices: Array[AudioStreamPlayer] = []
 var _next_voice: int = 0
+var _voices_3d: Array[AudioStreamPlayer3D] = []
+var _next_voice_3d: int = 0
 var _sounds: Dictionary = {}
 
 var _breath_intensity: float = 0.0
@@ -66,6 +80,8 @@ func _ready() -> void:
 	_music_active = _music_a
 	for i in SFX_VOICES:
 		_voices.append(_make_player(SFX_BUS))
+	for i in SFX_3D_VOICES:
+		_voices_3d.append(_make_player_3d(SFX_BUS))
 
 	_forge()
 
@@ -73,6 +89,18 @@ func _ready() -> void:
 func _make_player(bus: StringName) -> AudioStreamPlayer:
 	var player := AudioStreamPlayer.new()
 	player.bus = bus
+	add_child(player)
+	return player
+
+
+func _make_player_3d(bus: StringName) -> AudioStreamPlayer3D:
+	var player := AudioStreamPlayer3D.new()
+	player.bus = bus
+	player.max_distance = SFX_3D_RANGE
+	# Inverse falloff rather than the default: a repair panel should get quieter down a
+	# corridor without vanishing the moment you step through the doorway.
+	player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	player.unit_size = 4.0
 	add_child(player)
 	return player
 
@@ -91,6 +119,12 @@ func _forge() -> void:
 		&"tape": SoundForge.tape_tear(),
 		&"breath": SoundForge.breath(),
 	}
+	for name in FILE_SOUNDS:
+		var path: String = FILE_SOUNDS[name]
+		if not ResourceLoader.exists(path):
+			_warn_once(path, "sound file missing: %s" % path)
+			continue
+		_sounds[name] = load(path)
 
 
 # --- effects ----------------------------------------------------------------------------
@@ -112,6 +146,24 @@ func play(name: StringName, volume_db: float = 0.0, pitch: float = 1.0) -> void:
 	player.play()
 
 
+## Play a named effect AT A POINT IN THE SHIP. Use this for anything with a location — a
+## door, a panel being repaired, a plug going home. The klaxon and the hull bump deliberately
+## do NOT use it: those are the whole ship, not a spot in it, and placing them would make the
+## alarm quieter depending on which way you happened to be facing.
+func play_at(name: StringName, position: Vector3, volume_db: float = 0.0, pitch: float = 1.0) -> void:
+	var stream: AudioStream = _sounds.get(name)
+	if stream == null:
+		_warn_once(name, "no such sound '%s'" % name)
+		return
+	var player := _voices_3d[_next_voice_3d]
+	_next_voice_3d = (_next_voice_3d + 1) % _voices_3d.size()
+	player.global_position = position
+	player.stream = stream
+	player.volume_db = volume_db
+	player.pitch_scale = pitch
+	player.play()
+
+
 ## The alarm: klaxon plus the hull taking it. Two sounds because a fault is an event AND an
 ## impact, and the klaxon alone reads as a UI beep.
 func alarm(critical: bool) -> void:
@@ -122,9 +174,14 @@ func alarm(critical: bool) -> void:
 		play(&"bump_soft", -6.0)
 
 
-## The two repair routes, which must never sound alike — see SoundForge.
-func repair(permanent: bool) -> void:
-	play(&"ratchet" if permanent else &"tape")
+## The two repair routes, which must never sound alike — see SoundForge. Positional: you
+## should be able to hear which panel someone is working on.
+func repair(permanent: bool, position: Vector3) -> void:
+	play_at(&"ratchet" if permanent else &"tape", position)
+
+
+func door(opening: bool, position: Vector3) -> void:
+	play_at(&"door_open" if opening else &"door_close", position, -4.0)
 
 
 # --- low oxygen -------------------------------------------------------------------------

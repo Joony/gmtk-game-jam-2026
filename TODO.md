@@ -539,14 +539,25 @@ them to disk with `tests/forge_sounds.gd` to listen.
       the controller was asked to do, because a signal wired to the wrong name fails silently
       and sounds exactly like a game with no audio.
 
+- [x] **Positional audio.** An 8-voice `AudioStreamPlayer3D` pool with inverse falloff and a
+      26m range, so a door in the engine room is inaudible from the cryo bay. Doors, repairs,
+      pickups, drops and the pod all play *where they happen*.
+- [x] The klaxon and the hull bump deliberately stay **non-positional** — they are the whole
+      ship, and placing them would make the alarm quieter depending on which way the player
+      was facing. There is a test for that, because it is an easy thing to "fix" wrongly.
+- [x] **Door sounds** from GMTK 2025's `Sounds/` folder, where they were sitting unused —
+      nothing in that project ever played them. 0.81s each, 34 KB the pair.
+
 #### Audio follow-ups
 
 - [ ] **The three music tracks.** Everything else is done and waiting; drop the `.ogg`s into
       `assets/audio/` (see the README there) and they start working with no code change.
-- [ ] Repair and door sounds are non-positional. `AudioStreamPlayer3D` would place them in
-      the room, which matters most for the vent pipe you can hear before you can see.
-- [ ] Sliding doors have no sound at all yet
+- [ ] The vent pipe's hiss should be a positional loop — the one sound you ought to hear
+      before you can see it. Needs a looping 3D voice rather than the one-shot pool.
 - [ ] Nothing plays on arrival or on suffocation — both end screens are silent
+- [ ] More of 2025's `Sounds/` is reusable: `error sound`, `machine_final`, `printer sound`,
+      `elevator ding`, `coin in slot`. Its four music tracks could stand in for normal/panic
+      /stasis until the real ones exist.
 - [ ] Options menu: master volume slider, plus the **Options button** on the main menu that opens
       it (deliberately deferred from step 2 — no button until there's something behind it)
 - [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown

@@ -74,6 +74,7 @@ class _Runner:
 		_test_generated()
 		_test_repair_routes_sound_different()
 		await _test_wiring()
+		await _test_positional()
 
 		print("-- %d checks, %d failures --" % [suite.checks, suite.failures.size()])
 		for failure in suite.failures:
@@ -103,6 +104,8 @@ class _Runner:
 	func _test_generated() -> void:
 		print("[generated effects]")
 		var expected := {
+			&"door_open": {"min_s": 0.1, "max_s": 4.0},
+			&"door_close": {"min_s": 0.1, "max_s": 4.0},
 			&"bump": {"min_s": 1.0, "max_s": 2.0},
 			&"klaxon": {"min_s": 0.5, "max_s": 2.0},
 			&"click": {"min_s": 0.01, "max_s": 0.2},
@@ -113,9 +116,18 @@ class _Runner:
 		}
 		var controller := suite.root.get_node_or_null("/root/Audio")
 		for name in expected:
-			var stream: AudioStreamWAV = controller._sounds.get(name)
+			var any_stream: AudioStream = controller._sounds.get(name)
+			if any_stream == null:
+				suite.check(false, "sound '%s' is loaded" % name)
+				continue
+			# The door sounds came from files, so they are MP3s and the byte-level
+			# measurements below only apply to the generated WAVs.
+			var stream := any_stream as AudioStreamWAV
 			if stream == null:
-				suite.check(false, "sound '%s' was generated" % name)
+				suite.check(any_stream.get_length() >= expected[name]["min_s"]
+						and any_stream.get_length() <= expected[name]["max_s"],
+					"%s is %.2fs, within %.2f-%.2f" % [name, any_stream.get_length(),
+						expected[name]["min_s"], expected[name]["max_s"]])
 				continue
 			var m: Dictionary = suite.measure(stream)
 			suite.check(m["samples"] > 0, "%s has samples (%d)" % [name, m["samples"]])
@@ -201,5 +213,79 @@ class _Runner:
 		await suite.process_frame
 		suite.check(controller.music_state == controller.Music.NONE, "the end of a run stops the music")
 		suite.check(controller._breath_intensity == 0.0, "and the breathing")
+
+		game.free()
+
+
+	## Positional audio has a silent failure mode that is easy to ship: if the 3D voices are
+	## not in the same World3D as the listener, every one of them plays into nothing and the
+	## game simply has no door or repair sounds. Nothing errors.
+	func _test_positional() -> void:
+		print("[positional audio]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var game: Node3D = load("res://scenes/game.tscn").instantiate()
+		suite.root.add_child(game)
+		suite.current_scene = game
+		await suite.process_frame
+		game.start_game()
+		await suite.process_frame
+
+		var camera: Camera3D = game.get_node("Player/CameraRig/Camera3D")
+		suite.check(controller._voices_3d.size() > 0, "there is a 3D voice pool")
+		suite.check(controller._voices_3d[0].get_world_3d() == camera.get_world_3d(),
+			"the 3D voices share the listener's World3D — otherwise they are inaudible")
+
+		# Doors are the reason this exists. They are built at runtime, so this also proves
+		# the connections were made after the Ship node had finished building them.
+		var doors := suite.root.get_tree().get_nodes_in_group(RoomBuilder.GROUP_DOOR)
+		suite.check(doors.size() > 0, "the ship has doors (%d)" % doors.size())
+
+		var door := doors[0] as SlidingDoor
+		door.open()
+		await suite.process_frame
+		var want_open: AudioStream = controller._sounds.get(&"door_open")
+		suite.check(want_open != null, "the door_open sound is loaded at all")
+		var heard_at := Vector3.INF
+		for voice in controller._voices_3d:
+			# `want_open != null` matters: an unused voice's stream is ALSO null, so without
+			# it a missing sound matches every idle voice and the check passes on nothing.
+			if want_open != null and voice.stream == want_open:
+				heard_at = voice.global_position
+		suite.check(heard_at != Vector3.INF, "opening a door plays the door_open sound")
+		suite.check(heard_at != Vector3.INF and heard_at.distance_to(door.global_position) < 0.01,
+			"and plays it AT the door, not at the listener")
+
+		door.close()
+		await suite.process_frame
+		var want_close: AudioStream = controller._sounds.get(&"door_close")
+		var closed := false
+		for voice in controller._voices_3d:
+			if want_close != null and voice.stream == want_close:
+				closed = true
+		suite.check(closed, "closing it plays the different door_close sound")
+
+		# A repair is the other thing that must be locatable.
+		var drive: Malfunction = game.get_node("MainDrive")
+		drive.break_now()
+		drive.repair(true, 50.0)
+		await suite.process_frame
+		var want_ratchet: AudioStream = controller._sounds.get(&"ratchet")
+		var ratchet_at := Vector3.INF
+		for voice in controller._voices_3d:
+			if want_ratchet != null and voice.stream == want_ratchet:
+				ratchet_at = voice.global_position
+		suite.check(ratchet_at != Vector3.INF
+				and ratchet_at.distance_to(drive.global_position) < 0.01,
+			"a repair is heard at its own panel, across the ship")
+
+		# The alarm must NOT be positional: it is the whole ship, and placing it would make
+		# it quieter depending on which way the player happened to be facing.
+		suite.check(controller._sounds.has(&"klaxon"), "the klaxon exists")
+		var want_klaxon: AudioStream = controller._sounds.get(&"klaxon")
+		var klaxon_placed := false
+		for voice in controller._voices_3d:
+			if want_klaxon != null and voice.stream == want_klaxon:
+				klaxon_placed = true
+		suite.check(not klaxon_placed, "the klaxon is ship-wide, never placed in the room")
 
 		game.free()
