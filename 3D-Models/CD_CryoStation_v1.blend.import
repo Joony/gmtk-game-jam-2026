@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bfmyhxscvste7"
-path="res://.godot/imported/CD_Cryo_v2.blend-236b174fc49fe8a1f2e6705562ff2c4f.scn"
+uid="uid://d3rvhjh1qhy4e"
+path="res://.godot/imported/CD_CryoStation_v1.blend-7b63a1a37b6c0d920526c249a3e18a8c.scn"
 
 [deps]
 
-source_file="res://3D-Models/CD_Cryo_v2.blend"
-dest_files=["res://.godot/imported/CD_Cryo_v2.blend-236b174fc49fe8a1f2e6705562ff2c4f.scn"]
+source_file="res://3D-Models/CD_CryoStation_v1.blend"
+dest_files=["res://.godot/imported/CD_CryoStation_v1.blend-7b63a1a37b6c0d920526c249a3e18a8c.scn"]
 
 [params]
 
