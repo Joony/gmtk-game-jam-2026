@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -10,6 +10,15 @@
 [ext_resource type="Script" path="res://scripts/level/ship_layout.gd" id="8_ship"]
 [ext_resource type="Script" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
 [ext_resource type="Script" path="res://scripts/level/ship_motion.gd" id="10_motion"]
+[ext_resource type="ShaderMaterial" path="res://assets/materials/starfield.tres" id="11_starfield"]
+[ext_resource type="PackedScene" path="res://scenes/props/space_station.tscn" id="12_station"]
+[ext_resource type="PackedScene" path="res://ui/debug_readout.tscn" id="13_readout"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_shell"]
+radius = 1400.0
+height = 2800.0
+radial_segments = 32
+rings = 16
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -32,6 +41,19 @@ script = ExtResource("1_game")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_game")
+
+[node name="Starfield" type="MeshInstance3D" parent="." groups=["starfield"]]
+mesh = SubResource("SphereMesh_shell")
+surface_material_override/0 = ExtResource("11_starfield")
+
+[node name="ExteriorSun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7, -0.42, 0.58, 0, 0.81, 0.58, -0.71, -0.41, 0.57, 0, 40, 0)
+light_energy = 1.5
+light_cull_mask = 2
+shadow_enabled = false
+
+[node name="Station" parent="." instance=ExtResource("12_station")]
+transform = Transform3D(0.87, 0, -0.5, 0, 1, 0, 0.5, 0, 0.87, -74, 6, 0)
 
 [node name="Motion" type="Node" parent="."]
 script = ExtResource("10_motion")
@@ -72,3 +94,5 @@ shape = SubResource("BoxShape3D_socket")
 [node name="StartPrompt" parent="." instance=ExtResource("4_start")]
 
 [node name="Reticle" parent="." instance=ExtResource("5_reticle")]
+
+[node name="DebugReadout" parent="." instance=ExtResource("13_readout")]

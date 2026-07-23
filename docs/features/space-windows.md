@@ -18,6 +18,32 @@ what gets fitted into the hole.
 The class is still called `Doorway`, which is now inaccurate — `WallOpening` would be better.
 Renaming touches six files, so it's a noted follow-up rather than mid-jam churn.
 
+## Architecture: backdrop shell, not window panes (2026-07-23)
+
+The windows were originally **panes**: an opaque quad in each opening with the starfield shader on
+it. That gave correct parallax, but nothing was actually outside — every pixel was computed from the
+view ray. Anything placed outside the hull would have been hidden behind the pane.
+
+The starfield now lives on a single **backdrop shell**: an inverted sphere (radius 1400m) around the
+ship carrying the same shader, in the `starfield` group. Windows build **no pane at all** — just the
+opening and its glass — so each one is a genuine hole. Real geometry outside the hull is simply
+visible through it, correctly occluded by the walls and correctly parallaxed, because it is really
+there.
+
+Nothing about the starfield itself changed: it is position-based, so the streaming motion works
+exactly as before. `ShipMotion` drives the shell instead of iterating a group of panes.
+
+**Exterior lighting is layer-separated.** The interior is lit by its own ceiling fixtures and must
+stay that way, so exterior objects render on **layer 2** and `ExteriorSun` (a DirectionalLight3D)
+has `light_cull_mask = 2`. The sun therefore lights the station and nothing inside the ship — no
+leaking through windows, no second lighting rig to reconcile with step 10's alert mode.
+
+**Scale limits worth knowing.** Real geometry can't sit at a realistic astronomical distance —
+float precision and the camera's far plane (4000m) forbid it. The station is ~74m out at ~24m
+across, which reads correctly through a window. Anything meant to look far more distant should
+either be parented to the camera on a "far layer" so it never approaches, or drawn procedurally in
+the shader (a planet is just a ray-sphere intersection).
+
 ## The starfield
 
 [assets/shaders/starfield.gdshader](../../assets/shaders/starfield.gdshader), on a quad in the
@@ -129,7 +155,10 @@ fit through (the sill blocks them) but a **thrown crate would sail out into spac
 
 [tests/smoke_space_windows.gd](../../tests/smoke_space_windows.gd) — **SPACE WINDOWS TEST PASS**:
 
-- panes exist, use a `ShaderMaterial` with the shader loaded, and **all share one material**
+- there is exactly one starfield shell, carrying the shader, large enough to enclose the ship
+- windows build **no pane** (a pane would hide anything outside the hull)
+- the station is outside the hull, inside the shell, and on **render layer 2**
+- the exterior sun's `light_cull_mask` is 2, so it cannot light the interior
 - the opening is genuinely cut: **no wall piece covers the window's vertical range** at that
   location, while wall remains below (sill) and above (lintel) — checked geometrically
 - every opening is glazed

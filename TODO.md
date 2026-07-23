@@ -346,9 +346,34 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Tested: shader loads, opening genuinely cut (geometric check), glazing, motion advances and
       stops, streak responds, destination toggles
 
+- [x] **Windows are real holes** — the starfield moved from per-window panes to a backdrop shell
+      (inverted sphere, `starfield` group), so real exterior geometry shows through them
+- [x] **Space station outside the hull**, on render layer 2 with an `ExteriorSun` whose
+      `light_cull_mask` keeps it off the interior
+
 ### Follow-ups (not blocking)
 
 - [ ] Rename `Doorway` → `WallOpening` (six files) now that it models windows too
+- [ ] A planet is still best done procedurally in the shader (ray-sphere) — real geometry can't
+      sit at a believable distance given the 4000m far plane
+- [x] Nebula / Milky Way band — procedural, direction-only so it sits at infinity
+      ([log](docs/features/space-exterior.md))
+- [x] Runtime controls: `=`/`-` speed (multiplicative, up to 60x cruise), `]`/`[` star count, with
+      a transient readout. Debug/tuning aids — step 12 drives speed from malfunctions instead.
+- [x] Stars vanishing mid-view: grid is now walked with a 3D DDA (exact cell traversal), and the
+      field depth scales with speed so a star is not crossing the whole range in under a second.
+      Measured 0.2% -> 0.0% vanished at 20x cruise. `field_stretch_with_speed` dials persistence
+      against the sense of speed.
+- [x] Field stretching removed — changing `cell_size` re-rolled the whole grid, so every speed
+      change flickered. Near field brought in to 10–260m so its stars actually stream.
+      Measured: 28% sky change per second at cruise, 0.0% re-roll on speed change.
+- [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
+      field to move against. One sample per ray; angular density so it fills the sky independently
+      of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.
+- [x] Warp streaks radiate from the vanishing point (smearing along the travel axis did nothing
+      head-on); star density defaults to 15%
+- [ ] Nebula cost is unprofiled on the web build (~6 noise evals per sky pixel). If it bites: drop
+      the dust-lane layer to two octaves, or bake the band to a small cubemap at startup.
 - [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must
 - [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
 - [ ] Optional polish from the original plan not done: passing debris, a distant planet

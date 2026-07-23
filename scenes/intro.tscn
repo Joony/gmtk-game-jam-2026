@@ -1,22 +1,26 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://c4l8nwjti56ln"]
 
-[ext_resource type="Script" path="res://scripts/intro.gd" id="1_intro"]
+[ext_resource type="Script" uid="uid://dt0lotypkgah4" path="res://scripts/intro.gd" id="1_intro"]
 
-[node name="Intro" type="Control"]
+[node name="Intro" type="Control" unique_id=173955960]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_intro")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=998905226]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0, 0, 0, 1)
 
-[node name="CountdownLabel" type="Label" parent="."]
+[node name="CountdownLabel" type="Label" parent="." unique_id=773336424]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -30,7 +34,7 @@ text = "10"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SkipButton" type="Button" parent="."]
+[node name="SkipButton" type="Button" parent="." unique_id=1745311473]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -45,8 +49,7 @@ grow_horizontal = 0
 grow_vertical = 0
 text = "Skip"
 
-[node name="Timer" type="Timer" parent="."]
-wait_time = 1.0
+[node name="Timer" type="Timer" parent="." unique_id=639323426]
 autostart = true
 
 [connection signal="pressed" from="SkipButton" to="." method="_on_skip_button_pressed"]
