@@ -45,9 +45,9 @@ uniform float nebula_scale : hint_range(0.5, 12.0) = 3.0;
 uniform float far_layer_distance = 60000.0;
 /// Angular size of a far-layer cell, in radians — this sets how many distant stars
 /// there are, independent of the near field's world-space grid.
-uniform float far_layer_angular_cell : hint_range(0.004, 0.2) = 0.016;
-uniform float far_layer_density : hint_range(0.0, 1.0) = 0.8;
-uniform float far_layer_brightness : hint_range(0.0, 2.0) = 0.75;
+uniform float far_layer_angular_cell : hint_range(0.004, 0.2) = 0.05;
+uniform float far_layer_density : hint_range(0.0, 1.0) = 0.35;
+uniform float far_layer_brightness : hint_range(0.0, 2.0) = 0.6;
 
 /// The destination, drawn as a soft point of light ahead. Brightness 0 hides it.
 uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;

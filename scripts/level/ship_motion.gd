@@ -139,7 +139,10 @@ func _apply() -> void:
 		material.set_shader_parameter("travelled", distance_travelled)
 		material.set_shader_parameter("brightness", star_brightness)
 		material.set_shader_parameter("star_density", star_density)
-		var stretch := 1.0 + speed_ratio() * field_stretch_with_speed * max_speed_multiplier / 4.0
+		# Stretch only ABOVE cruise. The previous form scaled by speed_ratio directly,
+		# so at cruise it already pushed the field 4x further out and the near stars
+		# barely moved — the stretch has to be 1.0 at normal speed by construction.
+		var stretch := maxf(1.0, 1.0 + (speed_ratio() - 1.0) * field_stretch_with_speed)
 		material.set_shader_parameter("cell_size", base_cell_size * stretch)
 		material.set_shader_parameter("near_distance", base_near_distance * stretch)
 		material.set_shader_parameter("far_distance", base_far_distance * stretch)

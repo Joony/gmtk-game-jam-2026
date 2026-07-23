@@ -142,6 +142,23 @@ Because the shell supplies a permanent backdrop, `field_stretch_with_speed` was 
 0.35 to **0.2**, recovering some of the sense of speed it was trading away. Still 0.0% vanished at
 20x cruise.
 
+**Two bugs found in play, both fixed:**
+
+*The stretch applied at cruise.* The formula scaled by `speed_ratio()` directly, so at normal speed
+it already pushed the field **4x** further out (cell 45m -> 180m) and the near stars barely moved.
+Stretch must be exactly 1.0 at cruise by construction, and only grow above it:
+
+```gdscript
+stretch = max(1.0, 1.0 + (speed_ratio() - 1.0) * field_stretch_with_speed)
+```
+
+Cruise now reports `cell=45 near=15 far=700` (unscaled); 60x reports `cell=576 near=192 far=8960`.
+
+*The far layer had far too many stars.* At `angular_cell = 0.016` and density 0.8 it drew roughly
+**39,000** stars over the sphere — the real naked-eye sky has about 6,000 — which read as a wall of
+white. Now `angular_cell = 0.05`, density 0.35: about **1,760** over the sphere, ~64 through a
+single window.
+
 ### The trade-off, and the dial
 
 Apparent motion is roughly `speed / cell_size`, so scaling the cell fully with speed would cancel
