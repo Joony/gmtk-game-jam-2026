@@ -19,6 +19,9 @@ uniform float cell_size = 45.0;
 /// Stars start FAR away. Close stars sweep across the view in a second and read as
 /// specks flying past the hull rather than a distant sky.
 uniform float near_distance = 15.0;
+/// Stars fade out approaching this. Kept below the DDA's worst-case reach so the
+/// fade, not the walk running out of steps, is what ends the field.
+uniform float far_distance = 700.0;
 // --- Nebula ---------------------------------------------------------------------
 // Computed from the view DIRECTION only, never from position, so it behaves as if
 // infinitely far away: it does not slide past as the ship travels, which is correct
@@ -37,9 +40,9 @@ uniform float nebula_scale : hint_range(0.5, 12.0) = 3.0;
 uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;
 uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
 
-// Marching this many cells along the ray. Step length == cell size, so every cell the
-// ray passes through IS sampled — that is what stops stars popping in and out.
-const int STEPS = 24;
+// Cells visited per ray by the DDA below. A diagonal ray crosses ~1.7 cells per cell
+// length, so this reaches ~700m worst case — matching far_distance.
+const int STEPS = 28;
 
 varying vec3 world_position;
 
@@ -107,62 +110,74 @@ void fragment() {
 		col += tint * density * nebula_strength;
 	}
 
-	// March cell by cell along the ray. Previously a single sample per depth slab meant
-	// a star was only visible while it sat in that one thin slice, so stars appeared,
-	// drifted briefly and vanished. Marching keeps each star visible for as long as the
-	// line of sight actually passes near it.
+	// Walk the grid with a 3D DDA so EVERY cell the line of sight passes through is
+	// visited, in order. Sampling at fixed intervals along the ray (the previous
+	// approach) skips cells whenever the ray is diagonal — and which cells get skipped
+	// shifts as the ship moves, so stars blinked out while still in view.
+	vec3 origin = eye + ray * near_distance;
+	vec3 safe_ray = ray;
+	if (abs(safe_ray.x) < 1e-6) { safe_ray.x = 1e-6; }
+	if (abs(safe_ray.y) < 1e-6) { safe_ray.y = 1e-6; }
+	if (abs(safe_ray.z) < 1e-6) { safe_ray.z = 1e-6; }
+
+	vec3 cell_id = floor(origin / cell_size);
+	vec3 step_dir = sign(safe_ray);
+	vec3 t_delta = abs(cell_size / safe_ray);
+	vec3 t_max = ((cell_id + max(step_dir, vec3(0.0))) * cell_size - origin) / safe_ray;
+
 	for (int i = 0; i < STEPS; i++) {
-		float t = near_distance + float(i) * cell_size;
-		vec3 id = floor((ray * t + eye) / cell_size);
-		vec3 rnd = hash33(id);
-		if (rnd.z > star_density) {
-			continue;
+		vec3 rnd = hash33(cell_id);
+		if (rnd.z <= star_density) {
+			// Star centres are held away from cell edges so a star cannot be sliced by a
+			// boundary. The margin scales with the star's WORLD radius, which grows with
+			// distance: a fixed margin is enormous close in — at 15m a 20% margin spans
+			// ~69 degrees — and carves a cross of empty sky along the world axes.
+			float approx = length((cell_id + vec3(0.5)) * cell_size - eye);
+			float margin = clamp(star_angular_size * approx / cell_size * 1.5, 0.004, 0.25);
+			vec3 star = (cell_id + rnd * (1.0 - 2.0 * margin) + vec3(margin)) * cell_size;
+
+			vec3 rel = star - eye;
+			float along = dot(rel, ray);
+			if (along > 1.0) {
+				// ANGULAR distance from the line of sight: this is what makes stars read
+				// as distant points — far away is small, the same star close is large.
+				vec3 offset = rel - ray * along;
+
+				// Smear with speed, along the direction the star APPEARS to move — away
+				// from the point you are travelling toward, not along the travel axis.
+				// Stretching along `dir` does nothing head-on (offsets are perpendicular
+				// to the ray, hence to `dir`), so there were no streaks looking forward.
+				float angle;
+				vec3 stretch = dir - ray * dot(dir, ray);
+				float stretch_len = length(stretch);
+				if (stretch_len > 0.0001 && streak > 0.001) {
+					stretch /= stretch_len;
+					float axial = dot(offset, stretch);
+					vec3 lateral = offset - stretch * axial;
+					angle = length(lateral + stretch * (axial / (1.0 + streak))) / along;
+				} else {
+					angle = length(offset) / along;
+				}
+
+				// Fade to nothing at both ends. A hard cutoff makes stars wink out as
+				// they cross the limit.
+				float fade = smoothstep(far_distance, far_distance * 0.45, along)
+					* smoothstep(near_distance * 0.6, near_distance * 2.0, along);
+				col += vec3(smoothstep(star_angular_size, 0.0, angle) * (0.25 + 0.75 * rnd.x) * fade);
+			}
 		}
 
-		// Star centres are held away from cell edges so a star cannot be sliced by a
-		// boundary (only the cell containing the sample is tested). The margin must
-		// scale with the star's WORLD radius, which grows with distance: a fixed
-		// margin is enormous at close range — at 15m a 20% margin spans ~69 degrees of
-		// view — and carves a cross of empty sky along the world axes through the eye.
-		// Sized this way the dead band is a constant ~3x the star size, i.e. invisible.
-		float margin = clamp(star_angular_size * t / cell_size * 1.5, 0.004, 0.25);
-		vec3 star = (id + rnd * (1.0 - 2.0 * margin) + vec3(margin)) * cell_size;
-		vec3 rel = star - eye;
-		float along = dot(rel, ray);
-		if (along < 1.0) {
-			continue;
-		}
-
-		// ANGULAR distance from the line of sight: this is what makes stars read as
-		// distant points. A star far away is small; the same star close is large.
-		vec3 offset = rel - ray * along;
-
-		// Smear with speed, along the direction the star APPEARS to move — which is
-		// away from the point you are travelling toward, not along the travel axis.
-		// Stretching along `dir` itself does nothing when looking straight ahead
-		// (offsets are perpendicular to the ray, hence to `dir` too), so head-on there
-		// were no streaks at all. Projecting `dir` into the plane perpendicular to the
-		// ray gives radial streaks ahead and lateral ones out of a side window, both
-		// from one expression.
-		float angle;
-		vec3 stretch = dir - ray * dot(dir, ray);
-		float stretch_len = length(stretch);
-		if (stretch_len > 0.0001 && streak > 0.001) {
-			stretch /= stretch_len;
-			float axial = dot(offset, stretch);
-			vec3 lateral = offset - stretch * axial;
-			angle = length(lateral + stretch * (axial / (1.0 + streak))) / along;
+		// Advance to the next cell the ray enters.
+		if (t_max.x < t_max.y && t_max.x < t_max.z) {
+			cell_id.x += step_dir.x;
+			t_max.x += t_delta.x;
+		} else if (t_max.y < t_max.z) {
+			cell_id.y += step_dir.y;
+			t_max.y += t_delta.y;
 		} else {
-			// Dead ahead there is no apparent motion, so no stretch.
-			angle = length(offset) / along;
+			cell_id.z += step_dir.z;
+			t_max.z += t_delta.z;
 		}
-
-		// Fade to NOTHING at both ends of the marched range. A hard cutoff makes stars
-		// wink out as they cross the limit, which is most of what reads as flicker.
-		float far_limit = near_distance + float(STEPS) * cell_size;
-		float fade = smoothstep(far_limit, far_limit * 0.5, along)
-			* smoothstep(near_distance * 0.6, near_distance * 2.0, along);
-		col += vec3(smoothstep(star_angular_size, 0.0, angle) * (0.25 + 0.75 * rnd.x) * fade);
 	}
 
 	// Destination ahead: a soft disc on the travel axis, driven by step 12's distance.

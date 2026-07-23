@@ -102,6 +102,38 @@ ahead the projection vanishes, which is correct — a star at the vanishing poin
 
 `max_streak` caps the smear (22), or past a point the sky becomes a white wash rather than lines.
 
+## Stars vanishing mid-view
+
+Reported in play. Two changes, and it is worth being clear about what each did.
+
+**1. Exact grid traversal (a correctness fix that measured as no change).** The shader sampled the
+star grid at fixed intervals along the ray. That skips cells whenever the ray is diagonal — a
+diagonal ray crosses up to three cells per cell-length of travel, and only one was sampled — and
+*which* cells get skipped shifts as the ship moves. It now walks the grid with a **3D DDA**
+(Amanatides–Woo), visiting every cell the line of sight passes through, in order.
+
+Measured with an "orphan" test — advance a fraction of a metre, then count bright pixels with no
+bright pixel nearby in the next frame, i.e. stars that vanished rather than moved. At cruise the
+result was **0.00% both before and after**, so this did not reproduce the reported symptom. It is
+kept because it is strictly correct and removes a whole class of direction-dependent artifact.
+
+**2. Field depth scaling with speed (the change that measured).** The field spans a fixed depth
+range, so at speed a star crosses the *whole* range in well under a second: it fades in, streaks and
+fades out almost at once. At 60x cruise the 15–700m range is covered in 0.63s.
+
+`ShipMotion` now scales `cell_size`, `near_distance` and `far_distance` together with speed, which
+leaves angular density and star size untouched but makes each star last proportionally longer.
+Measured at 20x cruise over a quarter-second of travel: **0.2% of stars vanished before, 0.0%
+after**.
+
+### The trade-off, and the dial
+
+Apparent motion is roughly `speed / cell_size`, so scaling the cell fully with speed would cancel
+the sense of speed entirely — warp would look like cruise with longer streaks.
+`field_stretch_with_speed` (default **0.35**) is the dial: **0** restores the old behaviour, full
+speed sensation and short-lived stars; **1.0** gives maximum persistence and the flattest sense of
+speed. The streaking carries much of the speed impression regardless.
+
 ## How it was verified
 
 [tests/smoke_space_windows.gd](../../tests/smoke_space_windows.gd) — **SPACE WINDOWS TEST PASS**:

@@ -360,6 +360,10 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       ([log](docs/features/space-exterior.md))
 - [x] Runtime controls: `=`/`-` speed (multiplicative, up to 60x cruise), `]`/`[` star count, with
       a transient readout. Debug/tuning aids — step 12 drives speed from malfunctions instead.
+- [x] Stars vanishing mid-view: grid is now walked with a 3D DDA (exact cell traversal), and the
+      field depth scales with speed so a star is not crossing the whole range in under a second.
+      Measured 0.2% -> 0.0% vanished at 20x cruise. `field_stretch_with_speed` dials persistence
+      against the sense of speed.
 - [x] Warp streaks radiate from the vanishing point (smearing along the travel axis did nothing
       head-on); star density defaults to 15%
 - [ ] Nebula cost is unprofiled on the web build (~6 noise evals per sky pixel). If it bites: drop
