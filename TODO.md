@@ -574,6 +574,11 @@ them to disk with `tests/forge_sounds.gd` to listen.
 - [ ] **A GDScript parse error makes a test exit 0**, i.e. a broken test reports success.
       The regression sweep now greps for `Parse Error` and a summary line as well as the
       exit code. Worth folding into a single runner script.
+- [x] **`tests/smoke_scene_deps.gd`** walks every `.tscn`/`.tres` and asserts each
+      `ext_resource` path resolves, and that any UID agrees with its path. This is the guard
+      for the asset-move breakage that hit the cryo pod twice — a stale path or a reassigned
+      UID that git merges cleanly and Godot papers over at load time. Mutation-tested against
+      both real failures.
 
 - [ ] **The three music tracks.** Everything else is done and waiting; drop the `.ogg`s into
       `assets/audio/` (see the README there) and they start working with no code change.
