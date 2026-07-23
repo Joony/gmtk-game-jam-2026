@@ -20,11 +20,13 @@ const HEIGHT := 1.7
 const STEP := 0.5
 const FLOOR_Y := 0.95
 
-## The ship's footprint in grid/world XZ, plus a margin.
-const MIN_X := -8.0
-const MAX_X := 8.0
+## The ship's footprint in grid/world XZ, plus a margin. Must cover the whole ship: the
+## flood fill cannot leave this box, so a spawn or target outside it reads as unreachable.
+## The 21x21 cryo bay runs x=-10..11, z=-4..17; the engine room reaches z=-24.
+const MIN_X := -12.0
+const MAX_X := 13.0
 const MIN_Z := -24.0
-const MAX_Z := 11.0
+const MAX_Z := 18.0
 
 var _failures: Array[String] = []
 var _space: PhysicsDirectSpaceState3D

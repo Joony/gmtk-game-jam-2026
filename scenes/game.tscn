@@ -69,37 +69,37 @@ oxygen_total = 210.0
 script = ExtResource("8_ship")
 
 [node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1774573647]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 9.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1, 13.5)
 
 [node name="CryoStation" parent="." unique_id=341322163 instance=ExtResource("24_station")]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 3)
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 6.5)
 
 [node name="StasisPod" parent="." unique_id=1635236617 instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 7)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, 0, 10.37)
 
 [node name="CryoPodB" parent="." unique_id=1502149935 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4, 0, 3)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.37, 0, 6.5)
 is_player_pod = false
 
 [node name="CryoPodC" parent="." unique_id=302848152 instance=ExtResource("17_pod")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 2.63)
 is_player_pod = false
 
 [node name="CryoPodD" parent="." unique_id=1478676635 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4, 0, 3)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.37, 0, 6.5)
 is_player_pod = false
 
 [node name="SparePart1" parent="." unique_id=1949867003 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 10)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 13.5)
 
 [node name="SparePart2" parent="." unique_id=715025122 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 10)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 13.5)
 
 [node name="SparePart3" parent="." unique_id=1994039836 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 10)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 13.5)
 
 [node name="Computer" parent="." unique_id=1037937627 instance=ExtResource("22_computer")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7.75, 0, 5)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10.75, 0, 6.5)
 
 [node name="PickupA" parent="." unique_id=2143839495 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.25, 1)
@@ -150,7 +150,7 @@ bodge_oxygen_cost = 25.0
 fit_text = "Fit a machined sleeve"
 
 [node name="NavArray" type="Node3D" parent="." unique_id=2085409010 groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.83, 1.3, -2)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.83, 1.3, -2)
 script = ExtResource("15_malfunction")
 system_name = "NAV ARRAY"
 fault_text = "drifting off course"
@@ -163,6 +163,7 @@ patch_text = "Realign by hand"
 fit_text = "Fit a spare module"
 
 [node name="Player" parent="." unique_id=804150623 instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.64972794, 0)
 
 [node name="HUD" parent="." unique_id=1271832624 instance=ExtResource("19_hud")]
 
