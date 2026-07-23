@@ -358,8 +358,10 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       sit at a believable distance given the 4000m far plane
 - [x] Nebula / Milky Way band — procedural, direction-only so it sits at infinity
       ([log](docs/features/space-exterior.md))
-- [x] Runtime controls: `=`/`-` speed, `]`/`[` star count, with a transient readout. Debug/tuning
-      aids — step 12 drives speed from malfunctions instead.
+- [x] Runtime controls: `=`/`-` speed (multiplicative, up to 60x cruise), `]`/`[` star count, with
+      a transient readout. Debug/tuning aids — step 12 drives speed from malfunctions instead.
+- [x] Warp streaks radiate from the vanishing point (smearing along the travel axis did nothing
+      head-on); star density defaults to 15%
 - [ ] Nebula cost is unprofiled on the web build (~6 noise evals per sky pixel). If it bites: drop
       the dust-lane layer to two octaves, or bake the band to a small cubemap at startup.
 - [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must

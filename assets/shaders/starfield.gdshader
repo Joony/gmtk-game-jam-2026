@@ -7,11 +7,11 @@ render_mode unshaded, cull_disabled, shadows_disabled;
 uniform vec3 travel_direction = vec3(0.0, 0.0, -1.0);
 /// Metres travelled. Stars sit at fixed world positions, so advancing this streams them past.
 uniform float travelled = 0.0;
-uniform float star_density : hint_range(0.0, 1.0) = 0.85;
+uniform float star_density : hint_range(0.0, 1.0) = 0.15;
 uniform float brightness : hint_range(0.0, 4.0) = 1.6;
 uniform vec4 space_color : source_color = vec4(0.006, 0.008, 0.016, 1.0);
 /// Elongates stars along the direction of travel as speed rises.
-uniform float streak : hint_range(0.0, 12.0) = 0.0;
+uniform float streak : hint_range(0.0, 40.0) = 0.0;
 /// Apparent size of a star, in radians. Small: a star is a point of light, not a disc.
 uniform float star_angular_size : hint_range(0.0002, 0.02) = 0.0018;
 /// World spacing of the star grid, and how far out the field is sampled.
@@ -136,10 +136,26 @@ void fragment() {
 		// ANGULAR distance from the line of sight: this is what makes stars read as
 		// distant points. A star far away is small; the same star close is large.
 		vec3 offset = rel - ray * along;
-		// Smear along the travel axis with speed.
-		float axial = dot(offset, dir);
-		vec3 lateral = offset - dir * axial;
-		float angle = length(lateral + dir * (axial / (1.0 + streak))) / along;
+
+		// Smear with speed, along the direction the star APPEARS to move — which is
+		// away from the point you are travelling toward, not along the travel axis.
+		// Stretching along `dir` itself does nothing when looking straight ahead
+		// (offsets are perpendicular to the ray, hence to `dir` too), so head-on there
+		// were no streaks at all. Projecting `dir` into the plane perpendicular to the
+		// ray gives radial streaks ahead and lateral ones out of a side window, both
+		// from one expression.
+		float angle;
+		vec3 stretch = dir - ray * dot(dir, ray);
+		float stretch_len = length(stretch);
+		if (stretch_len > 0.0001 && streak > 0.001) {
+			stretch /= stretch_len;
+			float axial = dot(offset, stretch);
+			vec3 lateral = offset - stretch * axial;
+			angle = length(lateral + stretch * (axial / (1.0 + streak))) / along;
+		} else {
+			// Dead ahead there is no apparent motion, so no stretch.
+			angle = length(offset) / along;
+		}
 
 		// Fade to NOTHING at both ends of the marched range. A hard cutoff makes stars
 		// wink out as they cross the limit, which is most of what reads as flicker.

@@ -27,11 +27,16 @@ signal settings_changed
 @export var streak_at_cruise: float = 0.7
 ## Fraction of cells containing a star — the main "how many stars" control.
 ## Driven from here rather than left on the material so it can be changed at runtime.
-@export_range(0.0, 1.0) var star_density: float = 0.85
-## Ceiling for the debug speed control, as a multiple of cruise.
-@export var max_speed_multiplier: float = 4.0
-## Step size for the debug speed keys, as a fraction of cruise.
-@export var speed_step: float = 0.25
+@export_range(0.0, 1.0) var star_density: float = 0.15
+## Ceiling for the speed control, as a multiple of cruise. High enough that the stars
+## become long streaks rather than points.
+@export var max_speed_multiplier: float = 60.0
+## Each speed key press MULTIPLIES by this. Additive steps cannot span 0 to 60x cruise
+## in a usable number of presses; multiplicative gives fine control when slow and a
+## fast climb when fast.
+@export var speed_step_factor: float = 1.5
+## Streak is unbounded by speed otherwise, and past a point the sky turns into a smear.
+@export var max_streak: float = 22.0
 
 ## Current speed. Zero stops the starfield dead, which is what a stalled ship should look like.
 var speed: float = 0.0:
@@ -72,9 +77,17 @@ func speed_ratio() -> float:
 	return speed / cruise_speed
 
 
-## Nudge the speed. `steps` is in units of `speed_step` x cruise.
+## Nudge the speed, multiplicatively. `steps` is the number of key presses.
 func adjust_speed(steps: float) -> void:
-	speed = clampf(speed + cruise_speed * speed_step * steps, 0.0, cruise_speed * max_speed_multiplier)
+	var target := speed
+	if steps > 0.0:
+		# From a standstill there is nothing to multiply, so start from a slow crawl.
+		target = maxf(speed, cruise_speed * 0.04) * pow(speed_step_factor, steps)
+	elif steps < 0.0:
+		target = speed / pow(speed_step_factor, -steps)
+		if target < cruise_speed * 0.02:
+			target = 0.0
+	speed = clampf(target, 0.0, cruise_speed * max_speed_multiplier)
 
 
 func adjust_density(amount: float) -> void:
@@ -109,5 +122,5 @@ func _apply() -> void:
 		material.set_shader_parameter("travelled", distance_travelled)
 		material.set_shader_parameter("brightness", star_brightness)
 		material.set_shader_parameter("star_density", star_density)
-		material.set_shader_parameter("streak", streak_at_cruise * speed_ratio())
+		material.set_shader_parameter("streak", minf(streak_at_cruise * speed_ratio(), max_streak))
 		material.set_shader_parameter("destination_brightness", destination_brightness)

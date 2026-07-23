@@ -21,8 +21,11 @@ func bind(motion: ShipMotion) -> void:
 
 
 func _show(motion: ShipMotion) -> void:
-	_label.text = "SPEED %.0f m/s  (%.0f%% cruise)      STARS %.0f%%" % [
-		motion.speed, motion.speed_ratio() * 100.0, motion.star_density * 100.0
+	var ratio := motion.speed_ratio()
+	# Percentages stop being readable once you are 30x cruise.
+	var rate := "%.0f%% cruise" % (ratio * 100.0) if ratio < 2.0 else "x%.1f cruise" % ratio
+	_label.text = "SPEED %.0f m/s  (%s)      STARS %.0f%%" % [
+		motion.speed, rate, motion.star_density * 100.0
 	]
 	if _tween != null and _tween.is_valid():
 		_tween.kill()

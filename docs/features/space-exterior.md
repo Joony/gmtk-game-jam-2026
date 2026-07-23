@@ -60,14 +60,19 @@ Everything is exported (`nebula_pole`, `nebula_color`, `nebula_core_color`, `neb
 
 | key | effect |
 |---|---|
-| `=` / `-` | speed up / down, in 25% of cruise steps, 0 to 4x cruise |
+| `=` / `-` | speed up / down — **multiplicative** (x1.5 per press), 0 to **60x cruise** |
 | `]` / `[` | more / fewer stars, 5% of density per press |
 
 A transient readout ([ui/debug_readout.tscn](../../ui/debug_readout.tscn)) shows the current values
 for a second or so on change, then fades. It is a tuning aid, not part of the game HUD.
 
-**In the inspector, on the `Motion` node** (`ShipMotion`): `cruise_speed`, `star_density`,
-`star_brightness`, `streak_at_cruise`, `travel_direction`, `max_speed_multiplier`, `speed_step`.
+**In the inspector, on the `Motion` node** (`ShipMotion`): `cruise_speed`, `star_density`
+(default **0.15**), `star_brightness`, `streak_at_cruise`, `travel_direction`,
+`max_speed_multiplier` (60), `speed_step_factor` (1.5), `max_streak` (22).
+
+Speed steps are **multiplicative**, not additive: additive steps cannot span 0 to 60x cruise in a
+usable number of presses, whereas multiplying gives fine control when slow and a fast climb when
+fast. From a standstill it starts at 4% of cruise, and stepping down below 2% snaps to zero.
 
 **In the inspector, on the starfield material** (`assets/materials/starfield.tres`): `cell_size`
 (smaller = denser field), `near_distance`, `star_angular_size`, `space_color`, and every `nebula_*`
@@ -82,6 +87,20 @@ static and edits stick.
 
 `speed_fraction()` stays clamped to 0..1 for game logic ("how healthy are we?"); `speed_ratio()` is
 unclamped so the stars keep stretching above cruise.
+
+## Warp streaks radiate from the vanishing point
+
+First attempt smeared stars along the **travel direction**. That works out of a side window but
+does nothing head-on: looking along the travel axis, a star's offset from the view ray is
+perpendicular to the ray and therefore to the travel direction too, so the term cancelled and stars
+stayed as points however fast the ship went.
+
+Stars appear to move *away from the point you are travelling toward*. Projecting the travel
+direction into the plane perpendicular to the view ray gives that apparent-motion direction, and one
+expression then produces **radial** streaks ahead and **lateral** ones out of a side window. Dead
+ahead the projection vanishes, which is correct — a star at the vanishing point does not move.
+
+`max_streak` caps the smear (22), or past a point the sky becomes a white wash rather than lines.
 
 ## How it was verified
 
