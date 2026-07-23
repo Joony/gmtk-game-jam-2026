@@ -4,6 +4,10 @@ extends Node3D
 # mouse capture work in a browser: pointer lock is only granted inside a user-gesture
 # handler, so requesting it from _ready() after a scene transition is rejected on web.
 # It doubles as a decent "here are the controls" beat on desktop.
+#
+# This node also owns the two things that have to happen to the PLAYER when the run state
+# changes — being put in the pod, and being taken out of the world at the end — because
+# RunState deliberately knows nothing about the player, the camera or the cursor.
 
 signal started
 
@@ -13,11 +17,39 @@ signal started
 @onready var _start_prompt: CanvasLayer = $StartPrompt
 @onready var _reticle: CanvasLayer = $Reticle
 @onready var _interactor: Interactor = $Player/Interactor
+@onready var _carry: Carry = $Player/Carry
+@onready var _camera: CameraController = $Player/CameraRig
 @onready var _lighting: LightingController = $Lighting
 @onready var _motion: ShipMotion = $Motion
 @onready var _readout: CanvasLayer = $DebugReadout
+@onready var _run: RunState = $Run
+@onready var _hud: CanvasLayer = $HUD
+@onready var _run_end: CanvasLayer = $RunEnd
+@onready var _pod: StasisPod = $StasisPod
+@onready var _computer: ComputerTerminal = $Computer
+@onready var _nav_screen: CanvasLayer = $NavScreen
+
+## Where the player is in the pod cycle. A plain bool could not express "half way in", and
+## every one of these phases has to reject the inputs that belong to the others — the alarm
+## can fire while the lid is still closing.
+enum PodPhase { OUT, ENTERING, IN, EXITING }
+
+## How long the ride into or out of the pod takes.
+const POD_MOVE_TIME := 1.1
+## Leaning in to the nav console is a shorter move over a shorter distance.
+const NAV_MOVE_TIME := 0.55
+
+## Same reasoning as PodPhase: the approach has to reject a second interact press, and the
+## run can end while the player is stood reading.
+enum NavPhase { AWAY, APPROACHING, READING, LEAVING }
 
 var is_started: bool = false
+
+var _pod_phase: PodPhase = PodPhase.OUT
+var _nav_phase: NavPhase = NavPhase.AWAY
+var _nav_return_position: Vector3 = Vector3.ZERO
+var _nav_return_yaw: float = 0.0
+var _nav_return_pitch: float = 0.0
 
 
 func _ready() -> void:
@@ -30,6 +62,20 @@ func _ready() -> void:
 	# misleading pointer.
 	_pause_menu.paused.connect(func() -> void: _reticle.visible = false)
 	_pause_menu.resumed.connect(func() -> void: _reticle.visible = true)
+
+	_pod.interacted_with.connect(_on_pod_used)
+	_run.stasis_changed.connect(_on_stasis_changed)
+	# Every pod starts sealed; the player's swings open so it reads as the one to use.
+	for pod in get_tree().get_nodes_in_group(&"interactables"):
+		if pod is StasisPod:
+			(pod as StasisPod).set_door_open((pod as StasisPod).is_player_pod, true)
+	_computer.bind(_run)
+	_computer.opened.connect(_open_nav_screen)
+	_nav_screen.closed.connect(_close_nav_screen)
+	_run.run_ended.connect(_on_run_ended)
+	_run_end.dismissed.connect(_on_run_end_dismissed)
+	_hud.bind(_run)
+
 	_show_start_prompt()
 
 
@@ -37,6 +83,7 @@ func _show_start_prompt() -> void:
 	is_started = false
 	_start_prompt.visible = true
 	_reticle.visible = false
+	_hud.visible = false
 	# Freeze the player and disable Esc until the game actually begins.
 	_player.process_mode = Node.PROCESS_MODE_DISABLED
 	_pause_menu.enabled = false
@@ -50,11 +97,192 @@ func start_game() -> void:
 	is_started = true
 	_start_prompt.visible = false
 	_reticle.visible = true
+	_hud.visible = true
 	_player.process_mode = Node.PROCESS_MODE_INHERIT
 	_pause_menu.enabled = true
+	# Only now does either countdown begin — neither should run down behind the prompt.
+	_run.start()
 	capture_mouse()
 	started.emit()
 
 
 func capture_mouse() -> void:
 	MouseCapture.capture()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("interact"):
+		return
+	# Waking up. The player's own Interactor is switched off in stasis, so Game is the
+	# only thing still listening. Ignored mid-transition: the pod is not yours to leave
+	# until the lid has actually shut.
+	if _pod_phase == PodPhase.IN:
+		_run.exit_stasis()
+		get_viewport().set_input_as_handled()
+	elif _nav_phase == NavPhase.READING:
+		# Same key that opened it. The Interactor is switched off while reading, so the
+		# press cannot re-trigger the console the player is stood in front of.
+		_nav_screen.close()
+		get_viewport().set_input_as_handled()
+
+
+## Reading the console walks the camera up to it rather than cutting to a menu. The screen
+## in the room is the real one — a SubViewport rendering the same NavChart — so leaning in
+## to read it keeps the player in the world, and the clock keeps running while they do.
+## Freezing but NOT pausing is the point: checking your progress costs air like anything else.
+func _open_nav_screen() -> void:
+	if not is_started or _run.finished or _nav_phase != NavPhase.AWAY or _pod_phase != PodPhase.OUT:
+		return
+	_nav_phase = NavPhase.APPROACHING
+	# Where to put the player back afterwards, including exactly where they were looking.
+	_nav_return_position = _player.global_position
+	_nav_return_yaw = _camera.get_yaw()
+	_nav_return_pitch = _camera.get_pitch()
+
+	_set_player_active(false)
+	_player.velocity = Vector3.ZERO
+	_reticle.visible = false
+
+	var view := _computer.view_transform()
+	await _glide_player(view.origin, view.basis.get_euler().y, 0.0, NAV_MOVE_TIME)
+	if _nav_phase != NavPhase.APPROACHING:
+		return
+	_nav_phase = NavPhase.READING
+	_nav_screen.open(_computer)
+
+
+func _close_nav_screen() -> void:
+	if _nav_phase != NavPhase.READING:
+		return
+	_nav_phase = NavPhase.LEAVING
+	if _run.finished:
+		_nav_phase = NavPhase.AWAY
+		return
+	await _glide_player(_nav_return_position, _nav_return_yaw, _nav_return_pitch, NAV_MOVE_TIME)
+	_nav_phase = NavPhase.AWAY
+	_camera.input_enabled = true
+	_reticle.visible = true
+	_set_player_active(true)
+
+
+func _on_pod_used(_interactable: Interactable) -> void:
+	if not is_started or _run.finished or _pod_phase != PodPhase.OUT:
+		return
+	# Climbing in with a spare under your arm would otherwise teleport it across the ship.
+	if _carry.is_holding():
+		_carry.drop(false)
+	_enter_pod()
+
+
+func _on_stasis_changed(in_stasis: bool) -> void:
+	# Only the WAKING half is driven from here. Entering is sequenced by _enter_pod(),
+	# which has to finish moving the player before the clock starts running fast.
+	if not in_stasis and _pod_phase == PodPhase.IN:
+		_exit_pod()
+
+
+## Ride into the pod: freeze the player, fly the view in, shut the door, then start the
+## fast-forward. The order matters — starting the clock first would have days ticking past
+## while the player is still visibly walking in.
+func _enter_pod() -> void:
+	_pod_phase = PodPhase.ENTERING
+	_set_player_active(false)
+	_player.velocity = Vector3.ZERO
+	_reticle.visible = false
+	_pod.set_occupied(true)
+	_pod.set_door_open(true)
+
+	await _glide_player_to(_pod.view_transform(), POD_MOVE_TIME)
+	if _pod_phase != PodPhase.ENTERING:
+		return
+	_pod.set_door_open(false)
+	await get_tree().create_timer(_pod.door_duration()).timeout
+	if _pod_phase != PodPhase.ENTERING:
+		return
+
+	_pod_phase = PodPhase.IN
+	_run.enter_stasis()
+
+
+## Ejected: open the door, fly the view back out, hand control back.
+func _exit_pod() -> void:
+	_pod_phase = PodPhase.EXITING
+	# A run that ended while asleep goes straight to the summary; animating the player out
+	# of a pod they are never going to use again just delays the screen they need to see.
+	if _run.finished:
+		_finish_exit()
+		return
+	_pod.set_door_open(true)
+	await get_tree().create_timer(_pod.door_duration() * 0.5).timeout
+	await _glide_player_to(_pod.exit_transform(), POD_MOVE_TIME)
+	_finish_exit()
+
+
+func _finish_exit() -> void:
+	_pod.set_occupied(false)
+	_pod_phase = PodPhase.OUT
+	if not _run.finished:
+		_reticle.visible = true
+		_set_player_active(true)
+	_camera.input_enabled = true
+
+
+## Move the player smoothly to a transform, aiming the camera as it goes.
+func _glide_player_to(target: Transform3D, duration: float) -> void:
+	await _glide_player(target.origin, target.basis.get_euler().y, 0.0, duration)
+
+
+## The one place the camera is flown by anything other than the mouse.
+##
+## The body is tweened rather than teleported, and the CAMERA is aimed through
+## CameraController.set_look() rather than by rotating the body — the controller rewrites
+## the body basis from its own yaw every frame, so a rotation applied here would be thrown
+## away on the very next one.
+func _glide_player(to_pos: Vector3, to_yaw: float, to_pitch: float, duration: float) -> void:
+	_camera.input_enabled = false
+	var from_pos := _player.global_position
+	var from_yaw := _camera.get_yaw()
+	var from_pitch := _camera.get_pitch()
+
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_method(
+		func(t: float) -> void:
+			_player.global_position = from_pos.lerp(to_pos, t)
+			# lerp_angle, not lerpf: the short way round, so turning from -170 to 170
+			# degrees does not spin the player through a full circle.
+			_camera.set_look(lerp_angle(from_yaw, to_yaw, t), lerpf(from_pitch, to_pitch, t)),
+		0.0, 1.0, duration
+	)
+	await tween.finished
+	_player.global_position = to_pos
+	_camera.set_look(to_yaw, to_pitch)
+	# The interpolator would otherwise blend the camera from wherever the body was on the
+	# previous physics tick, smearing the first frame after control returns.
+	_player.reset_physics_interpolation()
+
+
+func _set_player_active(active: bool) -> void:
+	_player.set_physics_process(active)
+	_interactor.set_physics_process(active)
+	_interactor.set_process_unhandled_input(active)
+	_carry.set_process(active)
+
+
+func _on_run_ended(won: bool, summary: Dictionary) -> void:
+	if _nav_phase == NavPhase.READING:
+		_nav_screen.close()
+	_reticle.visible = false
+	_hud.visible = false
+	_pause_menu.enabled = false
+	_player.process_mode = Node.PROCESS_MODE_DISABLED
+	MouseCapture.release()
+	get_tree().paused = true
+	_run_end.show_result(won, summary)
+
+
+func _on_run_end_dismissed() -> void:
+	# Unpause BEFORE the scene change: the flag is on the tree, not the scene, so leaving
+	# it set would deliver a frozen main menu.
+	get_tree().paused = false
+	SceneManager.change_scene("res://scenes/main_menu.tscn")

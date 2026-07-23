@@ -134,6 +134,13 @@ func _run() -> void:
 	var streak_cruise: float = material.get_shader_parameter("streak")
 	_check("stars streak at cruise (%.2f)" % streak_cruise, streak_cruise > 0.01)
 
+	# From step 12 RunState OWNS the ship's speed, rewriting it every frame from the set
+	# of active malfunctions. Everything below is about ShipMotion's own behaviour, so the
+	# run is stopped first — otherwise each write here is overwritten before the next frame.
+	var run: RunState = game.get_node("Run")
+	run.set_process(false)
+	motion.speed_driven_externally = false
+
 	# --- Stopping the ship stops the stars ----------------------------------
 	motion.speed = 0.0
 	await _frames(10)

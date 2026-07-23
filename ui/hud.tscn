@@ -1,0 +1,260 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/ui/digit_readout.gd" id="2_digits"]
+
+; Sits under the reticle (layer 40) and the pause menu (50) so neither is ever obscured.
+; Everything is anchored to a corner rather than centred: the middle of the screen belongs
+; to the reticle and the interaction prompt.
+;
+; Both numbers are DigitReadouts, not Labels — see digit_readout.gd. A proportional font
+; makes a live clock twitch sideways several times a second.
+
+; A real radial vignette rather than a full-screen tint. A flat wash over the whole frame
+; hides the panel the player is trying to repair at exactly the moment they most need to
+; see it; darkening only the edges reads peripherally and leaves the centre playable.
+[sub_resource type="Gradient" id="Gradient_vignette"]
+offsets = PackedFloat32Array(0.45, 1)
+colors = PackedColorArray(0.6, 0.03, 0.02, 0, 0.6, 0.03, 0.02, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_vignette"]
+gradient = SubResource("Gradient_vignette")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_bg"]
+bg_color = Color(0.08, 0.09, 0.11, 0.7)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_fill"]
+bg_color = Color(0.78, 0.86, 0.94, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stasis"]
+bg_color = Color(0.04, 0.06, 0.1, 0.55)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.62, 0.78, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="HUD" type="CanvasLayer"]
+layer = 35
+script = ExtResource("1_hud")
+
+[node name="Vignette" type="TextureRect" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_vignette")
+expand_mode = 1
+
+[node name="Oxygen" type="VBoxContainer" parent="."]
+anchors_preset = 0
+offset_left = 60.0
+offset_top = 50.0
+offset_right = 560.0
+offset_bottom = 210.0
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Caption" type="Label" parent="Oxygen"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 28
+text = "OXYGEN REMAINING"
+
+[node name="OxygenValue" type="HBoxContainer" parent="Oxygen"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 76
+digit_width = 38.0
+separator_width = 16.0
+text = "0:00"
+
+[node name="OxygenBar" type="ProgressBar" parent="Oxygen"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_bar_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_bar_fill")
+value = 100.0
+show_percentage = false
+
+[node name="Arrival" type="VBoxContainer" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -700.0
+offset_top = 50.0
+offset_right = -60.0
+offset_bottom = 260.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 2
+
+[node name="Caption" type="Label" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 28
+text = "ARRIVAL IN"
+horizontal_alignment = 2
+
+[node name="EtaRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="EtaValue" type="HBoxContainer" parent="Arrival/EtaRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 76
+digit_width = 38.0
+separator_width = 16.0
+text = "000.0"
+
+[node name="EtaUnit" type="Label" parent="Arrival/EtaRow"]
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "DAYS"
+
+[node name="DistanceRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 10
+
+[node name="DistanceValue" type="HBoxContainer" parent="Arrival/DistanceRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 34
+digit_width = 17.0
+separator_width = 8.0
+outline_size = 8
+font_color = Color(0.55, 0.6, 0.68, 1)
+text = "000.00"
+
+[node name="DistanceUnit" type="Label" parent="Arrival/DistanceRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "MILLION MILES"
+
+[node name="DriveRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 10
+
+[node name="DriveLabel" type="Label" parent="Arrival/DriveRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "DRIVE"
+
+[node name="DriveValue" type="HBoxContainer" parent="Arrival/DriveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 34
+digit_width = 17.0
+separator_width = 12.0
+outline_size = 8
+font_color = Color(0.55, 0.6, 0.68, 1)
+text = "100%"
+
+[node name="SystemList" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -900.0
+offset_top = 285.0
+offset_right = -60.0
+offset_bottom = 520.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="StasisPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -340.0
+offset_top = -220.0
+offset_right = 340.0
+offset_bottom = -110.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stasis")
+
+[node name="VBox" type="VBoxContainer" parent="StasisPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="StasisPanel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.62, 0.84, 0.92, 1)
+theme_override_font_sizes/font_size = 44
+text = "IN STASIS"
+horizontal_alignment = 1
+
+[node name="StasisHint" type="Label" parent="StasisPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_font_sizes/font_size = 28
+text = "[E] WAKE"
+horizontal_alignment = 1

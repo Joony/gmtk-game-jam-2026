@@ -1,0 +1,182 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/repair_point.gd" id="1_repair"]
+
+; A cracked coolant line: the repair point you can READ from across the room.
+;
+; The flat wall panels tell you their state with a coloured light, which works but is a
+; symbol. This one shows the actual problem and the actual fix, so the patch-vs-permanent
+; choice leaves visible evidence in the world:
+;
+;   BROKEN     a split in the pipe, venting gas
+;   PATCHED    a fat band of tape slapped over it, off-centre and the wrong colour
+;   FIXED      a machined sleeve, square to the pipe, bolted down
+;
+; Same script and same two interaction routes as the panels — only the meshes differ, driven
+; by RepairPoint's broken/patched/fixed node lists. Mount it like a panel: local +Z points
+; into the room, and the pipe runs along local X.
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pipe"]
+top_radius = 0.16
+bottom_radius = 0.16
+height = 3.2
+radial_segments = 14
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pipe"]
+albedo_color = Color(0.42, 0.45, 0.5, 1)
+roughness = 0.8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_flange"]
+top_radius = 0.22
+bottom_radius = 0.22
+height = 0.14
+radial_segments = 14
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pipe"]
+size = Vector3(3.2, 0.34, 0.34)
+
+[sub_resource type="BoxMesh" id="BoxMesh_status"]
+size = Vector3(0.14, 0.14, 0.04)
+
+; --- broken ---------------------------------------------------------------------------
+[sub_resource type="BoxMesh" id="BoxMesh_crack"]
+size = Vector3(0.46, 0.035, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_crack"]
+albedo_color = Color(0.04, 0.05, 0.06, 1)
+roughness = 1.0
+
+; --- patched: deliberately ugly. Wrong colour, off-centre, too fat. ---------------------
+[sub_resource type="CylinderMesh" id="CylinderMesh_tape"]
+top_radius = 0.21
+bottom_radius = 0.205
+height = 0.46
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tape"]
+albedo_color = Color(0.62, 0.52, 0.2, 1)
+roughness = 1.0
+
+; --- fixed: machined, square, bolted --------------------------------------------------
+[sub_resource type="CylinderMesh" id="CylinderMesh_sleeve"]
+top_radius = 0.195
+bottom_radius = 0.195
+height = 0.62
+radial_segments = 16
+rings = 1
+
+; CPUParticles3D draws NOTHING without a mesh — the `amount`/`lifetime` all tick away
+; invisibly. Billboarded quads, unshaded so the alert lighting cannot tint escaping gas red.
+; A radial alpha falloff generated at load, so the puffs are soft blobs instead of the hard
+; squares a bare QuadMesh gives. Same trick as the HUD vignette — no texture file needed.
+[sub_resource type="Gradient" id="Gradient_puff"]
+offsets = PackedFloat32Array(0, 0.35, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.55, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_puff"]
+gradient = SubResource("Gradient_puff")
+width = 64
+height = 64
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_puff"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+billboard_mode = 3
+billboard_keep_scale = true
+albedo_color = Color(0.85, 0.94, 1, 1)
+albedo_texture = SubResource("GradientTexture2D_puff")
+
+; The material goes ON THE MESH, not as a material_override on the particle node — an
+; override there is ignored for the particle draw pass and you get the default lit white
+; material instead, which showed up as a shower of solid grey squares.
+[sub_resource type="QuadMesh" id="QuadMesh_puff"]
+material = SubResource("StandardMaterial3D_puff")
+size = Vector2(1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sleeve"]
+albedo_color = Color(0.68, 0.71, 0.76, 1)
+roughness = 0.55
+
+[node name="VentPipe" type="Node3D"]
+script = ExtResource("1_repair")
+patch_text = "Tape the split"
+fit_text = "Fit a sleeve"
+broken_nodes = [NodePath("Crack"), NodePath("Vent")]
+patched_nodes = [NodePath("Tape")]
+fixed_nodes = [NodePath("Sleeve")]
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Pipe" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("CylinderMesh_pipe")
+surface_material_override/0 = SubResource("StandardMaterial3D_pipe")
+
+[node name="FlangeA" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, -1.25, 0, 0)
+mesh = SubResource("CylinderMesh_flange")
+surface_material_override/0 = SubResource("StandardMaterial3D_pipe")
+
+[node name="FlangeB" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 1.25, 0, 0)
+mesh = SubResource("CylinderMesh_flange")
+surface_material_override/0 = SubResource("StandardMaterial3D_pipe")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+shape = SubResource("BoxShape3D_pipe")
+
+[node name="StatusLight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0.1, 0.15)
+mesh = SubResource("BoxMesh_status")
+
+[node name="Crack" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.985, 0.174, 0, -0.174, 0.985, 0, 0, 0, 1, 0.08, 0.07, 0.145)
+mesh = SubResource("BoxMesh_crack")
+surface_material_override/0 = SubResource("StandardMaterial3D_crack")
+
+; Coolant flashing off as it hits vacuum pressure — angled out of the split and upward,
+; so it reads as escaping rather than as fog sitting on the pipe. CPUParticles3D rather
+; than GPU: the web build targets the Compatibility renderer and this is a handful of quads.
+; Aimed UP and only slightly out. The first version sprayed along +Z at 2.8 m/s, straight
+; into the face of anyone standing where the game wants them to stand — the jet has to read
+; from beside the pipe without filling the screen when you walk up to work on it.
+[node name="Vent" type="CPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.966, -0.259, 0, 0.259, 0.966, 0.08, 0.12, 0.14)
+amount = 22
+lifetime = 0.55
+explosiveness = 0.05
+randomness = 0.6
+; 1 = SPHERE. It was 3, which is BOX — and the box extents default to 1m, so the "jet"
+; was spawning uniformly through a 2m cube around the pipe.
+emission_shape = 1
+emission_sphere_radius = 0.05
+direction = Vector3(0, 1, 0)
+spread = 16.0
+; No gravity: escaping coolant in a pressurised compartment should drift, not pour. The
+; default -9.8 turned the jet into a stream of water running off the pipe onto the floor.
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 0.5
+initial_velocity_max = 1.1
+damping_min = 1.4
+damping_max = 2.2
+scale_amount_min = 0.05
+scale_amount_max = 0.14
+color = Color(0.82, 0.93, 1, 0.6)
+mesh = SubResource("QuadMesh_puff")
+
+[node name="Tape" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.07, -0.996, 0, 0.996, 0.07, 0, 0, 0, 1, 0.09, 0.02, 0)
+mesh = SubResource("CylinderMesh_tape")
+surface_material_override/0 = SubResource("StandardMaterial3D_tape")
+
+[node name="Sleeve" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.08, 0, 0)
+mesh = SubResource("CylinderMesh_sleeve")
+surface_material_override/0 = SubResource("StandardMaterial3D_sleeve")

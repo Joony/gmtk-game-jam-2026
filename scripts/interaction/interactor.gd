@@ -116,7 +116,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Using the held item on something takes priority over dropping it —
 		# that's the repair loop: carry the part, look at the panel, press E.
 		if holding and current != null and current.get_interaction_type() == Interactable.InteractionType.USE_ITEM:
-			current.use_with_item(_carry.held_item())
+			var item := _carry.held_item()
+			current.use_with_item(item)
+			# A part fitted into a panel is gone. Drop first so Carry lets go of a body
+			# it is about to lose, then free it.
+			if current.consumed_last_item() and is_instance_valid(item):
+				_carry.drop(false)
+				item.queue_free()
 		elif holding:
 			_carry.drop(false)
 		elif current != null:
