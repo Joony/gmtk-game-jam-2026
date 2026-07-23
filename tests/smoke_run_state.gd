@@ -664,12 +664,12 @@ class _Runner:
 			"there are fewer spares (%d) than faults (%d), so which to fix properly is a choice"
 				% [spares.size(), faults.size()])
 
-		# Five pods in a ring, but only one of them is yours.
+		# Four pods in a plus, but only one of them is yours.
 		var pods: Array = []
 		for node in suite.root.get_tree().get_nodes_in_group(&"interactables"):
 			if node is StasisPod:
 				pods.append(node)
-		suite.check(pods.size() == 5, "five cryo pods are placed (got %d)" % pods.size())
+		suite.check(pods.size() == 4, "four cryo pods are placed (got %d)" % pods.size())
 		var player_pods := 0
 		for pod in pods:
 			if (pod as StasisPod).is_player_pod:

@@ -77,42 +77,37 @@ script = ExtResource("8_ship")
 [node name="PlayerSpawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 8.5)
 
-; Five cryo pods in a pentagon, centred on (0, 3) with a 2.9m radius, doors facing OUTWARD
-; so each occupant steps into the room rather than into the middle of the ring.
+; FOUR cryo pods in a plus, centred on (0, 3) with a 2.6m radius, doors facing OUTWARD so
+; each occupant steps into the room rather than into the middle. One pod on each of the four
+; sides — fore, aft, port, starboard — rather than the old five-pod pentagon.
 ;
-; Only the +Z pod is the player's, and it faces aft — you wake looking back down the wake at
-; where you came from, straight down the middle of the wide aft window. The other four are scenery and have
-; `is_player_pod = false`, which stops them offering an identical prompt for a pod that does
-; nothing. Rotation is 180 + i*72 degrees, which is what points each door away from centre.
-; CD_CryoStation_v1 — a furnace, and what the pod ring is arranged around. The model is
-; authored 6.6m across and 10.3m tall to the top of its flue; at 0.43 it is 2.84m wide and
-; 4.43m tall, with about 11cm to each pod's back — they read as docked to it.
+; Only the +Z (aft) pod is the player's, and it faces aft — you wake looking back down the
+; wake at where you came from, straight down the middle of the wide aft window. The other
+; three are scenery with `is_player_pod = false`, which stops them offering an identical
+; prompt for a pod that does nothing. Rotation is 180 + position-angle, which points each
+; door radially outward.
 ;
-; The ring went back out from 2.6m to 2.9m to allow this. At 2.6m the only station that fit
-; was 3.5m tall, which is SHORTER than the 3.25m pods once their own ceiling pipes are
-; counted — it was completely enclosed and could not be seen from anywhere in the room. A
-; prop nobody can see is not worth placing. At 2.9m the flue clears the pods by over a metre
-; and the cluster still reads as tight.
+; CD_CryoStation_v1 — a furnace, and what the pods are clustered around. Its silhouette is
+; widest at the base: 1.19m half-width from the floor to 2.1m, then it tapers to the flue.
+; The pod backs sit 1.37m behind their origins, so at r = 2.6 they clear the furnace base by
+; ~4cm — near enough to read as docked to it. This is 30cm tighter than the old 2.9m ring;
+; the furnace's flue still clears the (shorter) pod tops so it stays visible over them.
 [node name="CryoStation" parent="." instance=ExtResource("24_station")]
 transform = Transform3D(0.43, 0, 0, 0, 0.43, 0, 0, 0, 0.43, 0, 0, 3)
 
 [node name="StasisPod" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 5.9)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 5.6)
 
 [node name="CryoPodB" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, -0.309017, 2.7581, 0, 3.8961)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.6, 0, 3)
 is_player_pod = false
 
 [node name="CryoPodC" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, 0.809017, 1.7046, 0, 0.6538)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.4)
 is_player_pod = false
 
 [node name="CryoPodD" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, 0.809017, -1.7046, 0, 0.6538)
-is_player_pod = false
-
-[node name="CryoPodE" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, -0.309017, -2.7581, 0, 3.8961)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.6, 0, 3)
 is_player_pod = false
 
 [node name="SparePart1" parent="." instance=ExtResource("18_part")]
