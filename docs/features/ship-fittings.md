@@ -53,9 +53,21 @@ opening it is a plain Y rotation — the panel swings around the cylinder, which
 curved shell wants.
 
 **The room had to grow.** At the original 10×12 the gap between the ring and the side walls
-was 12cm and the player simply could not get past. The cryo bay is now 14×14 and 4.4m tall
-(the pods are 3.25m with a ceiling pipe reaching 4.17m), with a 3.2m ring radius that leaves
-a ~1m walkable gap between neighbouring pods.
+was 12cm and the player simply could not get past. The cryo bay is now 14×14 and 5.0m tall
+(the pods are 3.25m with a ceiling pipe reaching 4.17m; the headroom above that is what
+stops a room this wide reading as a corridor).
+
+The ring radius came back down to 2.6m after the first pass at 3.2m. The wider ring left a
+walkable gap between neighbouring pods, but five pods spread that far apart stopped reading
+as a cluster — they were five separate objects in a big room rather than one installation.
+At 2.6m the shells sit about 40cm apart, so the middle of the pentagon is sealed off and you
+walk *around* the ring instead of through it. That is fine: nothing is in the middle, the
+lanes to the side walls are 2.9m wide, and `smoke_navigation.gd` confirms every repair
+point, spare and the pod exit is still reachable from the spawn.
+
+**One wide aft window, not two.** The player's pod looks straight down its centre line, so
+this is the first thing seen on every waking. Two smaller panes put a strip of wall exactly
+where the view should be — and the pod's own axis pointed directly at that strip.
 
 **The ride in and out.** Entering freezes the player, tweens the body to the pod's `PodView`
 marker, shuts the door, and *only then* starts the fast-forward — starting the clock first

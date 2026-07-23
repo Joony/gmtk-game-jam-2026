@@ -58,11 +58,11 @@ func _go() -> void:
 	_run = _game.get_node("Run")
 
 	# 1. The pod bay: the pentagon of cryo pods, seen from the player's own pod.
-	await _look_from(Vector3(0.0, 0.9, 8.8), 0.0)
+	await _look_from(Vector3(0.0, 0.9, 8.2), 0.0)
 	await _shot("01_from_spawn")
-	await _look_from(Vector3(-5.6, 0.9, 8.4), -35.0)
+	await _look_from(Vector3(-5.8, 0.9, 8.6), -35.0)
 	await _shot("01b_pentagon_oblique")
-	await _look_from(Vector3(0.0, 3.9, 9.5), 0.0, -32.0)
+	await _look_from(Vector3(0.0, 4.2, 9.4), 0.0, -30.0)
 	await _shot("01d_bay_overview")
 	await _look_from(Vector3(0.0, 0.9, -3.4), 180.0)
 	await _shot("01c_from_corridor")
@@ -116,7 +116,7 @@ func _go() -> void:
 
 	# 5. In the pod. Three points through the spin-up, so the ramp is visible as a ramp:
 	# the streak length is driven by ShipMotion.time_scale, which RunState is winding up.
-	await _look_from(Vector3(0.0, 0.9, 8.6), 180.0)
+	await _look_from(Vector3(0.0, 0.9, 6.0), 180.0)
 	_run.enter_stasis()
 	await _frames(4)
 	await _shot("05a_stasis_spinup_start")
