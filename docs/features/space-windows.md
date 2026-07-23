@@ -24,12 +24,44 @@ Renaming touches six files, so it's a noted follow-up rather than mid-jam churn.
 opening. `unshaded` so the ship's own lighting — including red alert — cannot tint the view out.
 
 Stars are at **fixed world positions** in a hashed 3D grid; advancing `travelled` streams them past.
-Five slabs at increasing depth give parallax for free: the same world offset moves near stars
-further in angular terms than far ones. The view ray is built per-fragment from
+The shader marches 24 cells along the view ray, so parallax comes for free — the same world offset
+moves near stars much further in angular terms than far ones. The ray is built per-fragment from
 `CAMERA_POSITION_WORLD`, so the field parallaxes as the player walks past a window rather than
 looking like a painted backdrop.
 
-### The bug worth remembering
+### Rework: flicker, and making the sky look far away (2026-07-23)
+
+Reported in play: stars flickered — *"appear, sweep past a little, then disappear"* — and looked
+too big and too close. Three distinct causes:
+
+**1. Single-depth sampling made stars pop.** Each slab tested one point at a fixed depth along the
+ray, so a star was only visible while it happened to sit in that thin slice. It is now a **march**:
+`STEPS` samples along the ray with step length equal to the cell size, so every cell the ray passes
+through is sampled and a star stays visible for as long as the line of sight actually passes near
+it.
+
+**2. Hard range cutoffs made stars wink out.** Stars vanished abruptly on crossing the near or far
+end of the sampled range (the old far fade bottomed out at 0.15, not 0). Both ends now fade to
+nothing with `smoothstep`.
+
+**3. The field was too close.** Stars are now sampled from 15m out to ~1.1km (24 steps × 45m cells),
+and sized by **angular** radius (~0.0018 rad) rather than world radius — so a star's apparent size
+falls off with distance the way a real one does. Distant stars barely drift; near ones sweep past.
+
+Measured rather than eyeballed, by rendering the same window at different `travelled` values and
+comparing pixels:
+
+| advance | mean pixel change, as a fraction of "a completely different sky" |
+|---|---|
+| before, 30cm (one frame at cruise) | **54%** |
+| after, 5cm | **4.4%** |
+| after, 30cm (one frame at cruise) | **25%** |
+
+A tiny advance now barely changes the image, which is what persistent stars moving smoothly look
+like. The residual per-frame figure is inherent: stars are 1–2px and genuinely move a couple of
+pixels per frame.
+
+### The earlier bug worth remembering
 
 The first version tested *"is this sample point inside a star?"*. That makes visibility scale with
 **radius cubed**, so shrinking stars to a believable size emptied the sky almost entirely — two
@@ -53,6 +85,13 @@ no registration step. All windows share **one** material, asserted in the test.
 - `streak` grows with speed fraction, so the stars smear when moving fast and are points at rest.
 - `destination_brightness` is a hook for step 12's distance countdown — a soft point of light on the
   travel axis, hidden (0) until there's a distance to show.
+
+## Window placement
+
+Windows sit on exterior walls only — an opening onto another room would show stars through the ship.
+The pod bay has port, starboard and two **aft** windows; the engine room has a port window and a
+wide **forward** window. Travel is `-Z`, so the forward window is where the destination will appear
+once step 12 turns `destination_brightness` on, and the aft pair look back down the wake.
 
 ## Glass
 

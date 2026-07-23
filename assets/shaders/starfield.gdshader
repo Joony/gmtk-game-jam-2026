@@ -7,14 +7,25 @@ render_mode unshaded, cull_disabled, shadows_disabled;
 uniform vec3 travel_direction = vec3(0.0, 0.0, -1.0);
 /// Metres travelled. Stars sit at fixed world positions, so advancing this streams them past.
 uniform float travelled = 0.0;
-uniform float star_density : hint_range(0.0, 1.0) = 0.5;
+uniform float star_density : hint_range(0.0, 1.0) = 0.85;
 uniform float brightness : hint_range(0.0, 4.0) = 1.6;
-uniform vec4 space_color : source_color = vec4(0.008, 0.010, 0.020, 1.0);
+uniform vec4 space_color : source_color = vec4(0.006, 0.008, 0.016, 1.0);
 /// Elongates stars along the direction of travel as speed rises.
-uniform float streak : hint_range(0.0, 8.0) = 0.0;
+uniform float streak : hint_range(0.0, 12.0) = 0.0;
+/// Apparent size of a star, in radians. Small: a star is a point of light, not a disc.
+uniform float star_angular_size : hint_range(0.0002, 0.02) = 0.0018;
+/// World spacing of the star grid, and how far out the field is sampled.
+uniform float cell_size = 45.0;
+/// Stars start FAR away. Close stars sweep across the view in a second and read as
+/// specks flying past the hull rather than a distant sky.
+uniform float near_distance = 15.0;
 /// The destination, drawn as a soft point of light ahead. Brightness 0 hides it.
 uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;
 uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
+
+// Marching this many cells along the ray. Step length == cell size, so every cell the
+// ray passes through IS sampled — that is what stops stars popping in and out.
+const int STEPS = 24;
 
 varying vec3 world_position;
 
@@ -33,43 +44,45 @@ void fragment() {
 	// past the window rather than looking like a painted backdrop.
 	vec3 ray = normalize(world_position - CAMERA_POSITION_WORLD);
 	vec3 dir = normalize(travel_direction);
+	// The ship's position within the star field. Stars are fixed; we move.
+	vec3 eye = dir * travelled;
 	vec3 col = space_color.rgb;
 
-	// Five slabs at increasing depth. Sampling the same world offset at different
-	// depths gives parallax for free: near stars sweep past faster than far ones.
-	// Each slab contributes at most one star per ray, so density comes from small
-	// cells (the cell id changes rapidly across the view) rather than from big stars.
-	for (int i = 0; i < 5; i++) {
-		float fi = float(i);
-		float depth = 6.0 + fi * 8.0;
-		float cell = 1.0 + fi * 1.3;
-
-		vec3 p = ray * depth + dir * travelled;
-		vec3 id = floor(p / cell);
-		vec3 f = fract(p / cell);
+	// March cell by cell along the ray. Previously a single sample per depth slab meant
+	// a star was only visible while it sat in that one thin slice, so stars appeared,
+	// drifted briefly and vanished. Marching keeps each star visible for as long as the
+	// line of sight actually passes near it.
+	for (int i = 0; i < STEPS; i++) {
+		float t = near_distance + float(i) * cell_size;
+		vec3 id = floor((ray * t + eye) / cell_size);
 		vec3 rnd = hash33(id);
 		if (rnd.z > star_density) {
 			continue;
 		}
 
-		// Distance from the RAY to the star, not from a sample point to the star.
-		// Testing "is the sample inside the star" scales coverage with radius CUBED,
-		// so small stars are essentially never hit and the field comes out empty.
-		// A star is visible when the line of sight passes near it — radius squared.
-		// Keep star centres away from cell edges: only the cell containing the sample is
-		// tested, so a star straddling a boundary gets sliced and shows as a wedge.
-		// Confining centres to [0.2, 0.8] means a 0.07 radius never reaches an edge.
-		vec3 star_pos = rnd * 0.6 + vec3(0.2);
-		vec3 to_star = f - star_pos;
-		vec3 perp = to_star - ray * dot(to_star, ray);
-		// Squash along the travel axis so fast travel smears stars into streaks.
-		float along = dot(perp, dir);
-		vec3 across = perp - dir * along;
-		float dist = length(across + dir * (along / (1.0 + streak)));
+		// Star centres are held away from cell edges, so the cell containing a star is
+		// unambiguous and it cannot be sliced by a boundary.
+		vec3 star = (id + rnd * 0.6 + vec3(0.2)) * cell_size;
+		vec3 rel = star - eye;
+		float along = dot(rel, ray);
+		if (along < 1.0) {
+			continue;
+		}
 
-		float falloff = 1.0 - fi * 0.15;
-		// A star is a point, not a blob.
-		col += vec3(smoothstep(0.07, 0.0, dist) * (0.35 + 0.65 * rnd.x) * falloff);
+		// ANGULAR distance from the line of sight: this is what makes stars read as
+		// distant points. A star far away is small; the same star close is large.
+		vec3 offset = rel - ray * along;
+		// Smear along the travel axis with speed.
+		float axial = dot(offset, dir);
+		vec3 lateral = offset - dir * axial;
+		float angle = length(lateral + dir * (axial / (1.0 + streak))) / along;
+
+		// Fade to NOTHING at both ends of the marched range. A hard cutoff makes stars
+		// wink out as they cross the limit, which is most of what reads as flicker.
+		float far_limit = near_distance + float(STEPS) * cell_size;
+		float fade = smoothstep(far_limit, far_limit * 0.5, along)
+			* smoothstep(near_distance * 0.6, near_distance * 2.0, along);
+		col += vec3(smoothstep(star_angular_size, 0.0, angle) * (0.25 + 0.75 * rnd.x) * fade);
 	}
 
 	// Destination ahead: a soft disc on the travel axis, driven by step 12's distance.

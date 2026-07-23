@@ -330,7 +330,12 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       doors and lights are built (deviation from the original plan, noted)
 - [x] **Shared ship-motion parameters** — `ShipMotion` node pushes speed/heading to the
       `space_windows` group each frame; all windows share one material, asserted
-- [x] Parallax: near slabs sweep faster than far ones
+- [x] Parallax: near stars sweep faster than far ones (24-cell ray march, angular star sizing)
+- [x] **Fore and aft windows** as well as port/starboard — the forward one is where the destination
+      will appear
+- [x] Flicker fixed: stars were sampled at a single depth per slab and cut off hard at the range
+      limits. Now marched cell by cell with both ends faded, field pushed out to ~1.1km. Measured:
+      a 5cm advance changes 4.4% as much as a whole new sky (was 54% for 30cm).
 - [x] Star speed driven by actual ship speed — **zero stops the stars dead**
 - [x] Streaking grows with speed
 - [x] Destination hook (`destination_brightness`) ready for step 12's distance countdown

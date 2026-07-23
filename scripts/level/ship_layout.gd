@@ -51,4 +51,10 @@ func build_ship() -> void:
 	add_window(Vector2(5, 2), Doorway.Axis.Z, 3.0, 1.0, 1.3)      # pod bay, starboard
 	add_window(Vector2(-6, -17), Doorway.Axis.Z, 4.0, 1.2, 1.6)   # engine room, port
 
+	# Fore and aft. Travel is -Z, so the engine room's far wall looks FORWARD (where
+	# the destination will appear) and the pod bay's rear wall looks BACK down the wake.
+	add_window(Vector2(0, -22), Doorway.Axis.X, 5.0, 1.2, 1.8)    # engine room, forward
+	add_window(Vector2(-2, 8), Doorway.Axis.X, 3.0, 1.0, 1.3)     # pod bay, aft
+	add_window(Vector2(2, 8), Doorway.Axis.X, 3.0, 1.0, 1.3)      # pod bay, aft
+
 	build()
