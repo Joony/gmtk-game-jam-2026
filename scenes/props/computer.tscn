@@ -1,0 +1,73 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/computer_terminal.gd" id="1_terminal"]
+[ext_resource type="Script" path="res://scripts/ui/nav_chart.gd" id="2_chart"]
+
+; A real screen: NavChart draws into a SubViewport and the viewport's texture is the quad's
+; albedo. Structure copied from GMTK 2025's ComputerScreen — SubViewport as a direct child
+; of the scene root, material marked resource_local_to_scene, and viewport_path resolved
+; from that root. Both of those are required: without the local-to-scene flag every
+; instance would share one viewport, and the path would not resolve at all.
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_screen"]
+viewport_path = NodePath("SubViewport")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_screen"]
+resource_local_to_scene = true
+; Unshaded, or the room's lighting washes a self-lit CRT.
+shading_mode = 0
+albedo_texture = SubResource("ViewportTexture_screen")
+
+[sub_resource type="QuadMesh" id="QuadMesh_screen"]
+size = Vector2(1.0, 0.62)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plinth"]
+size = Vector3(1.2, 0.9, 0.35)
+
+[sub_resource type="BoxMesh" id="BoxMesh_head"]
+size = Vector3(1.2, 0.78, 0.35)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_case"]
+albedo_color = Color(0.24, 0.26, 0.3, 1)
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_case"]
+size = Vector3(1.2, 2.1, 0.35)
+
+[node name="Computer" type="Node3D"]
+script = ExtResource("1_terminal")
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Plinth" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+mesh = SubResource("BoxMesh_plinth")
+surface_material_override/0 = SubResource("StandardMaterial3D_case")
+
+[node name="Head" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 0)
+mesh = SubResource("BoxMesh_head")
+surface_material_override/0 = SubResource("StandardMaterial3D_case")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
+shape = SubResource("BoxShape3D_case")
+
+[node name="Screen" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 0.179)
+mesh = SubResource("QuadMesh_screen")
+surface_material_override/0 = SubResource("StandardMaterial3D_screen")
+
+[node name="SubViewport" type="SubViewport" parent="."]
+disable_3d = true
+transparent_bg = false
+size = Vector2i(1024, 640)
+render_target_update_mode = 4
+
+[node name="NavChart" type="Control" parent="SubViewport"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_chart")

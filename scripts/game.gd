@@ -26,12 +26,20 @@ signal started
 @onready var _hud: CanvasLayer = $HUD
 @onready var _run_end: CanvasLayer = $RunEnd
 @onready var _pod: StasisPod = $StasisPod
+@onready var _computer: ComputerTerminal = $Computer
+@onready var _nav_screen: CanvasLayer = $NavScreen
+
+## Where the player is in the pod cycle. A plain bool could not express "half way in", and
+## every one of these phases has to reject the inputs that belong to the others — the alarm
+## can fire while the lid is still closing.
+enum PodPhase { OUT, ENTERING, IN, EXITING }
+
+## How long the ride into or out of the pod takes.
+const POD_MOVE_TIME := 1.1
 
 var is_started: bool = false
 
-## Where the player was standing when they climbed into the pod, so waking up puts them
-## back on their feet rather than dumping them at the spawn point.
-var _pre_stasis_transform: Transform3D = Transform3D.IDENTITY
+var _pod_phase: PodPhase = PodPhase.OUT
 
 
 func _ready() -> void:
@@ -47,6 +55,13 @@ func _ready() -> void:
 
 	_pod.interacted_with.connect(_on_pod_used)
 	_run.stasis_changed.connect(_on_stasis_changed)
+	# Every pod starts sealed; the player's swings open so it reads as the one to use.
+	for pod in get_tree().get_nodes_in_group(&"interactables"):
+		if pod is StasisPod:
+			(pod as StasisPod).set_door_open((pod as StasisPod).is_player_pod, true)
+	_computer.bind(_run)
+	_computer.opened.connect(_open_nav_screen)
+	_nav_screen.closed.connect(_close_nav_screen)
 	_run.run_ended.connect(_on_run_ended)
 	_run_end.dismissed.connect(_on_run_end_dismissed)
 	_hud.bind(_run)
@@ -86,47 +101,130 @@ func capture_mouse() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Waking up. The player node is disabled in stasis, so its Interactor cannot serve
-	# this — Game is the only thing still listening.
-	if _run.in_stasis and event.is_action_pressed("interact"):
+	if not event.is_action_pressed("interact"):
+		return
+	# Waking up. The player's own Interactor is switched off in stasis, so Game is the
+	# only thing still listening. Ignored mid-transition: the pod is not yours to leave
+	# until the lid has actually shut.
+	if _pod_phase == PodPhase.IN:
 		_run.exit_stasis()
+		get_viewport().set_input_as_handled()
+	elif _nav_screen.visible:
+		# Same key that opened it. The Interactor is switched off while it is up, so the
+		# press cannot re-trigger the console underneath.
+		_nav_screen.close()
 		get_viewport().set_input_as_handled()
 
 
-func _on_pod_used(_interactable: Interactable) -> void:
-	if not is_started or _run.finished or _run.in_stasis:
+## Reading the console freezes the player but does not pause the game — the point of
+## checking your progress is that the clock is still running while you decide.
+func _open_nav_screen() -> void:
+	if not is_started or _run.finished or _pod_phase != PodPhase.OUT:
 		return
-	# Climbing in with a part under your arm would otherwise teleport it across the ship.
+	_set_player_active(false)
+	_reticle.visible = false
+	_nav_screen.open(_computer)
+
+
+func _close_nav_screen() -> void:
+	if _run.finished:
+		return
+	_set_player_active(true)
+	_reticle.visible = true
+
+
+func _on_pod_used(_interactable: Interactable) -> void:
+	if not is_started or _run.finished or _pod_phase != PodPhase.OUT:
+		return
+	# Climbing in with a spare under your arm would otherwise teleport it across the ship.
 	if _carry.is_holding():
 		_carry.drop(false)
-	_run.enter_stasis()
+	_enter_pod()
 
 
 func _on_stasis_changed(in_stasis: bool) -> void:
-	_pod.set_occupied(in_stasis)
-	_reticle.visible = not in_stasis
-	if in_stasis:
-		_pre_stasis_transform = _player.global_transform
-		_player.velocity = Vector3.ZERO
-		_move_player_to(_pod.get_node("PodView") as Node3D)
-	else:
-		_move_player_to(null)
-	# NOTE: movement, interaction and carrying stop, but the CAMERA keeps running, so you
-	# can still look around from inside the pod. Disabling the whole Player subtree would
-	# have been one line, but CameraRig is a child of it — the view would freeze on
-	# whatever you happened to be facing when you climbed in, which reads as a crash.
-	_set_player_active(not in_stasis)
+	# Only the WAKING half is driven from here. Entering is sequenced by _enter_pod(),
+	# which has to finish moving the player before the clock starts running fast.
+	if not in_stasis and _pod_phase == PodPhase.IN:
+		_exit_pod()
 
 
-## Stop everything the player does without stopping them seeing. `to` of null restores
-## the transform saved on entering stasis.
-func _move_player_to(to: Node3D) -> void:
-	_player.global_transform = to.global_transform if to != null else _pre_stasis_transform
-	# Teleporting with physics interpolation on otherwise smears the camera across the
-	# ship for one frame, because the interpolator blends from the old origin.
+## Ride into the pod: freeze the player, fly the view in, shut the door, then start the
+## fast-forward. The order matters — starting the clock first would have days ticking past
+## while the player is still visibly walking in.
+func _enter_pod() -> void:
+	_pod_phase = PodPhase.ENTERING
+	_set_player_active(false)
+	_player.velocity = Vector3.ZERO
+	_reticle.visible = false
+	_pod.set_occupied(true)
+	_pod.set_door_open(true)
+
+	await _glide_player_to(_pod.view_transform(), POD_MOVE_TIME)
+	if _pod_phase != PodPhase.ENTERING:
+		return
+	_pod.set_door_open(false)
+	await get_tree().create_timer(_pod.door_duration()).timeout
+	if _pod_phase != PodPhase.ENTERING:
+		return
+
+	_pod_phase = PodPhase.IN
+	_run.enter_stasis()
+
+
+## Ejected: open the door, fly the view back out, hand control back.
+func _exit_pod() -> void:
+	_pod_phase = PodPhase.EXITING
+	# A run that ended while asleep goes straight to the summary; animating the player out
+	# of a pod they are never going to use again just delays the screen they need to see.
+	if _run.finished:
+		_finish_exit()
+		return
+	_pod.set_door_open(true)
+	await get_tree().create_timer(_pod.door_duration() * 0.5).timeout
+	await _glide_player_to(_pod.exit_transform(), POD_MOVE_TIME)
+	_finish_exit()
+
+
+func _finish_exit() -> void:
+	_pod.set_occupied(false)
+	_pod_phase = PodPhase.OUT
+	if not _run.finished:
+		_reticle.visible = true
+		_set_player_active(true)
+	_camera.input_enabled = true
+
+
+## Move the player smoothly to a transform, aiming the camera as it goes.
+##
+## The body is tweened rather than teleported, and the CAMERA is aimed through
+## CameraController.set_look() rather than by rotating the body — the controller rewrites
+## the body basis from its own yaw every frame, so a rotation applied here would be thrown
+## away on the very next one.
+func _glide_player_to(target: Transform3D, duration: float) -> void:
+	_camera.input_enabled = false
+	var from_pos := _player.global_position
+	var to_pos := target.origin
+	var from_yaw := _camera.get_yaw()
+	var to_yaw := target.basis.get_euler().y
+	var from_pitch := _camera.get_pitch()
+
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_method(
+		func(t: float) -> void:
+			_player.global_position = from_pos.lerp(to_pos, t)
+			# lerp_angle, not lerpf: the short way round, so turning from -170 to 170
+			# degrees does not spin the player through a full circle.
+			_camera.set_look(lerp_angle(from_yaw, to_yaw, t), lerpf(from_pitch, 0.0, t)),
+		0.0, 1.0, duration
+	)
+	await tween.finished
+	_player.global_position = to_pos
+	_camera.set_look(to_yaw, 0.0)
+	# The interpolator would otherwise blend the camera from wherever the body was on the
+	# previous physics tick, smearing the first frame after control returns.
 	_player.reset_physics_interpolation()
-	# The camera owns yaw and would overwrite the body basis we just set.
-	_camera.adopt_body_yaw()
 
 
 func _set_player_active(active: bool) -> void:
@@ -137,6 +235,8 @@ func _set_player_active(active: bool) -> void:
 
 
 func _on_run_ended(won: bool, summary: Dictionary) -> void:
+	if _nav_screen.visible:
+		_nav_screen.close()
 	_reticle.visible = false
 	_hud.visible = false
 	_pause_menu.enabled = false

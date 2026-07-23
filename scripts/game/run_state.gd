@@ -31,9 +31,21 @@ signal alarm(malfunction: Malfunction, was_patch_failure: bool)
 signal run_ended(won: bool, summary: Dictionary)
 
 @export_group("Balance")
-## Journey length in metres. At cruise this is total_distance / cruise_speed seconds of
-## SHIP time; divide by stasis_time_scale for the real-time floor on a perfect run.
-@export var total_distance: float = 54000.0
+## Journey length in MILLIONS OF MILES. An interplanetary crossing, so the numbers the
+## player reads are millions of miles and days, not metres and seconds.
+##
+## The journey has its OWN speed model, separate from ShipMotion's metres-per-second. Those
+## two were one value at first and could not stay that way: the starfield needs a speed that
+## looks right streaming past a window, while the voyage needs one that crosses 82 million
+## miles in about a month. RunState owns the voyage and pushes only a 0..1 health fraction
+## at ShipMotion, which scales its own visual speed by it.
+@export var total_distance: float = 82.0
+## Ship speed at full health, in millions of miles per day.
+@export var cruise_speed_per_day: float = 2.6
+## In-fiction days that pass per real second while awake. Multiplied by stasis_time_scale
+## in the pod, so 0.011 x 24 = 0.264 days per second asleep: a 31.5-day crossing takes about
+## two minutes of stasis if nothing breaks.
+@export var days_per_real_second: float = 0.011
 ## The entire air budget for the run, in seconds outside the pod.
 @export var oxygen_total: float = 240.0
 @export var oxygen_drain_rate: float = 1.0
@@ -49,8 +61,8 @@ signal run_ended(won: bool, summary: Dictionary)
 ## Speed floor as a fraction of cruise. Faults can total more than 100%, and a ship frozen
 ## at exactly zero is an unwinnable run that still makes you sit through your own suffocation.
 @export var min_speed_fraction: float = 0.06
-## Distance at which the destination starts to become visible ahead.
-@export var approach_distance: float = 12000.0
+## Distance (million miles) at which the destination starts to become visible ahead.
+@export var approach_distance: float = 8.0
 ## Air remaining, in seconds, at which the HUD starts shouting.
 @export var oxygen_warning: float = 60.0
 
@@ -59,6 +71,8 @@ signal run_ended(won: bool, summary: Dictionary)
 @export var lighting_path: NodePath = NodePath("../Lighting")
 
 var distance_remaining: float = 0.0
+## In-fiction days since the run began. Displayed, and useful for logging a run.
+var days_elapsed: float = 0.0
 var oxygen_remaining: float = 0.0
 var in_stasis: bool = false
 var running: bool = false
@@ -99,6 +113,7 @@ func start() -> void:
 		malfunction.repaired.connect(_on_repaired)
 
 	distance_remaining = total_distance
+	days_elapsed = 0.0
 	oxygen_remaining = oxygen_total
 	finished = false
 	running = true
@@ -126,8 +141,9 @@ func _process(delta: float) -> void:
 
 	# Speed before distance: a fault that fired this frame should slow this frame's travel.
 	_update_speed()
-	var ship_delta := delta * (stasis_time_scale if in_stasis else 1.0)
-	distance_remaining = maxf(distance_remaining - _speed() * ship_delta, 0.0)
+	var days := delta * days_per_real_second * (stasis_time_scale if in_stasis else 1.0)
+	days_elapsed += days
+	distance_remaining = maxf(distance_remaining - cruise_speed_per_day * speed_fraction() * days, 0.0)
 	distance_changed.emit(distance_remaining, total_distance)
 
 	for malfunction in _malfunctions:
@@ -170,20 +186,21 @@ func malfunctions() -> Array[Malfunction]:
 	return _malfunctions
 
 
-## Seconds of ship time to arrival at the current speed. INF when stopped — the honest
-## answer, and the HUD renders it as "--:--" rather than a made-up number.
-func eta_seconds() -> float:
-	var speed := _speed()
-	if speed <= 0.001:
+## DAYS to arrival at the current speed. INF when stopped dead — the honest answer, and
+## the HUD renders it as dashes rather than inventing an arrival date it cannot promise.
+func eta_days() -> float:
+	var rate := cruise_speed_per_day * speed_fraction()
+	if rate <= 0.00001:
 		return INF
-	return distance_remaining / speed
+	return distance_remaining / rate
 
 
-## 0..1, where 1 is undamaged. What the HUD's speed bar shows.
+## 0..1, where 1 is undamaged. Drives both the voyage and ShipMotion's visual speed.
 func speed_fraction() -> float:
-	if _motion == null or _motion.cruise_speed <= 0.0:
-		return 0.0
-	return _speed() / _motion.cruise_speed
+	var penalty := 0.0
+	for malfunction in _malfunctions:
+		penalty += malfunction.active_speed_penalty()
+	return clampf(1.0 - penalty, min_speed_fraction, 1.0)
 
 
 func summary() -> Dictionary:
@@ -200,17 +217,12 @@ func summary() -> Dictionary:
 	}
 
 
-func _speed() -> float:
-	return _motion.speed if _motion != null else 0.0
-
-
 func _update_speed() -> void:
 	if _motion == null:
 		return
-	var penalty := 0.0
-	for malfunction in _malfunctions:
-		penalty += malfunction.active_speed_penalty()
-	_motion.speed = _motion.cruise_speed * clampf(1.0 - penalty, min_speed_fraction, 1.0)
+	# ShipMotion keeps its own metres-per-second, tuned for how the stars should look;
+	# all RunState says is how healthy the drive is.
+	_motion.speed = _motion.cruise_speed * speed_fraction()
 
 
 # Faults multiply the drain rather than adding to it, and only the WORST one counts.

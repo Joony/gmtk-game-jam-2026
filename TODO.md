@@ -458,6 +458,24 @@ look out of.
       Doing nothing suffocates you just short of the destination; patching survives on 44s;
       spending the spares well arrives comfortably. All values exported on `game.tscn`.
 
+### 12f. Ship fittings — **done** ([log](docs/features/ship-fittings.md))
+
+- [x] Distance in **millions of miles**, time in **days**. The voyage has its own speed model
+      (`cruise_speed_per_day`, `days_per_real_second`) separate from ShipMotion's metres per
+      second, which stays tuned for how the starfield should look.
+- [x] **Fixed-width numeric display** (`DigitReadout`) — one slot per character so the clocks
+      stop twitching sideways as digits change. Values zero-padded to constant width, since
+      fixed slots alone do not stop 9.9 -> 10.0 shifting the row.
+- [x] **Five CD_Cryo_v2 pods in a pentagon**, doors outward, the player's facing aft at the
+      +Z vertex. Cryo bay widened to 14x14x4.4 — at the old size the ring left a 12cm gap
+      against the wall and the player could not walk past.
+- [x] **Smooth camera ride into and out of the pod**, with the door swinging shut behind you.
+      The camera keeps running inside the pod so you can look around.
+- [x] **Visual puzzle**: the coolant loop is a cracked pipe venting vapour. A patch is visibly
+      a patch (crooked tape); a permanent repair is a machined sleeve.
+- [x] **Nav console** in the cryo bay, in the spirit of GMTK 2025's computer: a hand-drawn
+      chart on a real SubViewport screen, with a full-screen version on interact.
+
 #### Step 12 follow-ups
 
 - [ ] Repairs are instant once you reach the panel — a hold-to-repair timer would let the
@@ -467,6 +485,13 @@ look out of.
 - [ ] `SlidingDoor.jammed` is still unused as a fault type
 - [ ] Optimal play is ~3 minutes; the 5-10 minute target relies on real players being slower
       than the simulation. Re-check against an actual playthrough.
+- [ ] The four scenery pods are empty — occupants would sell the fiction cheaply
+- [ ] Move `CD_Cryo_v2.blend` and `node_3d.tscn` under `assets/` and `scenes/props/`
+      (coordinate first — they are a collaborator's files)
+- [ ] Name the two worlds on the nav chart, and the game
+- [ ] **`.tscn` Transform3D basis literals are ROW-major.** Writing one from column vectors
+      gives the transpose, i.e. the opposite rotation. This buried three repair panels inside
+      walls. `tests/smoke_navigation.gd` now guards it.
 
 ## 13. Polish / remaining
 

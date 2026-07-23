@@ -102,7 +102,7 @@ func _run() -> void:
 	for policy in ["ignore", "patch", "proper"]:
 		var result: Dictionary = await simulate(policy)
 		var summary: Dictionary = result["summary"]
-		print("%-8s %-9s  run %5.1fs   air left %5.1fs   repairs %d perm / %d patch (%d gave out)   %.1f km covered" % [
+		print("%-8s %-9s  run %5.1fs   air left %5.1fs   repairs %d perm / %d patch (%d gave out)   %.1f million miles covered" % [
 			result["policy"],
 			"ARRIVED" if result["won"] else "SUFFOCATED",
 			result["real_seconds"],
@@ -110,6 +110,6 @@ func _run() -> void:
 			summary["repairs_permanent"],
 			summary["repairs_patched"],
 			summary["patch_failures"],
-			summary["distance_covered"] / 1000.0,
+			summary["distance_covered"],
 		])
 	quit(0)

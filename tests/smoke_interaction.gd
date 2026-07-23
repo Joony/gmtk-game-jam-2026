@@ -65,6 +65,15 @@ func _run() -> void:
 
 	await _physics_frames(45)  # settle on the floor
 
+	# Move to the middle of the engine room before any of the physics work below. The carry
+	# and throw sections walk the player 2m forward and park items 1.4m in front of that,
+	# and the spawn point no longer has that much clear space — the cryo pod ring is right
+	# there, so the "thrown" crate was being released inside a pod and going nowhere.
+	_player.global_position = Vector3(0.0, 0.9, -17.0)
+	_player.reset_physics_interpolation()
+	(_game.get_node("Player/CameraRig") as CameraController).set_look(0.0, 0.0)
+	await _physics_frames(20)
+
 	var pickup: Node3D = _game.get_node("PickupA")
 	# The Interactable script sits on the RigidBody3D itself — verify that actually works.
 	_check("pickup is an Interactable", pickup is Interactable)

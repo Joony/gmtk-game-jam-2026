@@ -22,12 +22,13 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
-func _look_from(position: Vector3, yaw_degrees: float) -> void:
+## Yaw 0 looks down -Z (toward the bow). POSITIVE yaw turns toward -X (port), because a
+## +Y rotation swings the forward vector that way — easy to get backwards, and I did.
+func _look_from(position: Vector3, yaw_degrees: float, pitch_degrees: float = 0.0) -> void:
 	_player.global_position = position
-	_player.global_transform.basis = Basis.from_euler(Vector3(0.0, deg_to_rad(yaw_degrees), 0.0))
 	_player.reset_physics_interpolation()
-	_camera.adopt_body_yaw()
-	await _frames(6)
+	_camera.set_look(deg_to_rad(yaw_degrees), deg_to_rad(pitch_degrees))
+	await _frames(14)
 
 
 func _shot(name: String) -> void:
@@ -56,9 +57,43 @@ func _go() -> void:
 	_camera = _game.get_node("Player/CameraRig")
 	_run = _game.get_node("Run")
 
-	# 1. The pod bay: HUD at full health, pod and parts in view.
-	await _look_from(Vector3(0.0, 0.9, 1.5), 180.0)
-	await _shot("01_pod_bay")
+	# 1. The pod bay: the pentagon of cryo pods, seen from the player's own pod.
+	await _look_from(Vector3(0.0, 0.9, 8.8), 0.0)
+	await _shot("01_from_spawn")
+	await _look_from(Vector3(-5.6, 0.9, 8.4), -35.0)
+	await _shot("01b_pentagon_oblique")
+	await _look_from(Vector3(0.0, 3.9, 9.5), 0.0, -32.0)
+	await _shot("01d_bay_overview")
+	await _look_from(Vector3(0.0, 0.9, -3.4), 180.0)
+	await _shot("01c_from_corridor")
+
+	# The nav console, and the full-screen chart it opens.
+	await _look_from(Vector3(5.3, 0.9, 5.0), -90.0)
+	await _shot("07_console")
+	_game._open_nav_screen()
+	await _frames(10)
+	await _shot("08_nav_chart")
+	_game._nav_screen.close()
+	await _frames(5)
+
+	# The vent pipe in its three states.
+	var coolant: Malfunction = _game.get_node("CoolantLoop")
+	coolant.break_now()
+	await _frames(30)
+	await _look_from(Vector3(4.05, 0.9, -17.0), -90.0)
+	var interactor: Interactor = _game.get_node("Player/Interactor")
+	print("  DIAG player=%v cam=%v target=%s prompt='%s'" % [
+		_player.global_position,
+		(_game.get_node("Player/CameraRig/Camera3D") as Camera3D).global_position,
+		str(interactor.current), interactor.get_prompt()])
+	await _shot("09_pipe_broken")
+	coolant.repair(false, _run.distance_remaining)
+	await _frames(20)
+	await _shot("10_pipe_patched")
+	coolant.break_now()
+	coolant.repair(true, _run.distance_remaining)
+	await _frames(20)
+	await _shot("11_pipe_fixed")
 
 	# 2. A critical fault: HUD fault list, red alert lighting, red panel light.
 	var drive: Malfunction = _game.get_node("MainDrive")

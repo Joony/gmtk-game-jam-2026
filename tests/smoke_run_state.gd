@@ -57,7 +57,12 @@ func build_run(overrides: Dictionary = {}, faults: Array = []) -> Dictionary:
 	run.name = "Run"
 	run.motion_path = NodePath("../Motion")
 	run.lighting_path = NodePath("../Lighting")
-	run.total_distance = 10000.0
+	# Round numbers on purpose: 1 million miles per real second awake, 10 asleep, 1s of air
+	# per second. The default journey is deliberately far too long to finish, so a test that
+	# is not about arrival can never accidentally end the run mid-measurement.
+	run.total_distance = 100000.0
+	run.cruise_speed_per_day = 1.0
+	run.days_per_real_second = 1.0
 	run.oxygen_total = 100.0
 	run.stasis_time_scale = 10.0
 	for key in overrides:
@@ -116,6 +121,9 @@ class _Runner:
 		_test_scrubber_multiplier()
 		_test_win_and_lose_fire_once()
 		_test_repair_point_routes()
+		_test_state_visuals()
+		_test_digit_readout()
+		await _test_computer()
 		await _test_scene_wiring()
 
 		print("-- %d checks, %d failures --" % [suite.checks, suite.failures.size()])
@@ -128,12 +136,15 @@ class _Runner:
 
 	func _test_distance_rate() -> void:
 		print("[distance falls at the ship's speed]")
-		var ctx: Dictionary = suite.build_run()
+		var ctx: Dictionary = suite.build_run({"total_distance": 100.0})
 		var run: RunState = ctx["run"]
 		suite.tick(run, 10.0)
-		# 10s at cruise 20 m/s = 200m.
-		suite.check(suite.nearly(run.distance_remaining, 9800.0, 0.01),
-			"10s at 20 m/s covers 200m (got %.2f remaining)" % run.distance_remaining)
+		suite.check(suite.nearly(run.distance_remaining, 90.0, 0.01),
+			"10s covers 10 million miles (got %.2f remaining)" % run.distance_remaining)
+		suite.check(suite.nearly(run.days_elapsed, 10.0, 0.01),
+			"and 10 days pass (got %.2f)" % run.days_elapsed)
+		suite.check(suite.nearly(run.eta_days(), 90.0, 0.01),
+			"ETA is the remaining distance at the current rate (got %.2f days)" % run.eta_days())
 		ctx["holder"].free()
 
 
@@ -224,8 +235,9 @@ class _Runner:
 		var run: RunState = ctx["run"]
 		var motion: ShipMotion = ctx["motion"]
 
+		var start_distance := run.distance_remaining
 		suite.tick(run, 10.0)
-		var awake_covered := 10000.0 - run.distance_remaining
+		var awake_covered := start_distance - run.distance_remaining
 
 		run.enter_stasis()
 		suite.check(suite.nearly(motion.time_scale, 10.0),
@@ -246,8 +258,8 @@ class _Runner:
 
 	func _test_schedule_fires_once() -> void:
 		print("[faults fire on schedule, once, and wake you]")
-		var ctx: Dictionary = suite.build_run({}, [
-			{"system_name": "A", "speed_penalty": 0.2, "fire_at_distance": 9000.0},
+		var ctx: Dictionary = suite.build_run({"total_distance": 100.0}, [
+			{"system_name": "A", "speed_penalty": 0.2, "fire_at_distance": 50.0},
 		])
 		var run: RunState = ctx["run"]
 		var fault: Malfunction = ctx["faults"][0]
@@ -270,8 +282,8 @@ class _Runner:
 
 	func _test_patch_expires_and_refires() -> void:
 		print("[a patch buys distance, then gives out at the same panel]")
-		var ctx: Dictionary = suite.build_run({}, [
-			{"system_name": "A", "speed_penalty": 0.2, "bodge_distance": 1000.0},
+		var ctx: Dictionary = suite.build_run({"total_distance": 100.0}, [
+			{"system_name": "A", "speed_penalty": 0.2, "bodge_distance": 10.0},
 		])
 		var run: RunState = ctx["run"]
 		var fault: Malfunction = ctx["faults"][0]
@@ -283,12 +295,12 @@ class _Runner:
 		suite.check(suite.nearly(run.speed_fraction(), 1.0),
 			"a patch restores FULL speed — its cost is that it expires")
 
-		# 900m of travel: not far enough.
-		suite.tick(run, 45.0, 45)
+		# 5 million miles of travel: not far enough to use up a 10-million-mile patch.
+		suite.tick(run, 5.0, 5)
 		suite.check(not fault.is_active,
-			"the patch holds for its distance (%.0fm covered)" % (10000.0 - run.distance_remaining))
+			"the patch holds for its distance (%.1f Mm covered)" % (100.0 - run.distance_remaining))
 
-		suite.tick(run, 20.0, 40)
+		suite.tick(run, 10.0, 20)
 		suite.check(fault.is_active, "the patch gives out after bodge_distance")
 		suite.check(fault.break_count == 2, "it is the SAME fault breaking again (count %d)" % fault.break_count)
 		suite.check(run.patch_failures == 1, "the failure is recorded for the summary")
@@ -299,17 +311,17 @@ class _Runner:
 
 	func _test_permanent_repair_never_refires() -> void:
 		print("[a fitted part is permanent]")
-		var ctx: Dictionary = suite.build_run({}, [
-			{"system_name": "A", "speed_penalty": 0.2, "bodge_distance": 500.0},
+		var ctx: Dictionary = suite.build_run({"total_distance": 100.0}, [
+			{"system_name": "A", "speed_penalty": 0.2, "bodge_distance": 5.0},
 		])
 		var run: RunState = ctx["run"]
 		var fault: Malfunction = ctx["faults"][0]
 		fault.break_now()
 		fault.repair(true, run.distance_remaining)
 		suite.check(not fault.is_patched, "a proper fix is not a patch")
-		suite.tick(run, 200.0, 200)
+		suite.tick(run, 50.0, 50)
 		suite.check(not fault.is_active,
-			"still fixed after %.0fm" % (10000.0 - run.distance_remaining))
+			"still fixed after %.1f Mm" % (100.0 - run.distance_remaining))
 		suite.check(run.repairs_permanent == 1, "counted as a permanent repair")
 		ctx["holder"].free()
 
@@ -368,7 +380,7 @@ class _Runner:
 	func _test_win_and_lose_fire_once() -> void:
 		print("[win at distance zero, lose at air zero, each exactly once]")
 
-		var won: Dictionary = suite.build_run({"total_distance": 100.0, "oxygen_total": 1000.0})
+		var won: Dictionary = suite.build_run({"total_distance": 10.0, "oxygen_total": 1000.0})
 		var win_run: RunState = won["run"]
 		var win_events := []
 		win_run.run_ended.connect(func(w: bool, s: Dictionary) -> void: win_events.append({"won": w, "summary": s}))
@@ -471,6 +483,110 @@ class _Runner:
 		holder.free()
 
 
+	func _test_state_visuals() -> void:
+		print("[a panel shows its state in the world, not just on a light]")
+		var holder := Node.new()
+		suite.root.add_child(holder)
+		var fault := Malfunction.new()
+		holder.add_child(fault)
+		var panel := RepairPoint.new()
+		var crack := Node3D.new()
+		crack.name = "Crack"
+		var tape := Node3D.new()
+		tape.name = "Tape"
+		var sleeve := Node3D.new()
+		sleeve.name = "Sleeve"
+		panel.add_child(crack)
+		panel.add_child(tape)
+		panel.add_child(sleeve)
+		panel.broken_nodes = [NodePath("Crack")]
+		panel.patched_nodes = [NodePath("Tape")]
+		panel.fixed_nodes = [NodePath("Sleeve")]
+		fault.add_child(panel)
+
+		suite.check(not crack.visible and not tape.visible and sleeve.visible,
+			"a healthy system shows only the intact fix")
+		fault.break_now()
+		suite.check(crack.visible and not tape.visible and not sleeve.visible,
+			"breaking it shows the damage")
+		fault.repair(false, 100.0)
+		suite.check(tape.visible and not crack.visible and not sleeve.visible,
+			"a patch shows the patch — visible evidence of the choice made")
+		fault.break_now()
+		fault.repair(true, 100.0)
+		suite.check(sleeve.visible and not tape.visible and not crack.visible,
+			"a permanent fix replaces the patch with the proper part")
+		holder.free()
+
+
+	func _test_digit_readout() -> void:
+		print("[the clocks do not twitch as their digits change]")
+		var readout := DigitReadout.new()
+		readout.digit_width = 40.0
+		readout.separator_width = 18.0
+		suite.root.add_child(readout)
+
+		readout.set_value("0:00")
+		var widths: Array[float] = []
+		for child in readout.get_children():
+			widths.append((child as Label).custom_minimum_size.x)
+		suite.check(widths.size() == 4, "one slot per character (got %d)" % widths.size())
+		suite.check(widths[0] == 40.0 and widths[1] == 18.0 and widths[2] == 40.0,
+			"digits get the wide slot and the colon the narrow one")
+
+		# The point of the whole class: swapping 1 for 8 must not move anything.
+		readout.set_value("1:11")
+		var after: Array[float] = []
+		for child in readout.get_children():
+			after.append((child as Label).custom_minimum_size.x)
+		suite.check(after == widths, "slot widths are identical for different digits")
+
+		var before_count := readout.get_child_count()
+		readout.set_value("8:88")
+		suite.check(readout.get_child_count() == before_count,
+			"labels are reused, not rebuilt every update")
+		readout.free()
+
+
+	func _test_computer() -> void:
+		print("[the nav console reads the run]")
+		var ctx: Dictionary = suite.build_run({"total_distance": 100.0})
+		var run: RunState = ctx["run"]
+		suite.tick(run, 25.0)
+
+		var computer := (load("res://scenes/props/computer.tscn") as PackedScene).instantiate() as ComputerTerminal
+		suite.root.add_child(computer)
+		await suite.process_frame
+		computer.bind(run)
+
+		var chart := NavChart.new()
+		suite.root.add_child(chart)
+		computer.push_to(chart)
+		suite.check(suite.nearly(chart._progress, 0.25, 0.01),
+			"progress is the fraction of the journey covered (got %.3f)" % chart._progress)
+		suite.check(suite.nearly(chart._distance_left, 75.0, 0.01),
+			"and it reports the remaining distance (got %.2f)" % chart._distance_left)
+		suite.check(suite.nearly(chart._days_left, 75.0, 0.01),
+			"and the ETA in days (got %.2f)" % chart._days_left)
+
+		# A limping drive has to show on the chart too, or the console lies to the player.
+		# A separate run, because start() is idempotent — adding a fault to a run that is
+		# already going never registers it, which is exactly the bug this check first hit.
+		var damaged: Dictionary = suite.build_run({"total_distance": 100.0}, [
+			{"system_name": "DRIVE", "speed_penalty": 0.5},
+		])
+		(damaged["faults"][0] as Malfunction).break_now()
+		computer.bind(damaged["run"])
+		computer.push_to(chart)
+		suite.check(suite.nearly(chart._drive, 0.5, 0.01),
+			"a broken system shows as reduced drive (got %.2f)" % chart._drive)
+
+		chart.free()
+		computer.free()
+		damaged["holder"].free()
+		ctx["holder"].free()
+
+
 	func _test_scene_wiring() -> void:
 		print("[game.tscn is wired up]")
 		var packed := load("res://scenes/game.tscn") as PackedScene
@@ -512,8 +628,40 @@ class _Runner:
 			"there are fewer spares (%d) than faults (%d), so which to fix properly is a choice"
 				% [spares.size(), faults.size()])
 
-		suite.check(game.get_node_or_null("StasisPod") != null, "the stasis pod is placed")
+		# Five pods in a ring, but only one of them is yours.
+		var pods: Array = []
+		for node in suite.root.get_tree().get_nodes_in_group(&"interactables"):
+			if node is StasisPod:
+				pods.append(node)
+		suite.check(pods.size() == 5, "five cryo pods are placed (got %d)" % pods.size())
+		var player_pods := 0
+		for pod in pods:
+			if (pod as StasisPod).is_player_pod:
+				player_pods += 1
+			else:
+				suite.check(not (pod as StasisPod).is_enabled,
+					"scenery pod %s offers no prompt" % (pod as Node).name)
+		suite.check(player_pods == 1, "exactly one pod is the player's (got %d)" % player_pods)
+
+		var pod := game.get_node_or_null("StasisPod") as StasisPod
+		suite.check(pod != null, "the player's pod is placed")
 		suite.check(game.get_node_or_null("StasisPod/PodView") != null, "the pod has a view marker")
+		if pod != null:
+			# The ride out has to actually leave the shell, or control is handed back with
+			# the player standing inside the pod they just got out of.
+			var travel := pod.view_transform().origin.distance_to(pod.exit_transform().origin)
+			suite.check(travel > 1.5, "the exit marker is clear of the pod (%.2fm out)" % travel)
+			# Facing aft: the player's pod looks back down the wake, which is the whole
+			# reason the aft windows are where they are.
+			var facing := -pod.view_transform().basis.z
+			suite.check(facing.z > 0.7, "the player's pod faces the rear of the ship (z=%.2f)" % facing.z)
+			pod.set_door_open(true, true)
+			var opened := (pod.get_node("Model/Door") as Node3D).rotation.y
+			pod.set_door_open(false, true)
+			var closed := (pod.get_node("Model/Door") as Node3D).rotation.y
+			suite.check(not is_equal_approx(opened, closed), "the pod door actually moves")
+
+		suite.check(game.get_node_or_null("Computer") != null, "the nav console is placed")
 		suite.check(game.get_node_or_null("HUD") != null, "the HUD is present")
 		suite.check(game.get_node_or_null("RunEnd") != null, "the end screen is present")
 		# The countdowns must not start behind the start prompt.

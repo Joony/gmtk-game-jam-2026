@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -15,10 +15,13 @@
 [ext_resource type="Script" path="res://scripts/game/run_state.gd" id="14_run"]
 [ext_resource type="Script" path="res://scripts/game/malfunction.gd" id="15_malfunction"]
 [ext_resource type="PackedScene" path="res://scenes/props/repair_panel.tscn" id="16_panel"]
-[ext_resource type="PackedScene" path="res://scenes/props/stasis_pod.tscn" id="17_pod"]
+[ext_resource type="PackedScene" path="res://scenes/props/cryo_pod.tscn" id="17_pod"]
 [ext_resource type="PackedScene" path="res://scenes/props/spare_part.tscn" id="18_part"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="19_hud"]
 [ext_resource type="PackedScene" path="res://ui/run_end.tscn" id="20_runend"]
+[ext_resource type="PackedScene" path="res://scenes/props/vent_pipe.tscn" id="21_pipe"]
+[ext_resource type="PackedScene" path="res://scenes/props/computer.tscn" id="22_computer"]
+[ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_shell"]
 radius = 1400.0
@@ -60,33 +63,65 @@ script = ExtResource("9_lighting")
 
 [node name="Run" type="Node" parent="."]
 script = ExtResource("14_run")
-total_distance = 54000.0
+total_distance = 82.0
+cruise_speed_per_day = 2.6
+days_per_real_second = 0.011
 oxygen_total = 210.0
 stasis_time_scale = 24.0
+approach_distance = 8.0
 
 [node name="Ship" type="Node3D" parent="."]
 script = ExtResource("8_ship")
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 8.8)
 
+; Five cryo pods in a pentagon, centred on (0, 2) with a 2.6m radius, doors facing OUTWARD
+; so each occupant steps into the room rather than into the middle of the ring.
+;
+; Only the +Z pod is the player's, and it faces aft — you wake looking back down the wake at
+; where you came from, through the two aft windows. The other four are scenery and have
+; `is_player_pod = false`, which stops them offering an identical prompt for a pod that does
+; nothing. Rotation is 180 + i*72 degrees, which is what points each door away from centre.
 [node name="StasisPod" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, 5.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 6.2)
+
+[node name="CryoPodB" parent="." instance=ExtResource("17_pod")]
+transform = Transform3D(-0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, -0.309017, 3.0434, 0, 3.9889)
+is_player_pod = false
+
+[node name="CryoPodC" parent="." instance=ExtResource("17_pod")]
+transform = Transform3D(0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, 0.809017, 1.8809, 0, 0.4111)
+is_player_pod = false
+
+[node name="CryoPodD" parent="." instance=ExtResource("17_pod")]
+transform = Transform3D(0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, 0.809017, -1.8809, 0, 0.4111)
+is_player_pod = false
+
+[node name="CryoPodE" parent="." instance=ExtResource("17_pod")]
+transform = Transform3D(-0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, -0.309017, -3.0434, 0, 3.9889)
+is_player_pod = false
 
 [node name="SparePart1" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 4.4)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 8.7)
 
 [node name="SparePart2" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 4.1, 0.15, 4.4)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 8.7)
 
 [node name="SparePart3" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 5.1)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 8.7)
+
+; Nav console against the starboard wall of the cryo bay, a few steps from the player's
+; pod — so checking "how far have we actually got?" is the natural first thing to do on
+; waking, before deciding whether a repair is worth the air.
+[node name="Computer" parent="." instance=ExtResource("22_computer")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 6.75, 0, 5.0)
 
 [node name="PickupA" parent="." instance=ExtResource("6_pickup")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0.25, 1.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.0, 0.25, 1.0)
 
 [node name="PickupB" parent="." instance=ExtResource("6_pickup")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 0.25, 2.1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4, 0.25, 1.6)
 
 [node name="MainDrive" type="Node3D" parent="." groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
@@ -95,22 +130,22 @@ system_name = "MAIN DRIVE"
 fault_text = "injector coupling failed"
 severity = 1
 speed_penalty = 0.45
-fire_at_distance = 46000.0
-bodge_distance = 20000.0
+fire_at_distance = 70.0
+bodge_distance = 30.0
 
 [node name="RepairPanel" parent="MainDrive" instance=ExtResource("16_panel")]
 patch_text = "Clamp the coupling"
 fit_text = "Fit a spare coupling"
 
 [node name="O2Scrubber" type="Node3D" parent="." groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.83, 1.3, -8)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.83, 1.3, -8)
 script = ExtResource("15_malfunction")
 system_name = "O2 SCRUBBER"
 fault_text = "CO2 saturating, you are breathing harder"
 speed_penalty = 0.1
 oxygen_drain_multiplier = 1.6
-fire_at_distance = 34000.0
-bodge_distance = 18000.0
+fire_at_distance = 52.0
+bodge_distance = 27.0
 repair_oxygen_bonus = 30.0
 
 [node name="RepairPanel" parent="O2Scrubber" instance=ExtResource("16_panel")]
@@ -118,28 +153,33 @@ patch_text = "Bleed the scrubber"
 fit_text = "Fit a spare cartridge"
 
 [node name="CoolantLoop" type="Node3D" parent="." groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 5.83, 1.3, -17)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 1.3, -17)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
-fault_text = "reactor running hot"
+fault_text = "coolant line split, venting"
 severity = 1
 speed_penalty = 0.3
-fire_at_distance = 22000.0
-bodge_distance = 22000.0
+fire_at_distance = 33.0
+bodge_distance = 33.0
 bodge_oxygen_cost = 25.0
 
-[node name="RepairPanel" parent="CoolantLoop" instance=ExtResource("16_panel")]
-patch_text = "Vent air to cool it"
-fit_text = "Fit a spare seal"
+; The coolant loop gets the pipe instead of a flat panel: it is the fault whose patch costs
+; air, so it is the one that most needs the player to SEE what they bought.
+; Raised to eye height. At the panel's default 1.3m the pipe sat BELOW the camera and a
+; level look-ahead ray sailed straight over it — the pipe was visible but not targetable.
+[node name="RepairPanel" parent="CoolantLoop" instance=ExtResource("21_pipe")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+patch_text = "Tape the split"
+fit_text = "Fit a machined sleeve"
 
 [node name="NavArray" type="Node3D" parent="." groups=["malfunctions"]]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -4.83, 1.3, -2)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6.83, 1.3, -2)
 script = ExtResource("15_malfunction")
 system_name = "NAV ARRAY"
 fault_text = "drifting off course"
 speed_penalty = 0.2
-fire_at_distance = 10000.0
-bodge_distance = 16000.0
+fire_at_distance = 15.0
+bodge_distance = 24.0
 
 [node name="RepairPanel" parent="NavArray" instance=ExtResource("16_panel")]
 patch_text = "Realign by hand"
@@ -156,5 +196,7 @@ fit_text = "Fit a spare module"
 [node name="Reticle" parent="." instance=ExtResource("5_reticle")]
 
 [node name="DebugReadout" parent="." instance=ExtResource("13_readout")]
+
+[node name="NavScreen" parent="." instance=ExtResource("23_navscreen")]
 
 [node name="RunEnd" parent="." instance=ExtResource("20_runend")]

@@ -1,10 +1,14 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/ui/digit_readout.gd" id="2_digits"]
 
 ; Sits under the reticle (layer 40) and the pause menu (50) so neither is ever obscured.
 ; Everything is anchored to a corner rather than centred: the middle of the screen belongs
 ; to the reticle and the interaction prompt.
+;
+; Both numbers are DigitReadouts, not Labels — see digit_readout.gd. A proportional font
+; makes a live clock twitch sideways several times a second.
 
 ; A real radial vignette rather than a full-screen tint. A flat wash over the whole frame
 ; hides the panel the player is trying to repair at exactly the moment they most need to
@@ -67,7 +71,7 @@ anchors_preset = 0
 offset_left = 60.0
 offset_top = 50.0
 offset_right = 560.0
-offset_bottom = 200.0
+offset_bottom = 210.0
 mouse_filter = 2
 theme_override_constants/separation = 2
 
@@ -80,15 +84,15 @@ theme_override_constants/outline_size = 8
 theme_override_font_sizes/font_size = 28
 text = "OXYGEN REMAINING"
 
-[node name="OxygenValue" type="Label" parent="Oxygen"]
+[node name="OxygenValue" type="HBoxContainer" parent="Oxygen"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.78, 0.86, 0.94, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 10
-theme_override_font_sizes/font_size = 76
-text = "4:00"
+script = ExtResource("2_digits")
+font_size = 76
+digit_width = 38.0
+separator_width = 16.0
+text = "0:00"
 
 [node name="OxygenBar" type="ProgressBar" parent="Oxygen"]
 unique_name_in_owner = true
@@ -104,10 +108,10 @@ show_percentage = false
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -560.0
+offset_left = -700.0
 offset_top = 50.0
 offset_right = -60.0
-offset_bottom = 200.0
+offset_bottom = 260.0
 grow_horizontal = 0
 mouse_filter = 2
 theme_override_constants/separation = 2
@@ -123,37 +127,95 @@ theme_override_font_sizes/font_size = 28
 text = "ARRIVAL IN"
 horizontal_alignment = 2
 
-[node name="EtaValue" type="Label" parent="Arrival"]
+[node name="EtaRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="EtaValue" type="HBoxContainer" parent="Arrival/EtaRow"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.78, 0.86, 0.94, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 10
-theme_override_font_sizes/font_size = 76
-text = "0:50:00"
-horizontal_alignment = 2
+script = ExtResource("2_digits")
+font_size = 76
+digit_width = 38.0
+separator_width = 16.0
+text = "000.0"
 
-[node name="DistanceValue" type="Label" parent="Arrival"]
+[node name="EtaUnit" type="Label" parent="Arrival/EtaRow"]
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "DAYS"
+
+[node name="DistanceRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 10
+
+[node name="DistanceValue" type="HBoxContainer" parent="Arrival/DistanceRow"]
 unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 34
+digit_width = 17.0
+separator_width = 8.0
+outline_size = 8
+font_color = Color(0.55, 0.6, 0.68, 1)
+text = "000.00"
+
+[node name="DistanceUnit" type="Label" parent="Arrival/DistanceRow"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 8
-theme_override_font_sizes/font_size = 30
-text = "54.0 km  ·  drive 100%"
-horizontal_alignment = 2
+theme_override_font_sizes/font_size = 34
+text = "MILLION MILES"
+
+[node name="DriveRow" type="HBoxContainer" parent="Arrival"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 10
+
+[node name="DriveLabel" type="Label" parent="Arrival/DriveRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "DRIVE"
+
+[node name="DriveValue" type="HBoxContainer" parent="Arrival/DriveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_digits")
+font_size = 34
+digit_width = 17.0
+separator_width = 12.0
+outline_size = 8
+font_color = Color(0.55, 0.6, 0.68, 1)
+text = "100%"
 
 [node name="SystemList" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -800.0
-offset_top = 220.0
+offset_left = -900.0
+offset_top = 285.0
 offset_right = -60.0
-offset_bottom = 460.0
+offset_bottom = 520.0
 grow_horizontal = 0
 mouse_filter = 2
 theme_override_constants/separation = 4
@@ -194,5 +256,5 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
 theme_override_font_sizes/font_size = 28
-text = "TRAVELLING AT 24x  ·  [E] WAKE"
+text = "[E] WAKE"
 horizontal_alignment = 1

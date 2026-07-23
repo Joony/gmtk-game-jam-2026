@@ -16,10 +16,11 @@ const COLOR_GOOD := Color(0.24, 0.90, 0.40)
 ## Below this fraction of cruise the arrival clock turns amber.
 const SPEED_WARN := 0.75
 
-@onready var _oxygen_value: Label = %OxygenValue
+@onready var _oxygen_value: DigitReadout = %OxygenValue
 @onready var _oxygen_bar: ProgressBar = %OxygenBar
-@onready var _eta_value: Label = %EtaValue
-@onready var _distance_value: Label = %DistanceValue
+@onready var _eta_value: DigitReadout = %EtaValue
+@onready var _distance_value: DigitReadout = %DistanceValue
+@onready var _drive_value: DigitReadout = %DriveValue
 @onready var _system_list: VBoxContainer = %SystemList
 @onready var _vignette: Control = %Vignette
 @onready var _stasis_panel: Control = %StasisPanel
@@ -76,14 +77,14 @@ func _update_air_pressure() -> void:
 
 
 func _on_oxygen_changed(remaining: float, total: float) -> void:
-	_oxygen_value.text = _clock(remaining)
+	_oxygen_value.set_value(_clock(remaining))
 	_oxygen_bar.value = 0.0 if total <= 0.0 else remaining / total * 100.0
 	var color := COLOR_OK
 	if _run != null and remaining <= _run.oxygen_warning * 0.35:
 		color = COLOR_CRIT
 	elif _run != null and remaining <= _run.oxygen_warning:
 		color = COLOR_WARN
-	_oxygen_value.add_theme_color_override("font_color", color)
+	_oxygen_value.set_color(color)
 	if _oxygen_bar_style != null:
 		_oxygen_bar_style.bg_color = color
 
@@ -91,15 +92,19 @@ func _on_oxygen_changed(remaining: float, total: float) -> void:
 func _on_distance_changed(remaining: float, _total: float) -> void:
 	if _run == null:
 		return
-	_eta_value.text = _clock(_run.eta_seconds(), true)
+	# Zero-padded to a constant width. Fixed-width SLOTS stop a glyph swap shifting the
+	# row, but 9.9 becoming 10.0 adds a character and would still shunt everything left.
+	_eta_value.set_value(_days(_run.eta_days()))
+	_distance_value.set_value("%06.2f" % minf(remaining, 999.99))
 	var fraction := _run.speed_fraction()
-	_distance_value.text = "%.1f km  ·  drive %d%%" % [remaining / 1000.0, int(round(fraction * 100.0))]
+	_drive_value.set_value("%3d%%" % int(round(fraction * 100.0)))
 	var color := COLOR_OK
 	if fraction < SPEED_WARN * 0.6:
 		color = COLOR_CRIT
 	elif fraction < SPEED_WARN:
 		color = COLOR_WARN
-	_eta_value.add_theme_color_override("font_color", color)
+	_eta_value.set_color(color)
+	_drive_value.set_color(color)
 
 
 func _rebuild_systems() -> void:
@@ -136,15 +141,20 @@ func _add_system_line(text: String, color: Color) -> void:
 func _on_stasis_changed(in_stasis: bool) -> void:
 	_stasis_panel.visible = in_stasis
 	if in_stasis and _run != null:
-		_stasis_hint.text = "TRAVELLING AT %dx  ·  [E] WAKE" % int(round(_run.stasis_time_scale))
+		_stasis_hint.text = "%.1f DAYS PER SECOND  ·  [E] WAKE" % (
+			_run.days_per_real_second * _run.stasis_time_scale
+		)
 
 
-## Seconds to a clock string. Air is mm:ss; the journey needs hours, and reads "--:--:--"
-## when the ship is stopped rather than inventing an arrival time it cannot promise.
-static func _clock(seconds: float, with_hours: bool = false) -> String:
-	if is_inf(seconds) or is_nan(seconds):
-		return "--:--:--" if with_hours else "--:--"
+## Air, as m:ss. The whole budget is a few minutes, so one minutes digit is always enough.
+static func _clock(seconds: float) -> String:
 	var total := int(ceil(maxf(seconds, 0.0)))
-	if with_hours:
-		return "%d:%02d:%02d" % [total / 3600, (total / 60) % 60, total % 60]
-	return "%d:%02d" % [total / 60, total % 60]
+	return "%01d:%02d" % [mini(total / 60, 9), total % 60]
+
+
+## Days to arrival. Dashes when the ship is stopped dead, rather than an arrival date it
+## cannot promise — and the same character count, so the row does not jump.
+static func _days(days: float) -> String:
+	if is_inf(days) or is_nan(days):
+		return "---.-"
+	return "%05.1f" % minf(maxf(days, 0.0), 999.9)

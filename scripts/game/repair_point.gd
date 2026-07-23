@@ -36,6 +36,15 @@ const COLOR_FIXED := Color(0.24, 0.90, 0.40)
 @export var fit_text: String = "Fit spare part"
 @export var status_light_path: NodePath = NodePath("StatusLight")
 
+@export_group("State visuals")
+## Nodes shown only while the fault is ACTIVE — the crack, the escaping gas.
+@export var broken_nodes: Array[NodePath] = []
+## Nodes shown only while running on a PATCH. This is what makes the two repair routes
+## legible: a bodge you can see is a bodge, sitting there reminding you it will fail.
+@export var patched_nodes: Array[NodePath] = []
+## Nodes shown only once PERMANENTLY repaired — a proper welded sleeve.
+@export var fixed_nodes: Array[NodePath] = []
+
 var malfunction: Malfunction = null
 
 var _status_material: StandardMaterial3D = null
@@ -72,16 +81,34 @@ func refresh() -> void:
 	# A working panel stops being a ray target entirely — otherwise the reticle would
 	# keep offering prompts on the dozen panels you have already dealt with.
 	is_enabled = broken
+	var patched := malfunction != null and malfunction.is_patched
+	_show(broken_nodes, broken)
+	_show(patched_nodes, patched)
+	_show(fixed_nodes, not broken and not patched)
+
 	if _status_material == null:
 		return
 	var color := COLOR_FIXED
 	if broken:
 		color = COLOR_BROKEN
-	elif malfunction != null and malfunction.is_patched:
+	elif patched:
 		color = COLOR_PATCHED
 	_status_material.albedo_color = color
 	_status_material.emission_enabled = true
 	_status_material.emission = color
+
+
+func _show(paths: Array[NodePath], visible_now: bool) -> void:
+	for path in paths:
+		var node := get_node_or_null(path)
+		if node == null:
+			continue
+		if node is Node3D:
+			(node as Node3D).visible = visible_now
+		# Hiding a particle system leaves its already-spawned puffs hanging in the air
+		# until they expire, so stop it emitting as well.
+		if node is CPUParticles3D:
+			(node as CPUParticles3D).emitting = visible_now
 
 
 # Broken panels are always actionable: with empty hands you can always patch. The base

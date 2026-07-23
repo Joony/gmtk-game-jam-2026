@@ -1,0 +1,52 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/nav_chart.gd" id="1_chart"]
+[ext_resource type="Script" path="res://scripts/nav_screen.gd" id="2_screen"]
+
+; Full-screen copy of the console's chart, for when the player wants to actually read it
+; rather than glance at it. Layer 38: above the HUD (35) and the reticle would be
+; meaningless here, but below the pause menu (50).
+
+[node name="NavScreen" type="CanvasLayer"]
+layer = 38
+script = ExtResource("2_screen")
+
+[node name="Dim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.82)
+
+[node name="Chart" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 260.0
+offset_top = 90.0
+offset_right = -260.0
+offset_bottom = -170.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_chart")
+
+[node name="Hint" type="Label" parent="."]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -420.0
+offset_top = -120.0
+offset_right = 420.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.3, 0.85, 0.45, 1)
+theme_override_font_sizes/font_size = 34
+text = "[E] STEP AWAY"
+horizontal_alignment = 1

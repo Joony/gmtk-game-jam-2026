@@ -40,13 +40,13 @@ const GROUP_MALFUNCTION := &"malfunctions"
 ## Multiplies the oxygen drain while active — the scrubber fault's whole point. 1.0 = no effect.
 @export var oxygen_drain_multiplier: float = 1.0
 
-## Distance remaining at which this first breaks. 0 means "never fires on its own".
+## Distance remaining (million miles) at which this first breaks. 0 = never fires alone.
 @export var fire_at_distance: float = 0.0
 
-## How far a patch holds before it gives out. Measured in DISTANCE, not seconds, so that
-## time spent in stasis burns through it too — otherwise patching then sleeping would be
-## strictly free and the choice would evaporate.
-@export var bodge_distance: float = 14000.0
+## How far a patch holds before it gives out, in millions of miles. Measured in DISTANCE,
+## not seconds, so that time spent in stasis burns through it too — otherwise patching then
+## sleeping would be strictly free and the choice would evaporate.
+@export var bodge_distance: float = 25.0
 ## Oxygen (seconds) spent the moment you patch this. The "spend a resource" branch.
 @export var bodge_oxygen_cost: float = 0.0
 ## Oxygen (seconds) recovered by a PROPER fix only. Rewards the fetch.
