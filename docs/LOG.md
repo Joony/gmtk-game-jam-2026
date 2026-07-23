@@ -24,4 +24,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-23 | Lighting modes (step 10): ship-wide normal/alert, pulsing, data-driven | Done, verified | [lighting-modes.md](features/lighting-modes.md) |
 | 2026-07-23 | Window size 1920x1080 (step 9a) with UI scaled to match | Done, verified | [window-size.md](features/window-size.md) |
 | 2026-07-23 | Space windows (step 11): wall openings, starfield shader, ship motion | Done, verified | [space-windows.md](features/space-windows.md) |
-| 2026-07-23 | Starfield moved to a backdrop shell; windows are real holes; space station outside | Done, verified | [space-windows.md](features/space-windows.md) |
+| 2026-07-23 | Space exterior: backdrop shell, station, nebula band (branch `space-exterior`) | Done, verified | [space-exterior.md](features/space-exterior.md) |

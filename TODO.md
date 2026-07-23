@@ -356,7 +356,10 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] Rename `Doorway` → `WallOpening` (six files) now that it models windows too
 - [ ] A planet is still best done procedurally in the shader (ray-sphere) — real geometry can't
       sit at a believable distance given the 4000m far plane
-- [ ] Nebula / Milky Way band for depth (procedural, direction-only so it behaves as if at infinity)
+- [x] Nebula / Milky Way band — procedural, direction-only so it sits at infinity
+      ([log](docs/features/space-exterior.md))
+- [ ] Nebula cost is unprofiled on the web build (~6 noise evals per sky pixel). If it bites: drop
+      the dust-lane layer to two octaves, or bake the band to a small cubemap at startup.
 - [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must
 - [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
 - [ ] Optional polish from the original plan not done: passing debris, a distant planet

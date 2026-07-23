@@ -52,6 +52,19 @@ func _run() -> void:
 	_check("the starfield shader is loaded", material != null and material.shader != null)
 	_check("the shell encloses the ship", (shell.mesh as SphereMesh).radius > 200.0)
 
+	# --- Nebula band ---------------------------------------------------------
+	# Direction-only, so it behaves as if infinitely far away and does not slide past
+	# as the ship travels — skybox behaviour without needing a skybox.
+	#
+	# Only the uniforms' EXISTENCE is asserted: their default values live in the shader
+	# and `shader_get_parameter_default()` returns null headlessly (no rendering
+	# device). The band's colour, tilt and strength are verified by screenshot.
+	var uniforms: Array[String] = []
+	for uniform in material.shader.get_shader_uniform_list():
+		uniforms.append(uniform["name"])
+	for required in ["nebula_pole", "nebula_color", "nebula_strength", "nebula_width"]:
+		_check("shader exposes %s" % required, uniforms.has(required))
+
 	# Windows must build NO pane — a pane would hide anything outside the hull.
 	var panes := 0
 	for node in ship.get_node("Built").find_children("*", "MeshInstance3D", true, false):

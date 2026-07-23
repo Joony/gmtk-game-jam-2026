@@ -19,6 +19,20 @@ uniform float cell_size = 45.0;
 /// Stars start FAR away. Close stars sweep across the view in a second and read as
 /// specks flying past the hull rather than a distant sky.
 uniform float near_distance = 15.0;
+// --- Nebula ---------------------------------------------------------------------
+// Computed from the view DIRECTION only, never from position, so it behaves as if
+// infinitely far away: it does not slide past as the ship travels, which is correct
+// for a galaxy. That is exactly what a skybox would give, without needing one.
+/// Perpendicular to the galactic plane. Tilted so the band does not sit parallel to
+/// any world axis, which would read as artificial.
+uniform vec3 nebula_pole = vec3(0.35, 0.9, -0.25);
+uniform vec4 nebula_color : source_color = vec4(0.09, 0.15, 0.38, 1.0);
+uniform vec4 nebula_core_color : source_color = vec4(0.30, 0.20, 0.46, 1.0);
+uniform float nebula_strength : hint_range(0.0, 3.0) = 1.5;
+/// Half-thickness of the band, as |cos| from the galactic plane. Larger is wider.
+uniform float nebula_width : hint_range(0.05, 1.0) = 0.55;
+uniform float nebula_scale : hint_range(0.5, 12.0) = 3.0;
+
 /// The destination, drawn as a soft point of light ahead. Brightness 0 hides it.
 uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;
 uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
@@ -28,6 +42,37 @@ uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
 const int STEPS = 24;
 
 varying vec3 world_position;
+
+float hash13(vec3 p) {
+	p = fract(p * 0.1031);
+	p += dot(p, p.zyx + 31.32);
+	return fract((p.x + p.y) * p.z);
+}
+
+float value_noise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(
+		mix(mix(hash13(i), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),
+			mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+		mix(mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x),
+			mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
+		f.z);
+}
+
+// Three octaves is enough for soft cloud structure and keeps the cost down — the
+// shell can cover a lot of screen before the walls reject it by depth.
+float fbm(vec3 p) {
+	float value = 0.0;
+	float amplitude = 0.5;
+	for (int i = 0; i < 3; i++) {
+		value += amplitude * value_noise(p);
+		p *= 2.03;
+		amplitude *= 0.5;
+	}
+	return value;
+}
 
 vec3 hash33(vec3 p) {
 	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -47,6 +92,20 @@ void fragment() {
 	// The ship's position within the star field. Stars are fixed; we move.
 	vec3 eye = dir * travelled;
 	vec3 col = space_color.rgb;
+
+	// Galactic band. Direction-only, so it sits at infinity and never slides past.
+	vec3 pole = normalize(nebula_pole);
+	float from_plane = abs(dot(ray, pole));
+	float band = smoothstep(nebula_width, 0.0, from_plane);
+	if (band > 0.001) {
+		float clouds = fbm(ray * nebula_scale);
+		// A second, coarser layer carves dust lanes so the band is not a smooth smear.
+		float lanes = smoothstep(0.30, 0.62, fbm(ray * (nebula_scale * 0.55) + vec3(11.7)));
+		float density = band * smoothstep(0.34, 0.78, clouds) * mix(0.35, 1.0, lanes);
+		vec3 tint = mix(nebula_color.rgb, nebula_core_color.rgb, smoothstep(0.45, 0.85, clouds));
+		// Deliberately dim: this is depth behind the stars, not a light source.
+		col += tint * density * nebula_strength;
+	}
 
 	// March cell by cell along the ray. Previously a single sample per depth slab meant
 	// a star was only visible while it sat in that one thin slice, so stars appeared,
