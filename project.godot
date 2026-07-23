@@ -18,6 +18,11 @@ config/icon="res://icon.svg"
 [autoload]
 
 SceneManager="*res://scripts/scene_manager.gd"
+Audio="*res://scripts/audio/audio_controller.gd"
+
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
 
 [display]
 

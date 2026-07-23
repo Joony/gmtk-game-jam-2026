@@ -529,11 +529,24 @@ them to disk with `tests/forge_sounds.gd` to listen.
 - [x] `click()`, `plug_in()` — a press and a plug seating (the latter has a low thunk under
       it so it sounds like it went *into* something)
 - [x] `breath()` — for the low-oxygen loop, played faster as the air runs down
-- [ ] Wire them all up: klaxon + bump on `RunState.alarm`, ratchet/tear on `Malfunction.repaired`
-      keyed on `permanent`, click on pickup/drop and menu buttons, breath under `oxygen_warning`
-- [ ] Bus layout: Master → Music / SFX, so the options slider has something to hold onto
-- [ ] Test: every generator returns a non-empty stream that never clips, the klaxon's loop
-      seam is continuous, and the two repair sounds stay spectrally distinct
+- [x] Wired: klaxon + bump on `RunState.alarm`, ratchet/tear on `Malfunction.repaired` keyed
+      on `permanent`, click on pickup/drop/START/menu buttons, plug on entering the pod,
+      breath under `oxygen_warning` (and silenced in the pod)
+- [x] Bus layout: Master → Music / SFX, with `Audio.set_bus_volume()` ready for the slider
+- [x] `AudioController` autoload: two crossfading music players, an 8-voice SFX pool,
+      `PROCESS_MODE_ALWAYS` so a pause menu's own click is audible
+- [x] Test — `tests/smoke_audio.gd`, 44 checks. Drives the real `RunState` and watches what
+      the controller was asked to do, because a signal wired to the wrong name fails silently
+      and sounds exactly like a game with no audio.
+
+#### Audio follow-ups
+
+- [ ] **The three music tracks.** Everything else is done and waiting; drop the `.ogg`s into
+      `assets/audio/` (see the README there) and they start working with no code change.
+- [ ] Repair and door sounds are non-positional. `AudioStreamPlayer3D` would place them in
+      the room, which matters most for the vent pipe you can hear before you can see.
+- [ ] Sliding doors have no sound at all yet
+- [ ] Nothing plays on arrival or on suffocation — both end screens are silent
 - [ ] Options menu: master volume slider, plus the **Options button** on the main menu that opens
       it (deliberately deferred from step 2 — no button until there's something behind it)
 - [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown

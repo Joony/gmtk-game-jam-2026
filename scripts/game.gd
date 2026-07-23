@@ -69,6 +69,7 @@ func _ready() -> void:
 	for pod in get_tree().get_nodes_in_group(&"interactables"):
 		if pod is StasisPod:
 			(pod as StasisPod).set_door_open((pod as StasisPod).is_player_pod, true)
+	_wire_audio()
 	_computer.bind(_run)
 	_computer.opened.connect(_open_nav_screen)
 	_nav_screen.closed.connect(_close_nav_screen)
@@ -77,6 +78,56 @@ func _ready() -> void:
 	_hud.bind(_run)
 
 	_show_start_prompt()
+
+
+## Every sound the run makes, in one place. Game already holds references to all of these
+## and RunState already emits the events, so this is purely connections — none of the systems
+## below had to learn that audio exists.
+func _wire_audio() -> void:
+	_run.alarm.connect(func(malfunction: Malfunction, _patch_failure: bool) -> void:
+		Audio.alarm(malfunction.severity == Malfunction.Severity.CRITICAL))
+	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_music())
+	_run.systems_changed.connect(_update_music)
+	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void:
+		Audio.set_breathing(0.0)
+		Audio.stop_music())
+	_run.oxygen_changed.connect(_on_oxygen_for_audio)
+
+	# The repair sounds are per-fault, and they are the ones that matter most: the ratchet
+	# and the tape are how the player hears which choice they just made.
+	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+		(node as Malfunction).repaired.connect(func(_m: Malfunction, permanent: bool) -> void:
+			Audio.repair(permanent))
+
+	_carry.picked_up.connect(func(_item: Node3D) -> void: Audio.play(&"click"))
+	_carry.dropped.connect(func(_item: Node3D) -> void: Audio.play(&"click_low", -4.0))
+	_computer.opened.connect(func() -> void: Audio.play(&"click"))
+	_pod.entered.connect(func() -> void: Audio.play(&"plug", -2.0))
+
+
+## Music follows the ship's state: stasis wins over everything, then any CRITICAL fault,
+## then normal. Driven off signals that already existed rather than polled.
+func _update_music() -> void:
+	if _run.finished:
+		return
+	if _run.in_stasis:
+		Audio.play_music(Audio.Music.STASIS)
+		return
+	for malfunction in _run.malfunctions():
+		if malfunction.is_critical():
+			Audio.play_music(Audio.Music.PANIC)
+			return
+	Audio.play_music(Audio.Music.NORMAL)
+
+
+## Breathing starts at the same threshold the HUD's vignette does, so the two escalate
+## together rather than the player seeing red before they hear it.
+func _on_oxygen_for_audio(remaining: float, _total: float) -> void:
+	var warn: float = _run.oxygen_warning
+	if warn <= 0.0 or remaining > warn or _run.in_stasis:
+		Audio.set_breathing(0.0)
+		return
+	Audio.set_breathing(1.0 - remaining / warn)
 
 
 func _show_start_prompt() -> void:
@@ -95,6 +146,7 @@ func start_game() -> void:
 	if is_started:
 		return
 	is_started = true
+	Audio.play(&"click")
 	_start_prompt.visible = false
 	_reticle.visible = true
 	_hud.visible = true
@@ -102,6 +154,7 @@ func start_game() -> void:
 	_pause_menu.enabled = true
 	# Only now does either countdown begin — neither should run down behind the prompt.
 	_run.start()
+	Audio.play_music(Audio.Music.NORMAL)
 	capture_mouse()
 	started.emit()
 

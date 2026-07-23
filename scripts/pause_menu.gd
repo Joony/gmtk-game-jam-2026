@@ -60,10 +60,12 @@ func resume() -> void:
 
 
 func _on_resume_button_pressed() -> void:
+	Audio.play(&"click")
 	resume()
 
 
 func _on_quit_button_pressed() -> void:
+	Audio.play(&"click")
 	# Unpause before leaving, or the main menu loads into a paused tree.
 	is_paused = false
 	get_tree().paused = false

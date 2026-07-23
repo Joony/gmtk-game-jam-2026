@@ -28,6 +28,7 @@ func _on_timer_timeout() -> void:
 
 
 func _on_skip_button_pressed() -> void:
+	Audio.play(&"click")
 	_finish()
 
 

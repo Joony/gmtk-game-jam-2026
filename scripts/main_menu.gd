@@ -10,4 +10,5 @@ func _ready() -> void:
 
 
 func _on_play_button_pressed() -> void:
+	Audio.play(&"click")
 	SceneManager.change_scene(GAME_SCENE)
