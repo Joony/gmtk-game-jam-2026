@@ -13,6 +13,7 @@ signal started
 @onready var _start_prompt: CanvasLayer = $StartPrompt
 @onready var _reticle: CanvasLayer = $Reticle
 @onready var _interactor: Interactor = $Player/Interactor
+@onready var _lighting: LightingController = $Lighting
 
 var is_started: bool = false
 
@@ -21,6 +22,7 @@ func _ready() -> void:
 	_player.global_transform = _spawn.global_transform
 	_start_prompt.get_node("%StartButton").pressed.connect(start_game)
 	_reticle.bind(_interactor)
+	_lighting.bind_environment($WorldEnvironment)
 	# The cursor is visible while paused, so the reticle would be a second,
 	# misleading pointer.
 	_pause_menu.paused.connect(func() -> void: _reticle.visible = false)

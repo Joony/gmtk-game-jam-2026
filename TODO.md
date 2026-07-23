@@ -297,39 +297,33 @@ smaller* on screen. Doing it now means tuning type sizes once.
       on a 16:9 canvas should be verified in a browser (step 7)
 - [ ] Decide `window/size/window_width_override` / fullscreen defaults, if any
 
-## 10. Lighting modes
+## 10. ✅ Lighting modes — done ([log](docs/features/lighting-modes.md))
 
-Cheap immediately after step 9 since it attaches to the room builder's lights, and it's where
-the alert-state drama comes from.
+- [x] `LightingController` — a node in the game scene (not an autoload: it drives scene-scoped
+      lights and the scene's `WorldEnvironment`)
+  - [x] `enum Mode { NORMAL, ALERT }`, `set_mode()` / `set_alert()`, `mode_changed` signal that
+        fires only on a real change
+  - [x] Lights are driven by group (`room_lights`, `room_light_panels`) rather than each
+        subscribing — see below
+- [x] Normal: neutral white, energy 1.6
+- [x] Alert: red **and dimmer** (1.15) so it reads oppressive rather than merely red
+- [x] 0.4s smoothstep transition, not a snap
+- [x] **Mode is a property of the whole ship** — values are applied to the light groups every
+      frame, so a room built *while in alert* comes up red. Asserted in the test; this requirement
+      is what ruled out per-light tweens.
+- [x] Ambient/environment follows the mode too (the `Environment` is duplicated on bind, or state
+      leaks between game-scene instantiations)
+- [x] Modes are **data** (`MODES` dict: colour, energy, ambient, pulse) — a third state is a new
+      entry, not new code. The test asserts all modes declare the same keys.
+- [x] Slow pulse on alert (`pulse_hz`, exported so step 12 can speed it up as time runs down)
+- [x] Emissive ceiling panels turn red with the fixtures
+- [x] Tested: mode values, signal semantics, gradual transition, late-built room, pulsing
 
-Ship-wide lighting states — **normal** (white) and **alert** (red) — as a first-class system, since
-the alert state is likely to carry a lot of the game's tension. Build alongside the room builder's
-lighting so rooms subscribe rather than each managing its own lights.
+### Follow-ups (not blocking)
 
-**Driven by malfunctions:** red while any malfunction is active, white once all are repaired.
-Consider making alert *local* to the affected room as well as ship-wide — a red-lit corridor is
-free wayfinding toward the problem, which matters when oxygen is ticking and the player is lost.
-
-> Groundwork done in step 9: fixtures are in `room_lights` and their emissive housings in
-> `room_light_panels`, so this step retints existing nodes rather than building any. Keep them
-> **shadowless** — that is what makes the interior read as flat.
-
-- [ ] `LightingController` (autoload or a node in the game scene — decide when building it)
-  - [ ] `enum Mode { NORMAL, ALERT }` + `set_mode(mode)` and a `mode_changed` signal
-  - [ ] Room/light nodes subscribe to `mode_changed` instead of being poked individually
-- [ ] Normal: white/neutral light, standard energy
-- [ ] Alert: red light, and consider lower energy so it reads as darker and more oppressive
-- [ ] Tween the transition rather than snapping (colour + energy over ~0.3–0.5s)
-- [ ] Make the mode a property of the whole ship, not per-room, so it stays consistent as the
-      player moves between rooms — including rooms built after the mode was set
-- [ ] Ambient/environment light should follow the mode too, not just the light fixtures
-- [ ] Design the modes as data (colour + energy + optional pulse) so adding a third state later
-      (e.g. emergency/power-loss) is a new entry, not new code
-- [ ] Optional polish if time allows: slow pulse or throb on alert, alert klaxon audio hook,
-      emissive material on light panels switching colour to match
-- [ ] Test: headless — set each mode and assert the resulting light colour/energy on built rooms,
-      that `mode_changed` fires once per change, and that a room built *while* in alert mode comes
-      up red rather than white
+- [ ] **Local alert** — red only in the affected room, as wayfinding toward the problem. Ship-wide
+      for now; revisit in step 12 when malfunctions have locations (needs per-room light groups).
+- [ ] Alert klaxon — step 13 audio. `mode_changed` is the hook.
 
 ## 11. Space windows (starfield)
 

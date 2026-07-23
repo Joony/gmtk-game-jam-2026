@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
 [ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="7_interactable"]
 [ext_resource type="Script" path="res://scripts/level/ship_layout.gd" id="8_ship"]
+[ext_resource type="Script" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -30,6 +31,9 @@ script = ExtResource("1_game")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_game")
+
+[node name="Lighting" type="Node" parent="."]
+script = ExtResource("9_lighting")
 
 [node name="Ship" type="Node3D" parent="."]
 script = ExtResource("8_ship")
