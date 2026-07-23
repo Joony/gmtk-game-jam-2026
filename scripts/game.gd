@@ -53,6 +53,13 @@ var _nav_return_pitch: float = 0.0
 
 func _ready() -> void:
 	_player.global_transform = _spawn.global_transform
+	# Without this the camera renders ONE frame at the world origin (down at floor level in
+	# the middle of the ship) before snapping to the spawn: the camera reads the anchor's
+	# INTERPOLATED transform, which on the very first frame lerps from identity to the spawn.
+	# Resetting the interpolation makes frame zero use the spawn directly. It used to be
+	# masked by the START prompt covering that frame; auto-starting exposed it.
+	_player.reset_physics_interpolation()
+	_camera.snap_to_body()
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
 	_readout.bind(_motion)

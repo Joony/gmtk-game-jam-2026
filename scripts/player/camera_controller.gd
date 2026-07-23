@@ -60,6 +60,17 @@ func _process(_delta: float) -> void:
 	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), eye)
 
 
+# Place the camera at the anchor NOW, reading the anchor's real transform rather than its
+# interpolated one. _process normally reads get_global_transform_interpolated(), which on
+# the very first frame after a teleport lerps from identity — showing the world origin for
+# one frame. Call this right after moving the player to skip that frame.
+func snap_to_body() -> void:
+	adopt_body_yaw()
+	_anchor.transform.basis = Basis.from_euler(Vector3(_pitch, 0.0, 0.0))
+	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), _anchor.global_transform.origin)
+	reset_physics_interpolation()
+
+
 # Re-derive yaw from the body's current basis. Needed if anything other than this
 # controller rotates the player body (this controller otherwise overwrites the
 # body basis every frame and would discard that rotation).
