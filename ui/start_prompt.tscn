@@ -44,14 +44,14 @@ grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 33
 alignment = 1
 
 [node name="StartButton" type="Button" parent="Center/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 68)
+custom_minimum_size = Vector2(500, 113)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 53
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_focus")
 theme_override_styles/focus = SubResource("StyleBoxFlat_focus")
@@ -60,6 +60,6 @@ text = "START"
 [node name="Hint" type="Label" parent="Center/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 30
 text = "WASD to move  ·  Mouse to look  ·  Esc to pause"
 horizontal_alignment = 1

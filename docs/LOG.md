@@ -22,3 +22,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-23 | Flat interior lighting: shadowless omni grid, no directional sun | Done, verified | [flat-lighting.md](features/flat-lighting.md) |
 | 2026-07-23 | Script runs no longer capture the real cursor (and two corrected diagnoses) | Done, verified | [mouse-capture-in-tests.md](features/mouse-capture-in-tests.md) |
 | 2026-07-23 | Lighting modes (step 10): ship-wide normal/alert, pulsing, data-driven | Done, verified | [lighting-modes.md](features/lighting-modes.md) |
+| 2026-07-23 | Window size 1920x1080 (step 9a) with UI scaled to match | Done, verified | [window-size.md](features/window-size.md) |

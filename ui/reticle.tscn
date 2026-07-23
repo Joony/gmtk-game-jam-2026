@@ -4,10 +4,10 @@
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dot"]
 bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_right = 5
-corner_radius_bottom_left = 5
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="Reticle" type="CanvasLayer"]
 layer = 40
@@ -23,16 +23,16 @@ mouse_filter = 2
 
 [node name="Dot" type="Panel" parent="Center"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(9, 9)
+custom_minimum_size = Vector2(15, 15)
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -4.5
-offset_top = -4.5
-offset_right = 4.5
-offset_bottom = 4.5
+offset_left = -7.5
+offset_top = -7.5
+offset_right = 7.5
+offset_bottom = 7.5
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -45,16 +45,16 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = 40.0
-offset_right = 300.0
-offset_bottom = 72.0
+offset_left = -500.0
+offset_top = 67.0
+offset_right = 500.0
+offset_bottom = 120.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.92, 0.94, 0.96, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 24
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
 vertical_alignment = 1

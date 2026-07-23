@@ -280,22 +280,17 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] Copy `smoke_room_builder.gd`'s **watchdog** into the other async tests: a script error inside
       an awaited coroutine silently hangs the test instead of failing it
 
-## 9a. Window size → 1920×1080
+## 9a. ✅ Window size → 1920×1080 — done ([log](docs/features/window-size.md))
 
-The project has never set a viewport size, so it's on Godot's default **1152×648**.
-
-Worth doing **before** more UI is built, not in step 13: `window/stretch/mode="canvas_items"` scales
-the UI relative to the base viewport, so enlarging it makes every existing font *proportionally
-smaller* on screen. Doing it now means tuning type sizes once.
-
-- [ ] `display/window/size/viewport_width = 1920`, `viewport_height = 1080` in `project.godot`
-- [ ] Re-check every UI screen after the change — current sizes were chosen against 1152×648:
-      intro countdown (256), menu title (96), buttons (22–32), reticle prompt (24), controls hint (18)
-- [ ] Re-render the capture screenshots (`tests/capture_scene.gd`) to confirm layout still works
-- [ ] Confirm the reticle dot (9px) is still visible at the new scale — it may need to grow
-- [ ] Check the web export canvas: `html/canvas_resize_policy=2` is adaptive, but the letterboxing
-      on a 16:9 canvas should be verified in a browser (step 7)
-- [ ] Decide `window/size/window_width_override` / fullscreen defaults, if any
+- [x] `viewport_width = 1920`, `viewport_height = 1080` in `project.godot`
+- [x] Scaled every hand-tuned UI size by 1.667 to preserve the tuned look — theme font, intro
+      countdown, menu/pause titles, buttons, reticle prompt, separations, offsets
+- [x] Re-rendered every UI screen and compared: proportions unchanged, 3D visibly crisper
+- [x] Reticle dot 9px → 15px (the specific risk called out) — still reads correctly
+- [x] Web canvas re-checked in a browser: adaptive resize + `aspect=expand` means **no
+      letterboxing**; canvas matches the window exactly at DPR 2
+- [x] ~~`window_width_override` / fullscreen defaults~~ — deliberately none; the OS clamps the
+      window on smaller displays and the web canvas adapts
 
 ## 10. ✅ Lighting modes — done ([log](docs/features/lighting-modes.md))
 
