@@ -320,38 +320,30 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       for now; revisit in step 12 when malfunctions have locations (needs per-room light groups).
 - [ ] Alert klaxon — step 13 audio. `mode_changed` is the hook.
 
-## 11. Space windows (starfield)
+## 11. ✅ Space windows — done ([log](docs/features/space-windows.md))
 
-Highest visual payoff per hour in the list — this is the screenshot that sells the game on itch,
-which is why it comes before the countdown mechanic despite reading as "polish". Needs step 9's
-wall-splitting to punch openings.
+- [x] **Approach: shader on a quad** (no extra camera, no geometry). Hashed 3D star grid sampled
+      along a per-fragment view ray, five depth slabs for parallax.
+- [x] **RoomBuilder support reuses the door-splitting path** — `Doorway` gained `sill`/`top`, so a
+      window is just an opening that doesn't reach the floor; segments emit sill and lintel pieces
+- [x] Built by `RoomBuilder.add_window()` rather than a `space_window.tscn` — consistent with how
+      doors and lights are built (deviation from the original plan, noted)
+- [x] **Shared ship-motion parameters** — `ShipMotion` node pushes speed/heading to the
+      `space_windows` group each frame; all windows share one material, asserted
+- [x] Parallax: near slabs sweep faster than far ones
+- [x] Star speed driven by actual ship speed — **zero stops the stars dead**
+- [x] Streaking grows with speed
+- [x] Destination hook (`destination_brightness`) ready for step 12's distance countdown
+- [x] **Glass** in each opening, or thrown items fly out into space
+- [x] Tested: shader loads, opening genuinely cut (geometric check), glazing, motion advances and
+      stops, streak responds, destination toggles
 
-Small windows in ship interiors looking out at stars streaking past, selling the "moving through
-space" feeling.
+### Follow-ups (not blocking)
 
-**Now mechanically load-bearing, not just polish.** The windows are the diegetic readout for both
-countdowns: starfield speed = current ship speed (degraded while malfunctions are unrepaired, so
-the player can *see* the cost of ignoring a problem), and the destination growing closer = distance
-remaining. A glance out of a window should answer "how am I doing?"
-
-- [ ] Decide the approach — leaning toward a shader on a quad (cheap, no geometry, no extra camera):
-      raymarched/hashed star field in the fragment shader, scrolled over time along the travel axis.
-      Alternatives if that falls short: GPUParticles3D streaks in a small room behind the window, or
-      a SubViewport rendering a real starfield scene.
-- [ ] `RoomBuilder` support: punch a window opening into a wall segment (same splitting logic that
-      already handles doors — reuse it rather than writing a second path)
-- [ ] `scenes/props/space_window.tscn` — frame mesh + the star quad, placeable on any wall
-- [ ] Ship-motion parameters shared across all windows so every window agrees on speed/direction
-      (autoload or a single exported Resource — decide when building it)
-- [ ] Parallax: stars nearer the window plane move faster than distant ones, so it reads as depth
-- [ ] Drive star speed from actual ship speed, so unrepaired malfunctions visibly slow the view
-- [ ] Destination visible ahead (a growing point of light / planet) tied to distance remaining —
-      the cheapest possible progress readout, and it needs no UI
-- [ ] Optional polish if time allows: subtle warp/streak stretch at speed, occasional passing debris,
-      faint interior light spill from the window
-- [ ] Test: headless — shader/material compiles without error, window opening actually appears in
-      the wall geometry, star motion advances over time (sample the motion parameter across frames),
-      and star speed responds to a changed ship-speed value
+- [ ] Rename `Doorway` → `WallOpening` (six files) now that it models windows too
+- [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must
+- [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
+- [ ] Optional polish from the original plan not done: passing debris, a distant planet
 
 ## 12. Countdown mechanic — stasis / oxygen / distance
 

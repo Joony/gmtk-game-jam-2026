@@ -45,4 +45,10 @@ func build_ship() -> void:
 	add_doorway(Vector2(0.5, -4), Doorway.Axis.X, 1.8)
 	add_doorway(Vector2(0.5, -12), Doorway.Axis.X, 1.8)
 
+	# Windows on exterior walls only — an opening onto another room would show stars
+	# through the ship. Sill at 1.0m so they sit at eye level.
+	add_window(Vector2(-5, 2), Doorway.Axis.Z, 3.0, 1.0, 1.3)     # pod bay, port side
+	add_window(Vector2(5, 2), Doorway.Axis.Z, 3.0, 1.0, 1.3)      # pod bay, starboard
+	add_window(Vector2(-6, -17), Doorway.Axis.Z, 4.0, 1.2, 1.6)   # engine room, port
+
 	build()

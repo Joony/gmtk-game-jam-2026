@@ -1,12 +1,16 @@
 class_name Doorway
 extends Resource
 
-# A gap cut through a wall, with a lintel above it. Ported from the wall-intersection
-# maths in GMTK 2025's V1/SlidingDoor.gd; the sliding panels, control panel, detection
-# area and animation state stayed behind (that was DoorManager's job, and we don't
-# need moving doors yet).
+# An opening cut through a wall. Despite the name this covers BOTH doorways and windows:
+# the geometry and the wall-splitting maths are identical, only the vertical extent and
+# what gets fitted into the hole differ. `sill`/`top` bound the opening, so a doorway
+# starts at the floor and a window is inset with wall above and below.
 #
-# Renamed from SlidingDoor because nothing here slides — it cuts an opening.
+# The horizontal maths is ported from GMTK 2025's V1/SlidingDoor.gd; the sliding panels,
+# control panel, detection area and animation state stayed behind.
+#
+# (Name kept as `Doorway` rather than churning six files mid-jam — `WallOpening` would
+# be more accurate. Noted as a follow-up.)
 
 ## Which axis the opening SPANS. A doorway spanning X cuts walls that run along X
 ## (a room's north/south walls); one spanning Z cuts west/east walls.
@@ -17,6 +21,14 @@ enum Axis { X, Z }
 ## Opening width in grid units.
 @export var width: float = 1.6
 @export var id: String = ""
+## Bottom of the opening above the floor. 0 for a doorway, ~1m for a window.
+@export var sill: float = 0.0
+## Top of the opening. 0 means "use the builder's doorway_height".
+@export var top: float = 0.0
+## Fit a sliding door in this opening.
+@export var fit_door: bool = true
+## Fit a starfield pane in this opening.
+@export var fit_window: bool = false
 
 
 func _init(pos: Vector2 = Vector2.ZERO, span_axis: Axis = Axis.X, opening_width: float = 1.6, doorway_id: String = "") -> void:
@@ -24,6 +36,11 @@ func _init(pos: Vector2 = Vector2.ZERO, span_axis: Axis = Axis.X, opening_width:
 	axis = span_axis
 	width = opening_width
 	id = doorway_id if doorway_id != "" else "door_%.1f_%.1f" % [pos.x, pos.y]
+
+
+## Top of the opening, resolving 0 to the builder's default doorway height.
+func resolved_top(default_top: float) -> float:
+	return top if top > 0.0 else default_top
 
 
 ## The opening's extent along its span axis, in grid coordinates.

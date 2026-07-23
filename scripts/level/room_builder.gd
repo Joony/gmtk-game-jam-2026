@@ -36,6 +36,8 @@ const GROUP_WALL := &"room_wall"
 const GROUP_LIGHT := &"room_lights"
 const GROUP_DOOR := &"room_door"
 const GROUP_LIGHT_PANEL := &"room_light_panels"
+const GROUP_WINDOW := &"space_windows"
+const GROUP_WINDOW_GLASS := &"space_window_glass"
 
 @export var tile_size: float = 1.0
 @export var wall_thickness: float = 0.15
@@ -102,6 +104,18 @@ func add_doorway(position: Vector2, axis: Doorway.Axis, width: float = 1.6) -> D
 	return doorway
 
 
+## A window is an opening that does not reach the floor: wall below (the sill) and above
+## (the lintel), with a starfield pane fitted instead of a door.
+func add_window(position: Vector2, axis: Doorway.Axis, width: float = 2.4, sill: float = 1.0, height: float = 1.3) -> Doorway:
+	var opening := Doorway.new(position, axis, width)
+	opening.sill = sill
+	opening.top = sill + height
+	opening.fit_door = false
+	opening.fit_window = true
+	doorways.append(opening)
+	return opening
+
+
 ## Grid (boundary) coordinates to world XZ. The single conversion in the system.
 func grid_to_world(grid_x: float, grid_y: float) -> Vector2:
 	return Vector2(grid_x, grid_y) * tile_size
@@ -131,8 +145,62 @@ func build() -> Node3D:
 		_build_walls(room)
 	if build_doors:
 		for doorway in doorways:
-			_build_door(doorway)
+			if doorway.fit_door:
+				_build_door(doorway)
+	for opening in doorways:
+		if opening.fit_window:
+			_build_window(opening)
 	return _built_root
+
+
+func _build_window(opening: Doorway) -> void:
+	var height: float = opening.resolved_top(doorway_height) - opening.sill
+	if height <= 0.01:
+		return
+
+	var pane := MeshInstance3D.new()
+	pane.name = "Window_%s" % opening.id
+	var quad := QuadMesh.new()
+	quad.size = Vector2(opening.width * tile_size, height)
+	pane.mesh = quad
+	pane.material_override = _starfield_material()
+
+	var at := grid_to_world(opening.position.x, opening.position.y)
+	pane.position = Vector3(at.x, opening.sill + height * 0.5, at.y)
+	# A QuadMesh faces +Z; an opening spanning Z sits in a wall whose normal is X.
+	if opening.axis == Doorway.Axis.Z:
+		pane.rotate_y(PI * 0.5)
+	pane.add_to_group(GROUP_WINDOW)
+	_built_root.add_child(pane)
+
+	# Glass. Without it the opening is a hole: the player can't fit through (the sill
+	# blocks them) but a thrown crate would sail out into space.
+	var glass := StaticBody3D.new()
+	glass.name = "WindowGlass_%s" % opening.id
+	glass.position = pane.position
+	var shape := CollisionShape3D.new()
+	shape.name = "Shape"
+	var box := BoxShape3D.new()
+	var span := opening.width * tile_size
+	box.size = Vector3(span, height, wall_thickness * 0.5)
+	if opening.axis == Doorway.Axis.Z:
+		box.size = Vector3(wall_thickness * 0.5, height, span)
+	shape.shape = box
+	glass.add_child(shape)
+	# Grouped rather than found by name: node names are sanitised (dots stripped), so
+	# "WindowGlass_door_-5.0_2.0" is not the name it ends up with.
+	glass.add_to_group(GROUP_WINDOW_GLASS)
+	_built_root.add_child(glass)
+
+
+## One shared material across every window, so ShipMotion updates them all at once.
+func _starfield_material() -> ShaderMaterial:
+	if _materials.has("starfield"):
+		return _materials["starfield"]
+	var material := ShaderMaterial.new()
+	material.shader = load("res://assets/shaders/starfield.gdshader")
+	_materials["starfield"] = material
+	return material
 
 
 func _build_door(doorway: Doorway) -> void:
@@ -270,14 +338,36 @@ func _create_wall(segment: Dictionary, room: Room, material: StandardMaterial3D,
 	var end: Vector2 = segment["end"]
 	var has_door: bool = segment["has_door"]
 
-	var length := start.distance_to(end) * tile_size
-	if length < 0.01:
+	if start.distance_to(end) * tile_size < 0.01:
 		return
 
-	# Above a doorway only a lintel remains.
-	var y_bottom := doorway_height if has_door else 0.0
-	var wall_height := room.height - y_bottom
-	if wall_height <= 0.01:
+	if not has_door:
+		_create_wall_piece(start, end, 0.0, room.height, room, material, inward)
+		return
+
+	# An opening splits its segment into up to two pieces: wall below (a window's sill)
+	# and wall above (the lintel). A doorway has sill 0, so only the lintel is built.
+	var opening: Doorway = segment["opening"]
+	var bottom: float = opening.sill
+	var top: float = opening.resolved_top(doorway_height)
+	if bottom > 0.01:
+		_create_wall_piece(start, end, 0.0, bottom, room, material, inward)
+	if top < room.height - 0.01:
+		_create_wall_piece(start, end, top, room.height, room, material, inward)
+
+
+func _create_wall_piece(
+	start: Vector2,
+	end: Vector2,
+	y_bottom: float,
+	y_top: float,
+	room: Room,
+	material: StandardMaterial3D,
+	inward: Vector2
+) -> void:
+	var length := start.distance_to(end) * tile_size
+	var wall_height := y_top - y_bottom
+	if length < 0.01 or wall_height <= 0.01:
 		return
 
 	var skin := wall_thickness * 0.5
@@ -287,23 +377,23 @@ func _create_wall(segment: Dictionary, room: Room, material: StandardMaterial3D,
 		size = Vector3(skin, wall_height, length)
 
 	var centre := grid_to_world((start.x + end.x) * 0.5, (start.y + end.y) * 0.5)
-	# Sit the skin between the wall line and the room interior.
 	var offset := Vector3(inward.x, 0.0, inward.y) * (skin * 0.5)
 
 	var body := _make_box(
-		"Wall_%s_%.1f_%.1f" % [room.id, start.x, start.y],
+		"Wall_%s_%.1f_%.1f" % [room.id, start.x, y_bottom],
 		size,
 		Vector3(centre.x, y_bottom + wall_height * 0.5, centre.y) + offset,
 		material,
 		true
 	)
 	body.add_to_group(GROUP_WALL)
-	if has_door:
+	if y_bottom > 0.01:
 		body.set_meta("lintel", true)
 
 
 ## Split a wall into segments around any doorways crossing it. Ported from 2025's
-## get_wall_segments_with_doors(). Segments flagged `has_door` become lintels.
+## get_wall_segments_with_doors(). A segment flagged `has_door` carries the `opening`
+## that split it, so the caller knows its vertical extent (doorway vs window).
 static func wall_segments(wall_start: Vector2, wall_end: Vector2, all_doorways: Array[Doorway]) -> Array[Dictionary]:
 	var crossing: Array[Doorway] = []
 	for doorway in all_doorways:
@@ -311,7 +401,7 @@ static func wall_segments(wall_start: Vector2, wall_end: Vector2, all_doorways: 
 			crossing.append(doorway)
 
 	if crossing.is_empty():
-		return [{"start": wall_start, "end": wall_end, "has_door": false}]
+		return [{"start": wall_start, "end": wall_end, "has_door": false, "opening": null}]
 
 	var runs_along_x := absf(wall_end.x - wall_start.x) > absf(wall_end.y - wall_start.y)
 	if runs_along_x:
@@ -334,12 +424,12 @@ static func wall_segments(wall_start: Vector2, wall_end: Vector2, all_doorways: 
 			opening_end.x = wall_start.x
 
 		if cursor.distance_to(opening_start) > 0.01:
-			segments.append({"start": cursor, "end": opening_start, "has_door": false})
-		segments.append({"start": opening_start, "end": opening_end, "has_door": true})
+			segments.append({"start": cursor, "end": opening_start, "has_door": false, "opening": null})
+		segments.append({"start": opening_start, "end": opening_end, "has_door": true, "opening": doorway})
 		cursor = opening_end
 
 	if cursor.distance_to(wall_end) > 0.01:
-		segments.append({"start": cursor, "end": wall_end, "has_door": false})
+		segments.append({"start": cursor, "end": wall_end, "has_door": false, "opening": null})
 	return segments
 
 
