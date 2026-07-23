@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/level/ship_motion.gd" id="10_motion"]
 [ext_resource type="ShaderMaterial" path="res://assets/materials/starfield.tres" id="11_starfield"]
 [ext_resource type="PackedScene" path="res://scenes/props/space_station.tscn" id="12_station"]
+[ext_resource type="PackedScene" path="res://ui/debug_readout.tscn" id="13_readout"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_shell"]
 radius = 1400.0
@@ -93,3 +94,5 @@ shape = SubResource("BoxShape3D_socket")
 [node name="StartPrompt" parent="." instance=ExtResource("4_start")]
 
 [node name="Reticle" parent="." instance=ExtResource("5_reticle")]
+
+[node name="DebugReadout" parent="." instance=ExtResource("13_readout")]

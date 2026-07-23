@@ -156,6 +156,53 @@ func _run() -> void:
 	_check("speed_changed fired (%d)" % speeds.size(), speeds.size() == 1)
 	_check("speed_fraction reports half (%.2f)" % motion.speed_fraction(), absf(motion.speed_fraction() - 0.5) < 0.02)
 
+	# --- Runtime speed and star-count controls ------------------------------
+	for required_action in ["speed_up", "speed_down", "stars_more", "stars_fewer"]:
+		_check("input action '%s' exists" % required_action, InputMap.has_action(required_action))
+
+	motion.speed = motion.cruise_speed
+	await _frames(2)
+	var before_speed := motion.speed
+	motion.adjust_speed(1.0)
+	await _frames(2)
+	_check(
+		"speed can be raised above cruise (%.1f -> %.1f)" % [before_speed, motion.speed],
+		motion.speed > before_speed
+	)
+	_check(
+		"streak keeps growing above cruise (%.2f)" % float(material.get_shader_parameter("streak")),
+		float(material.get_shader_parameter("streak")) > motion.streak_at_cruise
+	)
+
+	for i in 40:
+		motion.adjust_speed(-1.0)
+	await _frames(2)
+	_check("speed cannot go negative (%.2f)" % motion.speed, motion.speed == 0.0)
+	for i in 40:
+		motion.adjust_speed(1.0)
+	await _frames(2)
+	_check(
+		"speed is capped (%.1f, max %.1f)" % [motion.speed, motion.cruise_speed * motion.max_speed_multiplier],
+		motion.speed <= motion.cruise_speed * motion.max_speed_multiplier + 0.001
+	)
+
+	# Star count is driven from ShipMotion so it can be changed at runtime.
+	var before_density := motion.star_density
+	motion.adjust_density(-0.2)
+	await _frames(2)
+	_check(
+		"star density can be lowered (%.2f -> %.2f)" % [before_density, motion.star_density],
+		motion.star_density < before_density
+	)
+	_check(
+		"density reaches the shader (%.2f)" % float(material.get_shader_parameter("star_density")),
+		is_equal_approx(float(material.get_shader_parameter("star_density")), motion.star_density)
+	)
+	motion.adjust_density(-2.0)
+	_check("density cannot go below zero (%.2f)" % motion.star_density, motion.star_density == 0.0)
+	motion.adjust_density(5.0)
+	_check("density cannot exceed one (%.2f)" % motion.star_density, motion.star_density == 1.0)
+
 	# --- The destination hook is off until step 12 turns it on --------------
 	_check(
 		"destination hidden by default (%.2f)" % float(material.get_shader_parameter("destination_brightness")),

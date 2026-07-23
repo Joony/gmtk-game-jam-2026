@@ -54,6 +54,35 @@ what a skybox would give — without needing one, an asset, or an Environment ch
 Everything is exported (`nebula_pole`, `nebula_color`, `nebula_core_color`, `nebula_strength`,
 `nebula_width`, `nebula_scale`) for tuning by eye.
 
+## Tuning: what is controllable, and where
+
+**In game (debug keys, unpaused only):**
+
+| key | effect |
+|---|---|
+| `=` / `-` | speed up / down, in 25% of cruise steps, 0 to 4x cruise |
+| `]` / `[` | more / fewer stars, 5% of density per press |
+
+A transient readout ([ui/debug_readout.tscn](../../ui/debug_readout.tscn)) shows the current values
+for a second or so on change, then fades. It is a tuning aid, not part of the game HUD.
+
+**In the inspector, on the `Motion` node** (`ShipMotion`): `cruise_speed`, `star_density`,
+`star_brightness`, `streak_at_cruise`, `travel_direction`, `max_speed_multiplier`, `speed_step`.
+
+**In the inspector, on the starfield material** (`assets/materials/starfield.tres`): `cell_size`
+(smaller = denser field), `near_distance`, `star_angular_size`, `space_color`, and every `nebula_*`
+value.
+
+### ⚠️ Which uniforms are driven, and which are not
+
+`ShipMotion` **overwrites** `travel_direction`, `travelled`, `brightness`, `streak`, `star_density`
+and `destination_brightness` on the material **every frame**. Editing those in the inspector looks
+like it does nothing — change them on the `Motion` node instead. Everything else on the material is
+static and edits stick.
+
+`speed_fraction()` stays clamped to 0..1 for game logic ("how healthy are we?"); `speed_ratio()` is
+unclamped so the stars keep stretching above cruise.
+
 ## How it was verified
 
 [tests/smoke_space_windows.gd](../../tests/smoke_space_windows.gd) — **SPACE WINDOWS TEST PASS**:
@@ -64,6 +93,8 @@ Everything is exported (`nebula_pole`, `nebula_color`, `nebula_core_color`, `neb
 - the station is outside the hull, inside the shell, on **render layer 2**
 - the exterior sun's `light_cull_mask` is 2, so it cannot light the interior
 - the shader exposes the nebula uniforms
+- the four debug input actions exist; speed rises above cruise and the streak keeps growing with it;
+  speed clamps at 0 and at 4x cruise; star density adjusts, reaches the shader, and clamps to 0..1
 
 Visual checks: the forward window (nebula sweeping across a dense starfield) and the port window
 (the station silhouetted against the band).

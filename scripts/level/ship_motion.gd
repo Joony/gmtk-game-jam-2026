@@ -15,6 +15,8 @@ extends Node
 const GROUP_STARFIELD := &"starfield"
 
 signal speed_changed(speed: float)
+## Emitted when a tuning value (currently star density) changes.
+signal settings_changed
 
 ## Metres per second at full health. Step 12 scales the actual speed down per malfunction.
 @export var cruise_speed: float = 18.0
@@ -23,6 +25,13 @@ signal speed_changed(speed: float)
 @export var star_brightness: float = 1.6
 ## How much the stars smear at cruise speed.
 @export var streak_at_cruise: float = 0.7
+## Fraction of cells containing a star — the main "how many stars" control.
+## Driven from here rather than left on the material so it can be changed at runtime.
+@export_range(0.0, 1.0) var star_density: float = 0.85
+## Ceiling for the debug speed control, as a multiple of cruise.
+@export var max_speed_multiplier: float = 4.0
+## Step size for the debug speed keys, as a fraction of cruise.
+@export var speed_step: float = 0.25
 
 ## Current speed. Zero stops the starfield dead, which is what a stalled ship should look like.
 var speed: float = 0.0:
@@ -49,15 +58,47 @@ func _process(delta: float) -> void:
 	_apply()
 
 
-## Fraction of cruise speed, for anything that wants "how fast are we going, really".
+## Fraction of cruise speed, clamped to 0..1 — for game logic ("how healthy are we?").
 func speed_fraction() -> float:
 	if cruise_speed <= 0.0:
 		return 0.0
 	return clampf(speed / cruise_speed, 0.0, 1.0)
 
 
+## Unclamped ratio, for visuals: above cruise the stars should keep stretching.
+func speed_ratio() -> float:
+	if cruise_speed <= 0.0:
+		return 0.0
+	return speed / cruise_speed
+
+
+## Nudge the speed. `steps` is in units of `speed_step` x cruise.
+func adjust_speed(steps: float) -> void:
+	speed = clampf(speed + cruise_speed * speed_step * steps, 0.0, cruise_speed * max_speed_multiplier)
+
+
+func adjust_density(amount: float) -> void:
+	star_density = clampf(star_density + amount, 0.0, 1.0)
+	settings_changed.emit()
+
+
+# Debug/tuning keys. Step 12 drives speed from malfunctions instead; these stay useful
+# for dialling in the look, and are harmless because they only exist while unpaused.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("speed_up"):
+		adjust_speed(1.0)
+	elif event.is_action_pressed("speed_down"):
+		adjust_speed(-1.0)
+	elif event.is_action_pressed("stars_more"):
+		adjust_density(0.05)
+	elif event.is_action_pressed("stars_fewer"):
+		adjust_density(-0.05)
+	else:
+		return
+	get_viewport().set_input_as_handled()
+
+
 func _apply() -> void:
-	var fraction := speed_fraction()
 	for pane in get_tree().get_nodes_in_group(GROUP_STARFIELD):
 		var material := (pane as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 		if material == null:
@@ -67,5 +108,6 @@ func _apply() -> void:
 		material.set_shader_parameter("travel_direction", travel_direction.normalized())
 		material.set_shader_parameter("travelled", distance_travelled)
 		material.set_shader_parameter("brightness", star_brightness)
-		material.set_shader_parameter("streak", streak_at_cruise * fraction)
+		material.set_shader_parameter("star_density", star_density)
+		material.set_shader_parameter("streak", streak_at_cruise * speed_ratio())
 		material.set_shader_parameter("destination_brightness", destination_brightness)
