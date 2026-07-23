@@ -60,9 +60,14 @@ void fragment() {
 			continue;
 		}
 
-		// Star centres are held away from cell edges, so the cell containing a star is
-		// unambiguous and it cannot be sliced by a boundary.
-		vec3 star = (id + rnd * 0.6 + vec3(0.2)) * cell_size;
+		// Star centres are held away from cell edges so a star cannot be sliced by a
+		// boundary (only the cell containing the sample is tested). The margin must
+		// scale with the star's WORLD radius, which grows with distance: a fixed
+		// margin is enormous at close range — at 15m a 20% margin spans ~69 degrees of
+		// view — and carves a cross of empty sky along the world axes through the eye.
+		// Sized this way the dead band is a constant ~3x the star size, i.e. invisible.
+		float margin = clamp(star_angular_size * t / cell_size * 1.5, 0.004, 0.25);
+		vec3 star = (id + rnd * (1.0 - 2.0 * margin) + vec3(margin)) * cell_size;
 		vec3 rel = star - eye;
 		float along = dot(rel, ray);
 		if (along < 1.0) {

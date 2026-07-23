@@ -61,6 +61,33 @@ A tiny advance now barely changes the image, which is what persistent stars movi
 like. The residual per-frame figure is inherent: stars are 1–2px and genuinely move a couple of
 pixels per frame.
 
+### Follow-up: the cross of empty sky (2026-07-23)
+
+Reported in play: a cross-shaped region through the middle of each window with no stars in it.
+
+Cause: star centres are confined to the middle of each cell so a star cannot be sliced by a cell
+boundary (only the cell containing the sample point is tested). That margin was a **fixed 20%**,
+which creates a dead band wherever a sampled coordinate falls near a cell edge — and those bands are
+the world-axis planes passing through the eye, which project to exactly a cross.
+
+The near march steps did the damage. The dead band spans `2 * margin * cell / t` radians, so at
+t = 15m with a 20% margin of a 45m cell that is **~69° of view**. At 1.1km it is negligible. Hence a
+thick cross fading outward.
+
+The margin now scales with the star's world radius, which is what it actually needs to exceed:
+
+```glsl
+float margin = clamp(star_angular_size * t / cell_size * 1.5, 0.004, 0.25);
+```
+
+The dead band is then a constant ~3× the star's angular size at every distance — about 0.3°, far
+below one star's width. Verified numerically as well as visually: counting bright pixels along the
+window's centre row and column versus off-centre lines now shows **no deficit** (10 vs 5 and 10 vs 1,
+i.e. the centre lines have more, which is ordinary sampling noise).
+
+Smoothness after the change: a 5cm advance is **1.5%** of a whole-new-sky change, better than the
+4.4% measured before it.
+
 ### The earlier bug worth remembering
 
 The first version tested *"is this sample point inside a star?"*. That makes visibility scale with

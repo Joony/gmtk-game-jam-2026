@@ -336,6 +336,9 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Flicker fixed: stars were sampled at a single depth per slab and cut off hard at the range
       limits. Now marched cell by cell with both ends faded, field pushed out to ~1.1km. Measured:
       a 5cm advance changes 4.4% as much as a whole new sky (was 54% for 30cm).
+- [x] Cross of empty sky removed: the cell margin that stops stars being sliced was a fixed 20%,
+      which at close range spans ~69° of view along the world axes through the eye. It now scales
+      with the star's angular size, leaving a ~0.3° band. Smoothness improved to 1.5%.
 - [x] Star speed driven by actual ship speed — **zero stops the stars dead**
 - [x] Streaking grows with speed
 - [x] Destination hook (`destination_brightness`) ready for step 12's distance countdown
