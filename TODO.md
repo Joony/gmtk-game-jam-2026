@@ -486,8 +486,11 @@ look out of.
 - [ ] Optimal play is ~3 minutes; the 5-10 minute target relies on real players being slower
       than the simulation. Re-check against an actual playthrough.
 - [ ] The four scenery pods are empty — occupants would sell the fiction cheaply
-- [ ] Move `CD_Cryo_v2.blend` and `node_3d.tscn` under `assets/` and `scenes/props/`
-      (coordinate first — they are a collaborator's files)
+- [x] ~~Move `CD_Cryo_v2.blend` out of the repo root~~ — LoganDevz did it, into `3D-Models/`.
+      `cryo_pod.tscn` followed. `node_3d.tscn` is still a scratch scene at the root.
+- [ ] Unused models now sitting in `3D-Models/`: `CD_PipeBroken_v1` (a direct upgrade for the
+      vent pipe's placeholder box-and-slab), `CD_Crate_v1.1` (replaces the yellow box pickups),
+      `CD_PipeDecor_v1`. Also `Perpetual Pickle Intro.mp4` for the intro rework.
 - [ ] Name the two worlds on the nav chart, and the game
 - [ ] **`.tscn` Transform3D basis literals are ROW-major.** Writing one from column vectors
       gives the transpose, i.e. the opposite rotation. This buried three repair panels inside
@@ -501,3 +504,103 @@ look out of.
 - [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown
       becomes the pod's revival cycle (klaxon, lid opening) instead of a title card
 - [ ] Re-run the web export from step 7 with the finished game before submitting
+
+## 14. Ship feel & new systems
+
+Four additions, ordered cheapest first. The first two are pure feel and share one trigger;
+the last two are real mechanics and should only start once step 13's audio is in, because a
+lurching ship with no sound is worse than a still one.
+
+### 14a. Screen shake on a critical fault
+
+- [ ] Trauma-based shake: an event adds trauma (0–1), it decays every frame, and the offset
+      applied is `trauma²` (or cubed) so small values stay subtle and only a real hit throws
+      the camera about
+- [ ] Trigger from `RunState.alarm`, weighted by `Malfunction.severity` — a CRITICAL fault
+      shakes hard, a DEGRADING one barely registers
+- [ ] **Apply it in `CameraController._process()` as an offset added AFTER the two-clock
+      transform is computed** — never by moving the player body. The body drives movement
+      wishdir and the physics-side hold point, so shaking it would shove the player and
+      whatever they are carrying.
+- [ ] Positional *and* rotational, but keep the roll small; rolling a first-person camera
+      more than a couple of degrees reads as nausea rather than impact
+- [ ] Must not fire while `NavPhase.READING` or `PodPhase.IN` — the camera is being driven
+      by a tween in both, and shake would fight it
+- [ ] Test: trauma decays to zero within its stated duration; the camera returns exactly to
+      its unshaken transform (a shake that leaves a permanent offset is a real risk here)
+
+> **Note:** GMTK 2025 does **not** have a screen shake — I grepped the whole project for
+> `shake` / `trauma` / camera noise and it has none. This is from scratch, but it is only
+> ~30 lines.
+
+### 14b. Hull bump
+
+- [ ] Everything loose gets a small upward impulse at once, like the ship struck something
+- [ ] `apply_central_impulse()` over the `interactables` and `spare_parts` groups, with a
+      little random lateral scatter so it does not look like a single scripted jolt
+- [ ] **The carried item will not respond** — `Carry` authors its position every frame, so an
+      impulse is overwritten. Either skip the held item, or make a hard enough bump knock it
+      out of the player's hands (which is more fun, and `Carry.drop()` already exists).
+- [ ] Give the player a matching vertical nudge, or the room bounces and they do not
+- [ ] Pairs with 14a and with the same alarm event; needs a sound more than it needs anything
+      else (step 13)
+- [ ] Test: every loose body has upward velocity on the frame after a bump, and none of them
+      end up inside geometry a second later
+
+### 14c. Zero gravity
+
+A fault where gravity fails. Fits the malfunction system as-is: severity CRITICAL, a speed
+penalty, and a repair panel that switches it back on.
+
+- [ ] Gravity off for **items only** — the player has magnetic boots and keeps walking
+      normally. That keeps the failure readable without making movement miserable.
+- [ ] The one thing the player loses is **jumping**. `Player.gd` already gates on
+      `is_on_floor()`; this is a flag it checks before applying the jump impulse.
+- [ ] Items: `gravity_scale = 0` across the loose bodies, plus a gentle drift and enough
+      linear damping that the room does not turn into a blender
+- [ ] **Two hazards to design around before building it:**
+      an item that drifts to the ceiling, or into a wall, is a spare the player can no longer
+      reach — so either clamp drift to a height they can still grab from, or make restoring
+      gravity drop everything back within reach
+- [ ] Carrying still works — `Carry` authors position directly and never asked for gravity
+- [ ] Ties into the theme nicely: floating is also how you *notice* the fault, before the HUD
+      tells you
+- [ ] Test: with the fault active, loose bodies do not fall over several seconds and the jump
+      input does nothing; repairing it restores both
+
+### 14d. Cables, sockets and a portable battery
+
+The biggest of the four by a wide margin — treat it as its own step, not a polish item.
+
+**Port from Doortal (`/Users/joony/Games/doortal`):**
+
+| File | Size | Notes |
+|------|------|-------|
+| `addons/cables/scripts/cable_3d.gd` | **87 KB** | Verlet rope with tension, breakaway, overstretch. The prize, and the problem. |
+| `addons/cables/scripts/cable_socket.gd` | 4.9 KB | Nearly usable as-is |
+| `addons/cables/scripts/cable_portal_link.gd` | 8 KB | **Not needed** — delete |
+| `scripts/CablePlug.gd` | — | Extends Doortal's `PickableObject`; must be rebased |
+| `scripts/PortalPowerAdapter.gd` | — | Not needed, but it is the reference for how a socket powers a thing |
+
+- [ ] **Strip the portal handling.** `cable_3d.gd` is 87 KB and the portal logic is woven
+      through it (`_link`, `_portals`, `carry_did_teleport`, `on_teleport`, the void guard).
+      Budget real time for this; it is the single biggest port in the project and unlike the
+      room builder it cannot be taken in pieces.
+- [ ] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Our carry
+      is Doortal's, so the physics side should line up; it is the pickup base class that differs.
+- [ ] `CableSocket` already has what is needed: `is_power_source`, `powered`,
+      `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()`
+- [ ] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels
+- [ ] Some cables start permanently plugged in at one end — one plug seated and non-removable,
+      so the player only ever handles the free end
+- [ ] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
+      discharges while powering something. Carryable, so it reaches things no cable can.
+- [ ] Charge indicator: a row of small emissive bars on the cube. Same trick as
+      `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar, or every
+      battery in the ship shows the same charge.
+- [ ] **Make it earn its place in the countdown design.** A rope simulation is a lot of code
+      for set dressing. The obvious fit: a repair somewhere with no wall socket in reach, so
+      the choice becomes *run a cable the long way* or *charge the cube and carry it* — a
+      third answer to "is this fix worth the air?", paid in walking rather than in parts.
+- [ ] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
+      gains charge on a live socket, loses it under load, and reads empty at zero
