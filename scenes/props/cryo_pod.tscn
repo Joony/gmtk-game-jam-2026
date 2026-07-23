@@ -1,9 +1,9 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/stasis_pod.gd" id="1_pod"]
-[ext_resource type="PackedScene" uid="uid://bfmyhxscvste7" path="res://3D-Models/CD_Cryo_v2.blend" id="2_model"]
+[ext_resource type="PackedScene" uid="uid://dsd5ii2wequh5" path="res://3D-Models/CD_Cryo_v2.1.blend" id="2_model"]
 
-; CD_Cryo_v2, re-based so the wrapper's origin is the pod's vertical axis and the door
+; CD_Cryo_v2.1, re-based so the wrapper's origin is the pod's vertical axis and the door
 ; faces -Z (Godot forward). The .blend authors the pod off-centre — its meshes share a pivot
 ; at (0.8, 1, 0) with the door pointing local +X, because it is modelled as one pod of a
 ; five-pod ring. Rotating 90 degrees about Y sends that +X door to -Z, which carries the
