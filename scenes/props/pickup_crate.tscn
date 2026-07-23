@@ -1,37 +1,34 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://g7qiimy33ycm"]
 
-[ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
+[ext_resource type="Script" uid="uid://rj7238751fte" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
 [ext_resource type="PackedScene" uid="uid://dh3p1153cu6lc" path="res://3D-Models/CD_Crate_v1.1.blend" id="2_model"]
 
-; CD_Crate_v1.1, scaled to something a person can pick up. The model is authored 2m on a
-; side — a shipping container, not a crate you carry — so 0.2 brings it to the 0.4m the
-; carry system was built around.
-;
-; The model's origin sits at its BASE (its node is translated +1 with the mesh spanning -1
-; to +1), so the instance is dropped a further 0.2 to centre the box on the RigidBody's
-; origin. A rigid body rotating about its corner looks broken the moment you throw it.
+; CD_Crate_v1.1, authored 2m on a side. Scaled 0.4 here -> a 0.8m crate (doubled from the
+; original 0.4m). The model's origin is at its base, so the instance drops a further 0.4 to
+; centre the box on the RigidBody's origin — a body rotating about a corner looks broken the
+; moment it is thrown.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_crate"]
-size = Vector3(0.4, 0.4, 0.4)
+size = Vector3(0.8, 0.8, 0.8)
 
-[node name="PickupCrate" type="RigidBody3D"]
-collision_layer = 1
-collision_mask = 1
+[node name="PickupCrate" type="RigidBody3D" unique_id=882731646]
 continuous_cd = true
 script = ExtResource("1_interactable")
 interaction_type = 0
 interaction_text = "Pick up crate"
 
-[node name="Model" parent="." instance=ExtResource("2_model")]
-transform = Transform3D(0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2, 0, -0.2, 0)
+[node name="Model" parent="." unique_id=206068218 instance=ExtResource("2_model")]
+transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, -0.4, 0)
 
 ; The .blend's `-col` suffix gives the mesh its own StaticBody3D. Right for scenery, wrong
-; here: a static body parented to a rigid body does not simulate, it is just teleported
-; around, leaving a solid ghost the player can walk into wherever the crate has been.
-; Layers cleared so it collides with nothing; the RigidBody's own shape below is the collider.
+; here: a static body inside a rigid body is a second collider on layer 1 that the physics
+; engine drags around with the crate, fighting the RigidBody's own shape. Layers cleared so
+; it collides with nothing; the RigidBody's shape below is the only collider.
+; NOTE: opening this scene in the editor has dropped this override before — if the crate
+; starts snagging on nothing, check this node still has its layers zeroed.
 [node name="StaticBody3D" parent="Model/Crate" index="0"]
 collision_layer = 0
 collision_mask = 0
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1074805082]
 shape = SubResource("BoxShape3D_crate")
