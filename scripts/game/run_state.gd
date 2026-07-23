@@ -15,9 +15,10 @@ extends Node
 # "is this fix worth the air?" — and the answer genuinely differs depending on how far out
 # the fault is, how much speed it costs, and how much air you have left.
 #
-# Time is scaled, not paused, in stasis: ship time runs `stasis_time_scale` faster while
-# real time (and therefore nothing that drains oxygen) carries on normally. Engine.time_scale
-# would have been the lazy route and would have sped the player's own movement up with it.
+# Time is scaled, not paused, in stasis: ship time runs up to `stasis_time_scale` faster
+# while real time (and therefore nothing that drains oxygen) carries on normally.
+# Engine.time_scale would have been the lazy route and would have sped the player's own
+# movement up with it. The scale RAMPS rather than jumping — see _start_ramp().
 #
 # All the balance lives in the exported values below and nowhere else.
 
@@ -58,6 +59,10 @@ signal run_ended(won: bool, summary: Dictionary)
 @export_range(0.0, 1.0) var stasis_oxygen_rate: float = 0.35
 ## Ship seconds per real second while in stasis.
 @export var stasis_time_scale: float = 24.0
+## Seconds the drive takes to spin up to that, and back down again. The scale used to jump
+## from 1x to 24x on a single frame, which made the starfield snap from a drift to a blur
+## between one frame and the next — it read as a glitch rather than as acceleration.
+@export var stasis_ramp_time: float = 1.8
 ## Speed floor as a fraction of cruise. Faults can total more than 100%, and a ship frozen
 ## at exactly zero is an unwinnable run that still makes you sit through your own suffocation.
 @export var min_speed_fraction: float = 0.06
@@ -73,6 +78,10 @@ signal run_ended(won: bool, summary: Dictionary)
 var distance_remaining: float = 0.0
 ## In-fiction days since the run began. Displayed, and useful for logging a run.
 var days_elapsed: float = 0.0
+## Ship time per real second RIGHT NOW, somewhere between 1 and stasis_time_scale while the
+## drive is spinning up or down. Read by the HUD, and pushed at ShipMotion every frame so
+## the stars stretch and relax with it.
+var time_scale: float = 1.0
 var oxygen_remaining: float = 0.0
 var in_stasis: bool = false
 var running: bool = false
@@ -84,6 +93,14 @@ var repairs_patched: int = 0
 var patch_failures: int = 0
 var air_spent_on_repairs: float = 0.0
 var choices: Array[String] = []
+
+# Ramp state. Interpolating in LOG space rather than linearly: a linear 1 -> 24 is already
+# past 12x at the halfway point, so almost the whole ramp is spent at high speed and it
+# still reads as a jump. Geometric interpolation is constant proportional acceleration,
+# which is what a drive spinning up actually looks like.
+var _ramp_progress: float = 1.0
+var _ramp_from: float = 1.0
+var _ramp_to: float = 1.0
 
 var _motion: ShipMotion = null
 var _lighting: LightingController = null
@@ -114,6 +131,7 @@ func start() -> void:
 
 	distance_remaining = total_distance
 	days_elapsed = 0.0
+	_set_time_scale(1.0)
 	oxygen_remaining = oxygen_total
 	finished = false
 	running = true
@@ -141,7 +159,8 @@ func _process(delta: float) -> void:
 
 	# Speed before distance: a fault that fired this frame should slow this frame's travel.
 	_update_speed()
-	var days := delta * days_per_real_second * (stasis_time_scale if in_stasis else 1.0)
+	_advance_ramp(delta)
+	var days := delta * days_per_real_second * time_scale
 	days_elapsed += days
 	distance_remaining = maxf(distance_remaining - cruise_speed_per_day * speed_fraction() * days, 0.0)
 	distance_changed.emit(distance_remaining, total_distance)
@@ -159,8 +178,10 @@ func enter_stasis() -> void:
 	if in_stasis or not running or finished:
 		return
 	in_stasis = true
-	if _motion != null:
-		_motion.time_scale = stasis_time_scale
+	# The OXYGEN rate switches instantly here and that is correct — the lid has shut, the
+	# pod is sealed, the player is breathing pod air from this moment. It is only the ship's
+	# clock that has to wind up.
+	_start_ramp(stasis_time_scale)
 	stasis_changed.emit(true)
 
 
@@ -168,9 +189,35 @@ func exit_stasis() -> void:
 	if not in_stasis:
 		return
 	in_stasis = false
-	if _motion != null:
-		_motion.time_scale = 1.0
+	_start_ramp(1.0)
 	stasis_changed.emit(false)
+
+
+## Begin winding the ship's clock toward `target`. Starts from wherever the ramp currently
+## is, not from a fixed value, so climbing back into the pod part-way through a spin-down
+## picks up smoothly instead of snapping back to 1x first.
+func _start_ramp(target: float) -> void:
+	_ramp_from = time_scale
+	_ramp_to = maxf(target, 0.001)
+	_ramp_progress = 0.0 if stasis_ramp_time > 0.0 else 1.0
+	if _ramp_progress >= 1.0:
+		_set_time_scale(_ramp_to)
+
+
+func _advance_ramp(delta: float) -> void:
+	if _ramp_progress >= 1.0:
+		return
+	_ramp_progress = minf(_ramp_progress + delta / stasis_ramp_time, 1.0)
+	# Smoothstep on top of the geometric interpolation, so the ramp also eases in and out
+	# at its two ends rather than starting and stopping abruptly.
+	var t: float = _ramp_progress * _ramp_progress * (3.0 - 2.0 * _ramp_progress)
+	_set_time_scale(exp(lerpf(log(maxf(_ramp_from, 0.001)), log(_ramp_to), t)))
+
+
+func _set_time_scale(value: float) -> void:
+	time_scale = value
+	if _motion != null:
+		_motion.time_scale = value
 
 
 ## Faults active right now, for the HUD.
@@ -310,6 +357,10 @@ func _end(won: bool) -> void:
 	running = false
 	set_process(false)
 	exit_stasis()
+	# _process has stopped, so the ramp would freeze wherever it happened to be and leave
+	# the starfield smeared behind the end screen.
+	_ramp_progress = 1.0
+	_set_time_scale(1.0)
 	if _motion != null:
 		_motion.speed_driven_externally = false
 	run_ended.emit(won, summary())

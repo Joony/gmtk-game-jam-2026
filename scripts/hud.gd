@@ -59,6 +59,8 @@ func _process(delta: float) -> void:
 		return
 	_pulse += delta
 	_update_air_pressure()
+	if _stasis_panel.visible:
+		_update_stasis_rate()
 
 
 ## Red creep at the edges of the screen as the air runs out, faster the lower it gets.
@@ -140,10 +142,18 @@ func _add_system_line(text: String, color: Color) -> void:
 
 func _on_stasis_changed(in_stasis: bool) -> void:
 	_stasis_panel.visible = in_stasis
-	if in_stasis and _run != null:
-		_stasis_hint.text = "%.1f DAYS PER SECOND  ·  [E] WAKE" % (
-			_run.days_per_real_second * _run.stasis_time_scale
-		)
+	if in_stasis:
+		_update_stasis_rate()
+
+
+## The live rate, not the configured one. The drive takes a moment to wind up, and watching
+## the number climb is most of what sells the spin-up as acceleration rather than a cut.
+func _update_stasis_rate() -> void:
+	if _run == null:
+		return
+	_stasis_hint.text = "%.2f DAYS PER SECOND  ·  [E] WAKE" % (
+		_run.days_per_real_second * _run.time_scale
+	)
 
 
 ## Air, as m:ss. The whole budget is a few minutes, so one minutes digit is always enough.

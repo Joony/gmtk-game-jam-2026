@@ -114,10 +114,16 @@ func _go() -> void:
 	await _frames(30)
 	await _shot("04_low_air")
 
-	# 5. In the pod, fast-forwarding.
+	# 5. In the pod. Three points through the spin-up, so the ramp is visible as a ramp:
+	# the streak length is driven by ShipMotion.time_scale, which RunState is winding up.
+	await _look_from(Vector3(0.0, 0.9, 8.6), 180.0)
 	_run.enter_stasis()
-	await _frames(20)
-	await _shot("05_stasis")
+	await _frames(4)
+	await _shot("05a_stasis_spinup_start")
+	await _frames(50)
+	await _shot("05b_stasis_spinup_mid")
+	await _frames(120)
+	await _shot("05c_stasis_full")
 	_run.exit_stasis()
 	await _frames(5)
 

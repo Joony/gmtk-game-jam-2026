@@ -80,6 +80,24 @@ Two details that were not obvious:
 A four-state `PodPhase` enum replaced a bool, because the alarm can fire while the lid is
 still closing and every phase has to reject the inputs belonging to the others.
 
+**The drive spins up, it does not switch.** Ship time used to jump from 1x to 24x on a
+single frame, which made the starfield snap from a slow drift to a full blur between one
+frame and the next — it read as a rendering glitch rather than as acceleration. `RunState`
+now ramps `time_scale` over `stasis_ramp_time` (1.8s) and pushes it at `ShipMotion` every
+frame, so the stars stretch out and relax back smoothly. Three things about it:
+
+- The interpolation is **geometric, not linear**. A linear 1 → 24 is already past 12x at
+  the halfway point, so almost the whole ramp is spent at high speed and it still reads as
+  a jump. Interpolating in log space is constant *proportional* acceleration, which is what
+  a drive spinning up looks like. Smoothstep on top eases the two ends.
+- A ramp always starts from the **current** scale, not from a fixed value, so climbing back
+  into the pod part-way through a spin-down picks up smoothly rather than snapping to 1x.
+- Only the ship's clock ramps. The **oxygen rate switches instantly**, because it should:
+  the lid has shut, the pod is sealed, and the player is breathing pod air from that moment.
+
+The stasis panel shows the live rate rather than the configured one — watching the number
+climb is most of what sells the spin-up as acceleration rather than a cut.
+
 ## Vent pipe
 
 The flat panels state their condition with a coloured light, which works but is a symbol.
@@ -142,9 +160,13 @@ Two other things this round that only showed up when measured:
 
 ## Verification
 
-- `tests/smoke_run_state.gd` — **100 checks**, up from 72. Also asserts that leaving the pod
+- `tests/smoke_run_state.gd` — **106 checks**, up from 72. Also asserts that leaving the pod
   preserves the player's facing, and that the console's reading position sits in front of the
-  glass at eye height and points at it. New: state visuals switching with
+  glass at eye height and points at it. The stasis ramp is checked at three points through
+  the spin-up (still 1x on the frame the lid shuts, part-way at the midpoint, exact at the
+  end) plus the spin-down and a reversal mid-ramp — a ramp that jumped on the first frame
+  would still pass a "settles at 24x" check on its own. Mutation-tested by restoring the
+  instant switch: 4 failures. New: state visuals switching with
   the fault, `DigitReadout` slot widths identical across digits and labels reused rather
   than rebuilt, the console reporting progress/distance/ETA/drive from the run, five pods
   with exactly one player pod and the other four not offering prompts, the pod facing aft,

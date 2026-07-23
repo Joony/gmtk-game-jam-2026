@@ -63,6 +63,9 @@ func build_run(overrides: Dictionary = {}, faults: Array = []) -> Dictionary:
 	run.total_distance = 100000.0
 	run.cruise_speed_per_day = 1.0
 	run.days_per_real_second = 1.0
+	# No spin-up by default: every other test here measures an exact rate, and a ramp would
+	# turn each of those into an approximation. The ramp gets its own test.
+	run.stasis_ramp_time = 0.0
 	run.oxygen_total = 100.0
 	run.stasis_time_scale = 10.0
 	for key in overrides:
@@ -231,7 +234,7 @@ class _Runner:
 
 	func _test_stasis_fast_forward() -> void:
 		print("[stasis scales SHIP time, not real time]")
-		var ctx: Dictionary = suite.build_run()
+		var ctx: Dictionary = suite.build_run({"stasis_ramp_time": 2.0})
 		var run: RunState = ctx["run"]
 		var motion: ShipMotion = ctx["motion"]
 
@@ -240,17 +243,42 @@ class _Runner:
 		var awake_covered := start_distance - run.distance_remaining
 
 		run.enter_stasis()
-		suite.check(suite.nearly(motion.time_scale, 10.0),
-			"the starfield is told to stream at the scaled rate")
+		# The drive winds up rather than snapping. Checked at three points, because a ramp
+		# that jumped on the first frame would still pass a "settles at 10x" check alone.
+		suite.check(suite.nearly(run.time_scale, 1.0, 0.01),
+			"the clock is still at 1x the instant the lid shuts (got %.3f)" % run.time_scale)
+		suite.tick(run, 1.0, 10)
+		suite.check(run.time_scale > 1.2 and run.time_scale < 9.5,
+			"halfway through the ramp it is part-way there (got %.2f)" % run.time_scale)
+		suite.tick(run, 1.2, 12)
+		suite.check(suite.nearly(run.time_scale, 10.0, 0.01),
+			"and it reaches the full rate (got %.3f)" % run.time_scale)
+		suite.check(suite.nearly(motion.time_scale, run.time_scale, 0.001),
+			"the starfield is told the same rate, so the stars stretch as it climbs")
+
+		# Now that it has settled, the rate itself is exact.
 		var before := run.distance_remaining
 		suite.tick(run, 10.0)
 		var asleep_covered := before - run.distance_remaining
-
 		suite.check(suite.nearly(asleep_covered, awake_covered * 10.0, 0.01),
-			"10s asleep covers 10x what 10s awake covers (%.1f vs %.1f)" % [asleep_covered, awake_covered])
+			"10s at full rate covers 10x what 10s awake covers (%.1f vs %.1f)" % [asleep_covered, awake_covered])
 
 		run.exit_stasis()
-		suite.check(suite.nearly(motion.time_scale, 1.0), "waking restores the starfield rate")
+		suite.check(run.time_scale > 9.0,
+			"waking does not snap the clock back either (got %.2f)" % run.time_scale)
+		suite.tick(run, 2.2, 22)
+		suite.check(suite.nearly(run.time_scale, 1.0, 0.01),
+			"it winds back down to real time (got %.3f)" % run.time_scale)
+		suite.check(suite.nearly(motion.time_scale, 1.0, 0.01), "and the starfield relaxes with it")
+
+		# Diving back in mid-spin-down must pick up from where the ramp actually is.
+		run.enter_stasis()
+		suite.tick(run, 0.6, 6)
+		var partway := run.time_scale
+		run.exit_stasis()
+		suite.tick(run, 0.1, 1)
+		suite.check(run.time_scale < partway + 0.01 and run.time_scale > 1.0,
+			"reversing mid-ramp continues from the current rate (%.2f -> %.2f)" % [partway, run.time_scale])
 		ctx["holder"].free()
 
 
