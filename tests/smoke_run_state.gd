@@ -655,13 +655,34 @@ class _Runner:
 			# reason the aft windows are where they are.
 			var facing := -pod.view_transform().basis.z
 			suite.check(facing.z > 0.7, "the player's pod faces the rear of the ship (z=%.2f)" % facing.z)
+			# Getting out must NOT spin the camera round. You walk out forwards and keep
+			# looking where you were looking.
+			var out_facing := -pod.exit_transform().basis.z
+			suite.check(facing.dot(out_facing) > 0.99,
+				"leaving the pod keeps the player's facing (dot %.3f)" % facing.dot(out_facing))
 			pod.set_door_open(true, true)
 			var opened := (pod.get_node("Model/Door") as Node3D).rotation.y
 			pod.set_door_open(false, true)
 			var closed := (pod.get_node("Model/Door") as Node3D).rotation.y
 			suite.check(not is_equal_approx(opened, closed), "the pod door actually moves")
 
-		suite.check(game.get_node_or_null("Computer") != null, "the nav console is placed")
+		var computer := game.get_node_or_null("Computer") as ComputerTerminal
+		suite.check(computer != null, "the nav console is placed")
+		if computer != null:
+			# The camera is flown to this marker, so it has to be in front of the glass and
+			# pointed at it — a marker behind the console would park the view inside the case.
+			var screen := computer.get_node("Screen") as Node3D
+			var view := computer.view_transform()
+			# The marker is a BODY position; the camera anchor sits 0.65m above it, and it
+			# is the eye that has to line up with the glass.
+			var eye := view.origin + Vector3(0.0, 0.65, 0.0)
+			var to_screen := screen.global_position - eye
+			suite.check(to_screen.length() > 0.4 and to_screen.length() < 1.5,
+				"the reading position is a sensible distance from the screen (%.2fm)" % to_screen.length())
+			suite.check((-view.basis.z).dot(to_screen.normalized()) > 0.95,
+				"and it faces the screen (dot %.3f)" % (-view.basis.z).dot(to_screen.normalized()))
+			suite.check(absf(view.origin.y + 0.65 - screen.global_position.y) < 0.1,
+				"with the eyes level with the middle of the screen")
 		suite.check(game.get_node_or_null("HUD") != null, "the HUD is present")
 		suite.check(game.get_node_or_null("RunEnd") != null, "the end screen is present")
 		# The countdowns must not start behind the start prompt.

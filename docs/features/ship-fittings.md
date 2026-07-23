@@ -60,8 +60,13 @@ a ~1m walkable gap between neighbouring pods.
 **The ride in and out.** Entering freezes the player, tweens the body to the pod's `PodView`
 marker, shuts the door, and *only then* starts the fast-forward — starting the clock first
 would have days ticking past while the player is still visibly walking in. Waking reverses
-it to `PodExit`, which faces back into the ship so the player is not spat out staring at the
-wall behind the pod after every alarm.
+it to `PodExit`.
+
+`PodExit` keeps the pod's facing rather than turning the player round. An earlier version
+spun them 180 degrees on the way out so they came to rest looking into the ship, which is
+where they usually want to go — but being spun is disorienting, and it takes the choice of
+where to look away from the player. You walk out forwards and keep looking where you were
+looking.
 
 Two details that were not obvious:
 
@@ -106,10 +111,17 @@ picture of one. `resource_local_to_scene` on the material and `SubViewport` as a
 child of the scene root are both required, or the viewport path does not resolve and every
 instance shares one viewport.
 
-Interacting opens a full-screen copy of the same chart, fed by the same
-`ComputerTerminal.push_to()`, so the two can never disagree about where the ship is. It
-freezes the player but does **not** pause: the point of checking your progress is that the
-clock keeps running while you decide.
+Interacting **walks the camera up to the console** over half a second and reads the real
+screen, rather than cutting to a menu. The first version snapped straight to a full-screen
+copy of the chart, which was jarring and meant two places for the same numbers to live; now
+the only chart is the one on the terminal, the camera leans in to a `ViewPoint` marker set
+at eye height 0.75m from the glass, and the overlay is reduced to a `[E] STEP AWAY` prompt.
+
+It freezes the player but does **not** pause: the point of checking your progress is that
+the clock keeps running while you decide, so reading the screen costs air like anything else.
+A `NavPhase` enum guards the approach the same way `PodPhase` guards the pod — a second
+interact press mid-glide, or the run ending while the player is stood reading, both have to
+be handled.
 
 ## The bug that mattered most
 
@@ -130,7 +142,9 @@ Two other things this round that only showed up when measured:
 
 ## Verification
 
-- `tests/smoke_run_state.gd` — **96 checks**, up from 72. New: state visuals switching with
+- `tests/smoke_run_state.gd` — **100 checks**, up from 72. Also asserts that leaving the pod
+  preserves the player's facing, and that the console's reading position sits in front of the
+  glass at eye height and points at it. New: state visuals switching with
   the fault, `DigitReadout` slot widths identical across digits and labels reused rather
   than rebuilt, the console reporting progress/distance/ETA/drive from the run, five pods
   with exactly one player pod and the other four not offering prompts, the pod facing aft,

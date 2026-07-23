@@ -20,6 +20,7 @@ signal opened
 ## Seconds between chart updates. Fast enough to feel live while asleep at 24x.
 @export var refresh_interval: float = 0.25
 @export var chart_path: NodePath = NodePath("SubViewport/NavChart")
+@export var view_path: NodePath = NodePath("ViewPoint")
 
 var _chart: NavChart
 var _run: RunState = null
@@ -73,6 +74,13 @@ func push_to(chart: NavChart) -> void:
 		_run.distance_remaining,
 		_run.speed_fraction()
 	)
+
+
+## Where the player is placed to read the screen. Falls back to the terminal's own
+## transform so a missing marker cannot drop the camera inside the console.
+func view_transform() -> Transform3D:
+	var marker := get_node_or_null(view_path) as Node3D
+	return marker.global_transform if marker != null else global_transform
 
 
 func interact() -> void:

@@ -67,14 +67,15 @@ func _go() -> void:
 	await _look_from(Vector3(0.0, 0.9, -3.4), 180.0)
 	await _shot("01c_from_corridor")
 
-	# The nav console, and the full-screen chart it opens.
-	await _look_from(Vector3(5.3, 0.9, 5.0), -90.0)
+	# The nav console, and the camera walking up to read it.
+	await _look_from(Vector3(4.9, 0.9, 5.0), -90.0)
 	await _shot("07_console")
 	_game._open_nav_screen()
-	await _frames(10)
-	await _shot("08_nav_chart")
+	# Long enough for the glide (NAV_MOVE_TIME) to finish.
+	await _frames(70)
+	await _shot("08_nav_reading")
 	_game._nav_screen.close()
-	await _frames(5)
+	await _frames(60)
 
 	# The vent pipe in its three states.
 	var coolant: Malfunction = _game.get_node("CoolantLoop")

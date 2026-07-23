@@ -36,10 +36,20 @@ enum PodPhase { OUT, ENTERING, IN, EXITING }
 
 ## How long the ride into or out of the pod takes.
 const POD_MOVE_TIME := 1.1
+## Leaning in to the nav console is a shorter move over a shorter distance.
+const NAV_MOVE_TIME := 0.55
+
+## Same reasoning as PodPhase: the approach has to reject a second interact press, and the
+## run can end while the player is stood reading.
+enum NavPhase { AWAY, APPROACHING, READING, LEAVING }
 
 var is_started: bool = false
 
 var _pod_phase: PodPhase = PodPhase.OUT
+var _nav_phase: NavPhase = NavPhase.AWAY
+var _nav_return_position: Vector3 = Vector3.ZERO
+var _nav_return_yaw: float = 0.0
+var _nav_return_pitch: float = 0.0
 
 
 func _ready() -> void:
@@ -109,28 +119,50 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _pod_phase == PodPhase.IN:
 		_run.exit_stasis()
 		get_viewport().set_input_as_handled()
-	elif _nav_screen.visible:
-		# Same key that opened it. The Interactor is switched off while it is up, so the
-		# press cannot re-trigger the console underneath.
+	elif _nav_phase == NavPhase.READING:
+		# Same key that opened it. The Interactor is switched off while reading, so the
+		# press cannot re-trigger the console the player is stood in front of.
 		_nav_screen.close()
 		get_viewport().set_input_as_handled()
 
 
-## Reading the console freezes the player but does not pause the game — the point of
-## checking your progress is that the clock is still running while you decide.
+## Reading the console walks the camera up to it rather than cutting to a menu. The screen
+## in the room is the real one — a SubViewport rendering the same NavChart — so leaning in
+## to read it keeps the player in the world, and the clock keeps running while they do.
+## Freezing but NOT pausing is the point: checking your progress costs air like anything else.
 func _open_nav_screen() -> void:
-	if not is_started or _run.finished or _pod_phase != PodPhase.OUT:
+	if not is_started or _run.finished or _nav_phase != NavPhase.AWAY or _pod_phase != PodPhase.OUT:
 		return
+	_nav_phase = NavPhase.APPROACHING
+	# Where to put the player back afterwards, including exactly where they were looking.
+	_nav_return_position = _player.global_position
+	_nav_return_yaw = _camera.get_yaw()
+	_nav_return_pitch = _camera.get_pitch()
+
 	_set_player_active(false)
+	_player.velocity = Vector3.ZERO
 	_reticle.visible = false
+
+	var view := _computer.view_transform()
+	await _glide_player(view.origin, view.basis.get_euler().y, 0.0, NAV_MOVE_TIME)
+	if _nav_phase != NavPhase.APPROACHING:
+		return
+	_nav_phase = NavPhase.READING
 	_nav_screen.open(_computer)
 
 
 func _close_nav_screen() -> void:
-	if _run.finished:
+	if _nav_phase != NavPhase.READING:
 		return
-	_set_player_active(true)
+	_nav_phase = NavPhase.LEAVING
+	if _run.finished:
+		_nav_phase = NavPhase.AWAY
+		return
+	await _glide_player(_nav_return_position, _nav_return_yaw, _nav_return_pitch, NAV_MOVE_TIME)
+	_nav_phase = NavPhase.AWAY
+	_camera.input_enabled = true
 	_reticle.visible = true
+	_set_player_active(true)
 
 
 func _on_pod_used(_interactable: Interactable) -> void:
@@ -196,17 +228,20 @@ func _finish_exit() -> void:
 
 
 ## Move the player smoothly to a transform, aiming the camera as it goes.
+func _glide_player_to(target: Transform3D, duration: float) -> void:
+	await _glide_player(target.origin, target.basis.get_euler().y, 0.0, duration)
+
+
+## The one place the camera is flown by anything other than the mouse.
 ##
 ## The body is tweened rather than teleported, and the CAMERA is aimed through
 ## CameraController.set_look() rather than by rotating the body — the controller rewrites
 ## the body basis from its own yaw every frame, so a rotation applied here would be thrown
 ## away on the very next one.
-func _glide_player_to(target: Transform3D, duration: float) -> void:
+func _glide_player(to_pos: Vector3, to_yaw: float, to_pitch: float, duration: float) -> void:
 	_camera.input_enabled = false
 	var from_pos := _player.global_position
-	var to_pos := target.origin
 	var from_yaw := _camera.get_yaw()
-	var to_yaw := target.basis.get_euler().y
 	var from_pitch := _camera.get_pitch()
 
 	var tween := create_tween()
@@ -216,12 +251,12 @@ func _glide_player_to(target: Transform3D, duration: float) -> void:
 			_player.global_position = from_pos.lerp(to_pos, t)
 			# lerp_angle, not lerpf: the short way round, so turning from -170 to 170
 			# degrees does not spin the player through a full circle.
-			_camera.set_look(lerp_angle(from_yaw, to_yaw, t), lerpf(from_pitch, 0.0, t)),
+			_camera.set_look(lerp_angle(from_yaw, to_yaw, t), lerpf(from_pitch, to_pitch, t)),
 		0.0, 1.0, duration
 	)
 	await tween.finished
 	_player.global_position = to_pos
-	_camera.set_look(to_yaw, 0.0)
+	_camera.set_look(to_yaw, to_pitch)
 	# The interpolator would otherwise blend the camera from wherever the body was on the
 	# previous physics tick, smearing the first frame after control returns.
 	_player.reset_physics_interpolation()
@@ -235,7 +270,7 @@ func _set_player_active(active: bool) -> void:
 
 
 func _on_run_ended(won: bool, summary: Dictionary) -> void:
-	if _nav_screen.visible:
+	if _nav_phase == NavPhase.READING:
 		_nav_screen.close()
 	_reticle.visible = false
 	_hud.visible = false

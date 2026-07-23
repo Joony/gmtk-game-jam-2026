@@ -58,6 +58,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 0.179)
 mesh = SubResource("QuadMesh_screen")
 surface_material_override/0 = SubResource("StandardMaterial3D_screen")
 
+; Where the player stands to read it. Eye height rather than standing height: the camera
+; anchor sits 0.65m above the body origin, so 0.68 here puts the eyes level with the middle
+; of the screen at 1.33m and the view needs no pitch of its own. 0.75m back from the glass.
+; Identity basis already faces local -Z, which is straight at the screen.
+[node name="ViewPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.93)
+
 [node name="SubViewport" type="SubViewport" parent="."]
 disable_3d = true
 transparent_bg = false
