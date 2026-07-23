@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bfmyhxscvste7"
-path="res://.godot/imported/CD_Cryo_v2.blend-22c94ff5ba2b0672433c0ab2b6e9c77b.scn"
+uid="uid://dk6xbfpkj0ihj"
+path="res://.godot/imported/CD_PipeBroken_v1.blend-a31ad42e3526cb4db8488a3fb4a4f6aa.scn"
 
 [deps]
 
-source_file="res://CD_Cryo_v2.blend"
-dest_files=["res://.godot/imported/CD_Cryo_v2.blend-22c94ff5ba2b0672433c0ab2b6e9c77b.scn"]
+source_file="res://3D-Models/CD_PipeBroken_v1.blend"
+dest_files=["res://.godot/imported/CD_PipeBroken_v1.blend-a31ad42e3526cb4db8488a3fb4a4f6aa.scn"]
 
 [params]
 
