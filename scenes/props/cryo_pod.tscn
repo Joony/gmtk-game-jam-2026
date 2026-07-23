@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/stasis_pod.gd" id="1_pod"]
-[ext_resource type="PackedScene" uid="uid://bfmyhxscvste7" path="res://CD_Cryo_v2.blend" id="2_model"]
+[ext_resource type="PackedScene" uid="uid://bfmyhxscvste7" path="res://3D-Models/CD_Cryo_v2.blend" id="2_model"]
 
 ; CD_Cryo_v2, re-based so the wrapper's origin is the pod's vertical axis and the door
 ; faces -Z (Godot forward). The .blend authors the pod off-centre — its meshes share a pivot
