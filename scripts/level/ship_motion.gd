@@ -50,7 +50,7 @@ signal settings_changed
 # 0 keeps the old behaviour and the full sense of speed but short-lived stars; 1.0 makes
 # stars maximally persistent but flattens the speed sensation. The streaking carries the
 # speed impression either way.
-@export_range(0.0, 1.0) var field_stretch_with_speed: float = 0.35
+@export_range(0.0, 1.0) var field_stretch_with_speed: float = 0.2
 @export var base_cell_size: float = 45.0
 @export var base_near_distance: float = 15.0
 @export var base_far_distance: float = 700.0

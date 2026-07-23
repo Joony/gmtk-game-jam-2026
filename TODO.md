@@ -364,6 +364,9 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       field depth scales with speed so a star is not crossing the whole range in under a second.
       Measured 0.2% -> 0.0% vanished at 20x cruise. `field_stretch_with_speed` dials persistence
       against the sense of speed.
+- [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
+      field to move against. One sample per ray; angular density so it fills the sky independently
+      of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.
 - [x] Warp streaks radiate from the vanishing point (smearing along the travel axis did nothing
       head-on); star density defaults to 15%
 - [ ] Nebula cost is unprofiled on the web build (~6 noise evals per sky pixel). If it bites: drop

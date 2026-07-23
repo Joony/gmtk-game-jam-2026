@@ -126,6 +126,22 @@ leaves angular density and star size untouched but makes each star last proporti
 Measured at 20x cruise over a quarter-second of travel: **0.2% of stars vanished before, 0.0%
 after**.
 
+**3. A distant star layer (the better answer).** Parallax was already depth-dependent — a star at
+700m moves ~47x slower than one at 15m — but the field ended at `far_distance`, so *everything*
+eventually streamed past. There was nothing to move against.
+
+A **shell of stars at ~60km** now sits behind the near field. At that range their parallax over a
+whole voyage is a fraction of a cell, so no marching is needed: one sample per ray, one hash. They
+also **do not streak**, so at speed the near stars smear into radial lines while these stay as
+points — which is precisely what makes the near ones read as fast.
+
+Density is set in **angular** terms (`far_layer_angular_cell`, radians) rather than world units, so
+the distant sky fills out independently of the near field's grid — important at 15% near density.
+
+Because the shell supplies a permanent backdrop, `field_stretch_with_speed` was dialled back from
+0.35 to **0.2**, recovering some of the sense of speed it was trading away. Still 0.0% vanished at
+20x cruise.
+
 ### The trade-off, and the dial
 
 Apparent motion is roughly `speed / cell_size`, so scaling the cell fully with speed would cancel

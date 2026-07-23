@@ -62,7 +62,8 @@ func _run() -> void:
 	var uniforms: Array[String] = []
 	for uniform in material.shader.get_shader_uniform_list():
 		uniforms.append(uniform["name"])
-	for required in ["nebula_pole", "nebula_color", "nebula_strength", "nebula_width"]:
+	for required in ["nebula_pole", "nebula_color", "nebula_strength", "nebula_width",
+			"far_layer_distance", "far_layer_angular_cell", "far_layer_density", "far_layer_brightness"]:
 		_check("shader exposes %s" % required, uniforms.has(required))
 
 	# Windows must build NO pane — a pane would hide anything outside the hull.

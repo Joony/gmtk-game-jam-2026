@@ -36,6 +36,19 @@ uniform float nebula_strength : hint_range(0.0, 3.0) = 1.5;
 uniform float nebula_width : hint_range(0.05, 1.0) = 0.55;
 uniform float nebula_scale : hint_range(0.5, 12.0) = 3.0;
 
+// --- Distant layer ---------------------------------------------------------------
+// A shell of stars far enough away that they barely shift at any ship speed — the
+// stable backdrop the near field moves AGAINST, which is what makes the near stars
+// read as fast. No marching: at this range every star is effectively on one shell, so
+// a single sample per ray is enough and costs one hash. They also do not streak, so at
+// warp the near stars smear into lines while these stay as points.
+uniform float far_layer_distance = 60000.0;
+/// Angular size of a far-layer cell, in radians — this sets how many distant stars
+/// there are, independent of the near field's world-space grid.
+uniform float far_layer_angular_cell : hint_range(0.004, 0.2) = 0.016;
+uniform float far_layer_density : hint_range(0.0, 1.0) = 0.8;
+uniform float far_layer_brightness : hint_range(0.0, 2.0) = 0.75;
+
 /// The destination, drawn as a soft point of light ahead. Brightness 0 hides it.
 uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;
 uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
@@ -177,6 +190,25 @@ void fragment() {
 		} else {
 			cell_id.z += step_dir.z;
 			t_max.z += t_delta.z;
+		}
+	}
+
+	// Distant shell. Same maths, one sample: these are so far off that their parallax
+	// over a whole voyage is a fraction of a cell, so there is nothing to march through.
+	if (far_layer_brightness > 0.001) {
+		float shell_cell = far_layer_distance * far_layer_angular_cell;
+		vec3 shell_id = floor((eye + ray * far_layer_distance) / shell_cell);
+		vec3 shell_rnd = hash33(shell_id + vec3(97.31));
+		if (shell_rnd.z <= far_layer_density) {
+			float shell_margin = clamp(star_angular_size / far_layer_angular_cell * 1.5, 0.004, 0.25);
+			vec3 shell_star = (shell_id + shell_rnd * (1.0 - 2.0 * shell_margin) + vec3(shell_margin)) * shell_cell;
+			vec3 shell_rel = shell_star - eye;
+			float shell_along = dot(shell_rel, ray);
+			if (shell_along > 1.0) {
+				float shell_angle = length(shell_rel - ray * shell_along) / shell_along;
+				col += vec3(smoothstep(star_angular_size, 0.0, shell_angle)
+					* (0.30 + 0.70 * shell_rnd.x) * far_layer_brightness);
+			}
 		}
 	}
 
