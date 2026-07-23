@@ -3,6 +3,7 @@ extends SceneTree
 # Run: godot --headless --path . -s tests/smoke_main_menu.gd
 
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const INTRO_SCENE := "res://scenes/intro.tscn"
 const GAME_SCENE := "res://scenes/game.tscn"
 const MAX_FRAMES := 600
 
@@ -40,24 +41,20 @@ func _run() -> void:
 	if title == null or title.text.strip_edges() == "":
 		_failures.append("main menu has no title text")
 
-	# No Quit button — deliberately omitted (also wrong on web exports).
-	for node in menu.find_children("*", "Button", true, false):
-		if "quit" in node.name.to_lower() or "quit" in String(node.text).to_lower():
-			_failures.append("found a Quit button (%s), which should not exist" % node.name)
-
 	# Keyboard/gamepad navigation needs an initial focus.
 	if play != null and not play.has_focus():
 		_failures.append("PlayButton does not have initial focus")
 
-	# Play must actually reach the game scene.
+	# Start now goes to the INTRO (the video), not straight to the game — the intro fades
+	# into the game once the video ends.
 	if play != null:
 		play.pressed.emit()
 		var frames := 0
-		while frames < MAX_FRAMES and not _current_scene_is("Game"):
+		while frames < MAX_FRAMES and not _current_scene_is("Intro"):
 			await process_frame
 			frames += 1
-		if not _current_scene_is("Game"):
-			_failures.append("Play did not reach the Game scene within %d frames" % MAX_FRAMES)
+		if not _current_scene_is("Intro"):
+			_failures.append("Start did not reach the Intro scene within %d frames" % MAX_FRAMES)
 
 	# The game scene must exist and instantiate on its own too.
 	var game: PackedScene = load(GAME_SCENE)

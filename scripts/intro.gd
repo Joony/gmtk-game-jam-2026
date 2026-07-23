@@ -1,29 +1,28 @@
 extends Control
 
-const NEXT_SCENE := "res://scenes/game.tscn"
-const COUNTDOWN_START := 10
-# Counts down to 01 and holds there — it never reaches zero. The countdown is
-# interrupted rather than completed, which is the stasis wake-up beat.
-const COUNTDOWN_END := 1
-## Seconds to hold on 01 before fading out.
-@export var hold_seconds: float = 1.5
+# The intro is the "Perpetual Pickle" video. It plays once, full-screen, and when it ends
+# the game fades in. Reached from the main menu's Start button, not on launch — the menu
+# comes first now.
+#
+# There is no countdown here any more; the old 10 -> 01 title card was replaced by the video.
 
-var _count := COUNTDOWN_START
+const NEXT_SCENE := "res://scenes/game.tscn"
+
+@onready var _video: VideoStreamPlayer = %Video
+
 var _finished := false
 
 
 func _ready() -> void:
-	_show_count()
-
-
-func _on_timer_timeout() -> void:
-	if _count <= COUNTDOWN_END:
-		return
-	_count -= 1
-	_show_count()
-	if _count == COUNTDOWN_END:
-		$Timer.stop()
-		await get_tree().create_timer(hold_seconds).timeout
+	# The video carries its own audio; the game's music does not start until the run begins,
+	# so there is nothing to fight with here.
+	MouseCapture.release()
+	_video.finished.connect(_finish)
+	# Play from _ready rather than an autoplay flag, so a failed load (a missing .ogv on a
+	# broken build) falls straight through to the game instead of hanging on a black screen.
+	if _video.stream != null:
+		_video.play()
+	else:
 		_finish()
 
 
@@ -32,13 +31,9 @@ func _on_skip_button_pressed() -> void:
 	_finish()
 
 
-func _show_count() -> void:
-	%CountdownLabel.text = "%02d" % _count
-
-
 func _finish() -> void:
 	if _finished:
 		return
 	_finished = true
-	$Timer.stop()
+	_video.stop()
 	SceneManager.change_scene(NEXT_SCENE)

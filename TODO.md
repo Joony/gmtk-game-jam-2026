@@ -590,9 +590,16 @@ them to disk with `tests/forge_sounds.gd` to listen.
       /stasis until the real ones exist.
 - [ ] Options menu: master volume slider, plus the **Options button** on the main menu that opens
       it (deliberately deferred from step 2 — no button until there's something behind it)
-- [ ] Rework the intro into the **stasis wake-up sequence** — the existing 10 → 0 red countdown
-      becomes the pod's revival cycle (klaxon, lid opening) instead of a title card
-- [ ] Re-run the web export from step 7 with the finished game before submitting
+- [x] **Flow reworked: menu → intro video → game.** The main menu is now the entry point (bare
+      black screen, title, Start + Quit), Start plays `Perpetual Pickle Intro.mp4`, and the game
+      fades in when it ends. The old 10 → 01 countdown intro is gone.
+      - The `.mp4` cannot be used directly — Godot 4 only plays Ogg Theora — so it was converted
+        to `assets/video/perpetual_pickle_intro.ogv` (1.15 MB, with audio) via ffmpeg.
+      - The source `Perpetual Pickle Intro.mp4` (a collaborator's file) is left in the repo but is
+        now dead weight; safe to `git rm` if nobody needs it as an editing master.
+- [ ] Re-run the web export from step 7 with the finished game before submitting — **and confirm
+      video playback works in the web export.** VideoStreamTheora on the Web/Compatibility target
+      is the one part of this flow the headless tests cannot vouch for.
 
 ## 14. Ship feel & new systems
 

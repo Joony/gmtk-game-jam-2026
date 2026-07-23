@@ -23,19 +23,21 @@ func _run() -> void:
 		if not has_escape:
 			failures.append("'pause' action is not bound to Escape")
 
+	# The flow is menu -> intro (video) -> game, so the menu is the entry point now.
 	var main_scene: String = ProjectSettings.get_setting("application/run/main_scene", "")
-	if main_scene != "res://scenes/intro.tscn":
-		failures.append("main scene is '%s', expected res://scenes/intro.tscn" % main_scene)
+	if main_scene != "res://scenes/main_menu.tscn":
+		failures.append("main scene is '%s', expected res://scenes/main_menu.tscn" % main_scene)
 
-	var packed: PackedScene = load("res://scenes/intro.tscn")
-	if packed == null:
-		failures.append("failed to load res://scenes/intro.tscn")
-	else:
-		var instance := packed.instantiate()
-		if instance == null:
-			failures.append("failed to instantiate intro.tscn")
+	for scene in ["res://scenes/main_menu.tscn", "res://scenes/intro.tscn"]:
+		var packed: PackedScene = load(scene)
+		if packed == null:
+			failures.append("failed to load %s" % scene)
 		else:
-			instance.free()
+			var instance := packed.instantiate()
+			if instance == null:
+				failures.append("failed to instantiate %s" % scene)
+			else:
+				instance.free()
 
 	for dir in ["scenes", "scripts", "ui", "assets"]:
 		if not DirAccess.dir_exists_absolute("res://" + dir):

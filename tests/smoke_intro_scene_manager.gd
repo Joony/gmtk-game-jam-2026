@@ -1,7 +1,12 @@
 extends SceneTree
-# Headless test for SceneManager + intro countdown/skip.
+# Headless test for SceneManager + the intro VIDEO.
 # Run: godot --headless --path . -s tests/smoke_intro_scene_manager.gd
-# Time is sped up so the 11s countdown finishes in under a second of real time.
+#
+# The intro used to be a 10 -> 01 countdown; it is now the "Perpetual Pickle" video, which
+# fades into the game when it ends. We cannot rely on the video actually decoding frames in
+# a headless run, so rather than wait for playback the test drives the two paths that lead
+# out of the intro — the Skip button and the video's `finished` signal — and confirms each
+# reaches the game.
 
 const INTRO_SCENE := "res://scenes/intro.tscn"
 const MAX_FRAMES := 3000
@@ -17,6 +22,14 @@ func _current_scene_is(scene_name: String) -> bool:
 	return current_scene != null and current_scene.name == scene_name
 
 
+func _await_scene(name: String) -> bool:
+	var frames := 0
+	while frames < MAX_FRAMES and not _current_scene_is(name):
+		await process_frame
+		frames += 1
+	return _current_scene_is(name)
+
+
 func _run() -> void:
 	Engine.time_scale = 25.0
 
@@ -29,68 +42,44 @@ func _run() -> void:
 	var intro: Control = load(INTRO_SCENE).instantiate()
 	root.add_child(intro)
 	current_scene = intro
+	await process_frame
 
-	# Structure: black background, big red countdown starting at 10.
+	# Structure: black background, a video player holding the intro stream.
 	var background: ColorRect = intro.get_node("Background")
 	if background.color != Color.BLACK:
-		_failures.append("background is %s, expected black" % background.color)
-	var label: Label = intro.get_node("%CountdownLabel")
-	if label.text != "10":
-		_failures.append("countdown starts at '%s', expected '10'" % label.text)
-	var font_color: Color = label.get_theme_color("font_color")
-	if not (font_color.r > 0.5 and font_color.g < 0.3 and font_color.b < 0.3):
-		_failures.append("countdown color %s is not red" % font_color)
-	if label.get_theme_font_size("font_size") < 100:
-		_failures.append("countdown font size %d is not big" % label.get_theme_font_size("font_size"))
+		_failures.append("intro background is %s, expected black" % background.color)
 
-	# Countdown ticks down in two digits, holds on 01 (never reaches 00), then
-	# advances to the game. current_scene is briefly null mid-change, so only
-	# test the name when it is set.
-	var seen_two_digit := false
-	var seen_one := false
-	var seen_zero := false
-	var frames := 0
-	while frames < MAX_FRAMES and not _current_scene_is("Game"):
-		if is_instance_valid(label):
-			match label.text:
-				"09": seen_two_digit = true
-				"01": seen_one = true
-				"00", "0": seen_zero = true
-		await process_frame
-		frames += 1
-	if not seen_two_digit:
-		_failures.append("countdown is not zero-padded to two digits (never displayed '09')")
-	if not seen_one:
-		_failures.append("countdown never displayed '01'")
-	if seen_zero:
-		_failures.append("countdown reached zero — it should hold on 01 and never show 00")
-	if not _current_scene_is("Game"):
-		_failures.append("countdown did not auto-advance to the game scene within %d frames" % MAX_FRAMES)
+	var video := intro.get_node_or_null("%Video") as VideoStreamPlayer
+	if video == null:
+		_failures.append("intro has no %Video VideoStreamPlayer")
+	elif video.stream == null:
+		_failures.append("the intro video has no stream assigned")
+	elif not (video.stream is VideoStreamTheora):
+		# Godot only plays Ogg Theora; an .mp4 dropped in here would silently be no stream.
+		_failures.append("intro stream is %s, expected VideoStreamTheora" % video.stream.get_class())
 
-	# Skip button: go back to the intro, press Skip, expect a transition
-	# triggered by the button (countdown timer stopped), not the countdown.
 	var scene_manager: Node = root.get_node("SceneManager")
+
+	# Path 1: the video finishing takes us to the game. Emit the signal rather than waiting
+	# out 36 seconds of playback that may not even tick headless.
+	if video != null:
+		while scene_manager._changing:
+			await process_frame
+		video.finished.emit()
+		if not await _await_scene("Game"):
+			_failures.append("the video finishing did not reach the game scene")
+
+	# Path 2: the Skip button. Back to the intro, press Skip, expect the game.
 	while scene_manager._changing:
 		await process_frame
 	scene_manager.change_scene(INTRO_SCENE)
-	frames = 0
-	while frames < MAX_FRAMES and not _current_scene_is("Intro"):
-		await process_frame
-		frames += 1
-	if _current_scene_is("Intro"):
+	if await _await_scene("Intro"):
 		var skip: Button = current_scene.get_node("SkipButton")
-		var countdown_timer: Timer = current_scene.get_node("Timer")
 		while scene_manager._changing:
 			await process_frame
 		skip.pressed.emit()
-		if not countdown_timer.is_stopped():
-			_failures.append("skip did not stop the countdown timer")
-		frames = 0
-		while frames < MAX_FRAMES and not _current_scene_is("Game"):
-			await process_frame
-			frames += 1
-		if not _current_scene_is("Game"):
-			_failures.append("skip button did not reach the game scene")
+		if not await _await_scene("Game"):
+			_failures.append("the Skip button did not reach the game scene")
 	else:
 		_failures.append("could not return to Intro to test the skip button")
 

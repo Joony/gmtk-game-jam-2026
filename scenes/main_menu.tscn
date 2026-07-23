@@ -1,21 +1,23 @@
-[gd_scene format=3 uid="uid://duuhvlvcjcmnd"]
+[gd_scene load_steps=4 format=3 uid="uid://duuhvlvcjcmnd"]
 
 [ext_resource type="Script" uid="uid://bndynw5c44qfj" path="res://scripts/main_menu.gd" id="1_menu"]
 
+; Deliberately bare: a pure-black screen with the title text and the buttons, nothing else.
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_normal"]
-bg_color = Color(0.12, 0.13, 0.16, 1)
+bg_color = Color(0.1, 0.1, 0.12, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.45, 0.48, 0.55, 1)
+border_color = Color(0.4, 0.42, 0.48, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_focus"]
-bg_color = Color(0.2, 0.22, 0.26, 1)
+bg_color = Color(0.18, 0.19, 0.22, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
@@ -26,7 +28,7 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[node name="MainMenu" type="Control" unique_id=296884092]
+[node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -35,16 +37,16 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
-[node name="Background" type="ColorRect" parent="." unique_id=74673860]
+[node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.04, 0.04, 0.06, 1)
+color = Color(0, 0, 0, 1)
 
-[node name="Center" type="CenterContainer" parent="." unique_id=125903681]
+[node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -52,37 +54,43 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBox" type="VBoxContainer" parent="Center" unique_id=836462099]
+[node name="VBox" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 44
 alignment = 1
 
-[node name="Title" type="Label" parent="Center/VBox" unique_id=1613126737]
+[node name="Title" type="Label" parent="Center/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.1, 0.1, 1)
 theme_override_font_sizes/font_size = 160
 text = "PERPETUAL PICKLE"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="Center/VBox" unique_id=1381855521]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
-theme_override_font_sizes/font_size = 30
-text = "working title"
-horizontal_alignment = 1
-
-[node name="Spacer" type="Control" parent="Center/VBox" unique_id=1280966082]
-custom_minimum_size = Vector2(0, 40)
+[node name="Spacer" type="Control" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 
-[node name="PlayButton" type="Button" parent="Center/VBox" unique_id=612618275]
+[node name="PlayButton" type="Button" parent="Center/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(433, 93)
 layout_mode = 2
+size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 40
 theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_focus")
 theme_override_styles/focus = SubResource("StyleBoxFlat_focus")
-text = "Play"
+text = "Start"
+
+[node name="QuitButton" type="Button" parent="Center/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(433, 93)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxFlat_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_focus")
+theme_override_styles/focus = SubResource("StyleBoxFlat_focus")
+text = "Quit"
 
 [connection signal="pressed" from="Center/VBox/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="Center/VBox/QuitButton" to="." method="_on_quit_button_pressed"]

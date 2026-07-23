@@ -1,6 +1,7 @@
 extends SceneTree
 # Step 6: walk the entire game loop TWICE in one run and prove nothing leaks.
-# Intro -> (skip) -> Main Menu -> Play -> Game -> Esc -> Quit to Menu -> Main Menu
+# The flow is now: Main Menu -> Start -> Intro (video) -> (skip) -> Game -> Esc ->
+# Quit to Menu. Each round exercises the intro route directly AND the menu's Start button.
 #
 # Run: godot --headless --path . -s tests/smoke_full_loop.gd
 
@@ -79,10 +80,15 @@ func _loop_once(round_number: int) -> void:
 	if not _current_scene_is("MainMenu"):
 		return
 
-	# Path B: menu route — Play returns to the game.
+	# Path B: menu route — Start now goes through the intro video, which we skip to the game.
 	await _wait_for_transition_idle()
 	current_scene.get_node("%PlayButton").pressed.emit()
-	_check("%s: Play reached the game" % tag, await _wait_for_scene("Game"))
+	_check("%s: Start reached the intro" % tag, await _wait_for_scene("Intro"))
+	if not _current_scene_is("Intro"):
+		return
+	await _wait_for_transition_idle()
+	current_scene.get_node("SkipButton").pressed.emit()
+	_check("%s: Start->intro skip reached the game" % tag, await _wait_for_scene("Game"))
 	if not _current_scene_is("Game"):
 		return
 
