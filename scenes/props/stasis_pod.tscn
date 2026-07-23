@@ -1,0 +1,53 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/stasis_pod.gd" id="1_pod"]
+
+; Placeholder pod built from boxes. LoganDevz's CD_Cryo_v2.blend is the intended model —
+; swapping it in means replacing the Shell/Base meshes and keeping the collider and script,
+; but the .blend and its scratch scene still live at the repo root, so moving them needs
+; coordinating first (see TODO 12c).
+;
+; Same shape as RepairPanel: Node3D root with the Interactable script, collider on a child.
+
+[sub_resource type="BoxMesh" id="BoxMesh_base"]
+size = Vector3(1.2, 0.35, 2.4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_base"]
+albedo_color = Color(0.26, 0.29, 0.34, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_shell"]
+size = Vector3(1.05, 0.75, 2.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shell"]
+transparency = 1
+albedo_color = Color(0.55, 0.78, 0.85, 0.35)
+roughness = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pod"]
+size = Vector3(1.2, 1.1, 2.4)
+
+[node name="StasisPod" type="Node3D"]
+script = ExtResource("1_pod")
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Base" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.175, 0)
+mesh = SubResource("BoxMesh_base")
+surface_material_override/0 = SubResource("StandardMaterial3D_base")
+
+[node name="Shell" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.725, 0)
+mesh = SubResource("BoxMesh_shell")
+surface_material_override/0 = SubResource("StandardMaterial3D_shell")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+shape = SubResource("BoxShape3D_pod")
+
+; Where the player's BODY origin goes while in stasis. The camera anchor sits 0.65m above
+; the body origin, so 0.3 here puts the eyes at 0.95 — just under the shell, looking out.
+; Turned to face down the pod's length rather than up through the lid.
+[node name="PodView" type="Marker3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.3, 0)

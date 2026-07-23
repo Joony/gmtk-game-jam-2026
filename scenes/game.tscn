@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -6,13 +6,19 @@
 [ext_resource type="PackedScene" path="res://ui/start_prompt.tscn" id="4_start"]
 [ext_resource type="PackedScene" path="res://ui/reticle.tscn" id="5_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
-[ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="7_interactable"]
 [ext_resource type="Script" path="res://scripts/level/ship_layout.gd" id="8_ship"]
 [ext_resource type="Script" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
 [ext_resource type="Script" path="res://scripts/level/ship_motion.gd" id="10_motion"]
 [ext_resource type="ShaderMaterial" path="res://assets/materials/starfield.tres" id="11_starfield"]
 [ext_resource type="PackedScene" path="res://scenes/props/space_station.tscn" id="12_station"]
 [ext_resource type="PackedScene" path="res://ui/debug_readout.tscn" id="13_readout"]
+[ext_resource type="Script" path="res://scripts/game/run_state.gd" id="14_run"]
+[ext_resource type="Script" path="res://scripts/game/malfunction.gd" id="15_malfunction"]
+[ext_resource type="PackedScene" path="res://scenes/props/repair_panel.tscn" id="16_panel"]
+[ext_resource type="PackedScene" path="res://scenes/props/stasis_pod.tscn" id="17_pod"]
+[ext_resource type="PackedScene" path="res://scenes/props/spare_part.tscn" id="18_part"]
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="19_hud"]
+[ext_resource type="PackedScene" path="res://ui/run_end.tscn" id="20_runend"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_shell"]
 radius = 1400.0
@@ -26,15 +32,6 @@ background_color = Color(0.1, 0.11, 0.13, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.62, 0.66, 0.72, 1)
 ambient_light_energy = 0.45
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_socket"]
-size = Vector3(0.8, 1.2, 0.3)
-
-[sub_resource type="BoxMesh" id="BoxMesh_socket"]
-size = Vector3(0.8, 1.2, 0.3)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_socket"]
-albedo_color = Color(0.22, 0.3, 0.42, 1)
 
 [node name="Game" type="Node3D"]
 script = ExtResource("1_game")
@@ -61,33 +58,96 @@ script = ExtResource("10_motion")
 [node name="Lighting" type="Node" parent="."]
 script = ExtResource("9_lighting")
 
+[node name="Run" type="Node" parent="."]
+script = ExtResource("14_run")
+total_distance = 54000.0
+oxygen_total = 210.0
+stasis_time_scale = 24.0
+
 [node name="Ship" type="Node3D" parent="."]
 script = ExtResource("8_ship")
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 4)
 
+[node name="StasisPod" parent="." instance=ExtResource("17_pod")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, 5.5)
+
+[node name="SparePart1" parent="." instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 4.4)
+
+[node name="SparePart2" parent="." instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 4.1, 0.15, 4.4)
+
+[node name="SparePart3" parent="." instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 5.1)
+
 [node name="PickupA" parent="." instance=ExtResource("6_pickup")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.25, 1.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0.25, 1.5)
 
 [node name="PickupB" parent="." instance=ExtResource("6_pickup")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.25, 1.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 0.25, 2.1)
 
-[node name="Socket" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 1, -2.5)
-script = ExtResource("7_interactable")
-interaction_type = 1
-interaction_text = "Needs a part"
-interaction_text_with_item = "Fit the part"
+[node name="MainDrive" type="Node3D" parent="." groups=["malfunctions"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
+script = ExtResource("15_malfunction")
+system_name = "MAIN DRIVE"
+fault_text = "injector coupling failed"
+severity = 1
+speed_penalty = 0.45
+fire_at_distance = 46000.0
+bodge_distance = 20000.0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Socket"]
-mesh = SubResource("BoxMesh_socket")
-surface_material_override/0 = SubResource("StandardMaterial3D_socket")
+[node name="RepairPanel" parent="MainDrive" instance=ExtResource("16_panel")]
+patch_text = "Clamp the coupling"
+fit_text = "Fit a spare coupling"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Socket"]
-shape = SubResource("BoxShape3D_socket")
+[node name="O2Scrubber" type="Node3D" parent="." groups=["malfunctions"]]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.83, 1.3, -8)
+script = ExtResource("15_malfunction")
+system_name = "O2 SCRUBBER"
+fault_text = "CO2 saturating, you are breathing harder"
+speed_penalty = 0.1
+oxygen_drain_multiplier = 1.6
+fire_at_distance = 34000.0
+bodge_distance = 18000.0
+repair_oxygen_bonus = 30.0
+
+[node name="RepairPanel" parent="O2Scrubber" instance=ExtResource("16_panel")]
+patch_text = "Bleed the scrubber"
+fit_text = "Fit a spare cartridge"
+
+[node name="CoolantLoop" type="Node3D" parent="." groups=["malfunctions"]]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 5.83, 1.3, -17)
+script = ExtResource("15_malfunction")
+system_name = "COOLANT LOOP"
+fault_text = "reactor running hot"
+severity = 1
+speed_penalty = 0.3
+fire_at_distance = 22000.0
+bodge_distance = 22000.0
+bodge_oxygen_cost = 25.0
+
+[node name="RepairPanel" parent="CoolantLoop" instance=ExtResource("16_panel")]
+patch_text = "Vent air to cool it"
+fit_text = "Fit a spare seal"
+
+[node name="NavArray" type="Node3D" parent="." groups=["malfunctions"]]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -4.83, 1.3, -2)
+script = ExtResource("15_malfunction")
+system_name = "NAV ARRAY"
+fault_text = "drifting off course"
+speed_penalty = 0.2
+fire_at_distance = 10000.0
+bodge_distance = 16000.0
+
+[node name="RepairPanel" parent="NavArray" instance=ExtResource("16_panel")]
+patch_text = "Realign by hand"
+fit_text = "Fit a spare module"
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="HUD" parent="." instance=ExtResource("19_hud")]
 
 [node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
 
@@ -96,3 +156,5 @@ shape = SubResource("BoxShape3D_socket")
 [node name="Reticle" parent="." instance=ExtResource("5_reticle")]
 
 [node name="DebugReadout" parent="." instance=ExtResource("13_readout")]
+
+[node name="RunEnd" parent="." instance=ExtResource("20_runend")]

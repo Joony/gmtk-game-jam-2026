@@ -378,98 +378,95 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
 - [ ] Optional polish from the original plan not done: passing debris, a distant planet
 
-## 12. Countdown mechanic — stasis / oxygen / distance
+## 12. ✅ Countdown mechanic — done ([log](docs/features/countdown-loop.md))
 
 The actual game, on top of a ship you can already walk through, pick things up in, light, and
 look out of.
 
-> **Prototype the core loop early — don't wait for step 12.** The whole game rests on one question:
-> with a finite air budget for the entire run, is "is this fix worth the air?" actually a tense
-> decision? Testable with a bare room, one draining number, a pod to stand in, and two placeholder
-> repair points at different distances — right after step 5. Specifically check the failure mode
-> above: if sitting in the pod is ever the smart play, the malfunction penalties are too weak.
-> Steps 8–11 make it *good*; this tells you whether it's *worth* making good.
+> **This section's own warning turned out to be the whole story.** It read: *"if sitting in the
+> pod is ever the smart play, the malfunction penalties are too weak."* The first balance
+> simulation found exactly that — ignoring every fault arrived with the entire air budget
+> unspent. Two changes fixed it: the pod now costs air at 0.35x (so the journey is priced in
+> air, and speed matters), and spares are generic and scarcer than the faults (so a permanent
+> fix is not free and patching is a real option). Full reasoning in the log.
 
-### 12a. Distance countdown (the win condition)
+### 12a. Distance countdown (the win condition) — **done**
 
-- [ ] Distance-to-destination value that decreases over time at the current ship speed
-- [ ] Ship speed degrades per active malfunction — this is what makes ignoring problems costly
-- [ ] Reaching zero = arrival = win
-- [ ] Pick a target run length and tune backwards from it (jam games want ~5–10 minutes)
+- [x] Distance-to-destination value that decreases over time at the current ship speed
+- [x] Ship speed degrades per active malfunction (penalties add; floored at 6% of cruise so
+      an over-100% run stays finishable rather than becoming an unwinnable wait)
+- [x] Reaching zero = arrival = win
+- [x] Target run length picked and tuned backwards from it — see the balance table below
 
-### 12b. Oxygen (one finite pool for the whole run)
+### 12b. Oxygen (one finite pool for the whole run) — **done**
 
-- [ ] Single run-scoped oxygen value; drains **only** while outside the pod, at a flat rate
-      (so oxygen ≡ time outside, and the player can reason about it in seconds)
-- [ ] Readout per step 1's decision (suit gauge vs HUD) — must be glanceable under pressure
-- [ ] Show it in *time remaining*, not a percentage — the whole decision is "can I make it there
-      and back", which is a time question
-- [ ] Escalating feedback as it runs low: audible breathing, heartbeat, vignette, colour drain.
-      Sound does more work than UI here.
-- [ ] Zero = run over
-- [ ] **Findable oxygen** (later-game reward, per step 1): canisters as `Interactable` pickups, or
-      an O2-scrubber malfunction that pays out air instead of speed. Gives the endgame a comeback
-      and a reason to explore rather than beeline.
+- [x] Single run-scoped oxygen value
+- [x] Shown in *time remaining* (m:ss), never a percentage
+- [x] Escalating feedback: radial red vignette that pulses faster the lower it gets, gauge
+      turns amber then red. **Sound still missing — step 13, and it is doing the most work.**
+- [x] Zero = run over
+- [x] **Findable oxygen**: a proper O2-scrubber repair recovers 30s of reserve, capped at
+      the run total. The only thing in the game that gives air back.
+- [ ] ~~Drains **only** while outside the pod~~ — **changed after the balance simulation.**
+      A free pod meant sleeping through every fault won the run with the air budget
+      untouched. The pod now drains at 0.35x, so the journey costs air too and ship speed
+      matters. The pod still NEVER refills.
 
-### 12c. Stasis pod (the loop anchor)
+### 12c. Stasis pod (the loop anchor) — **done**
 
-> **Asset available:** `CD_Cryo_v1.2.blend` (cryo chamber, added by LoganDevz) with a scratch
-> scene at `node_3d.tscn`. This is the pod model. Worth moving both under `assets/` and
-> `scenes/props/` when it's wired up — coordinate first, since moving a collaborator's files
-> mid-jam causes merge pain.
+- [x] `Interactable` pod — enter to slow the oxygen drain and fast-forward at 24x
+- [x] **The pod does not refill oxygen** (mutation-tested — this is the load-bearing rule)
+- [x] The trip back costs air too, so the pod's distance from the action is a tuning knob
+- [ ] Wake-up sequence reuses the intro countdown, pod lid, klaxon (step 13)
+- [ ] Swap the placeholder box for `CD_Cryo_v2.blend` — coordinate first, the .blend and its
+      scratch scene are still at the repo root
 
-- [ ] `Interactable` pod — enter to stop the oxygen drain and skip ahead to the next malfunction
-- [ ] **The pod does not refill oxygen** — it pauses the bleed. It's a stop button, not a refuel.
-- [ ] The trip back to the pod costs air too, so the pod's distance from the action is a core
-      tuning knob. Every excursion's real price is *there and back*.
-- [ ] Wake-up sequence reuses the intro countdown (step 13), pod lid, klaxon
+### 12d. Malfunctions & repairs — **done (single-solution + all three branch types)**
 
-### 12d. Malfunctions & repairs — *The Martian* problem-solving
+- [x] `Malfunction` — location, state, severity, and every cost as exported data
+- [x] **Two repair archetypes**, both on one panel: patch (empty-handed) and fit-a-spare
+      (carrying a part). No new input action, no minigame.
+- [x] Faults fire on a distance schedule and can stack while you are in stasis
+- [x] Repaired systems restore full speed; the light goes green (amber while patched)
+- [x] Signals on every state change — lighting, HUD and the summary all react without polling
 
-The tone target: improvised fixes under pressure, where solving today's problem cheaply creates
-tomorrow's. Sequencing matters — build the single-solution version first, then layer branches onto
-the repairs that are already working.
+#### Multiple solutions with consequences — **all three shipped**
 
-- [ ] `Malfunction` — a ship system that can break, with a location, a state, and a severity
-      (critical vs degrading, per step 1)
-- [ ] **2–3 repair archetypes only** (step 1 scope cap), reused at different locations. Candidates:
-      fetch-and-fit a part (uses carry + `use_with_item` from step 8), a physical
-      switch/valve sequence, and something timing-based. Resist a bespoke minigame per system.
-- [ ] Malfunctions fire over time / on a schedule, and can stack while you're in stasis
-- [ ] Repaired systems restore full speed; the light goes white (step 10)
-- [ ] Signal on state change so lighting, windows and audio all react without polling
+- [x] **Patch vs proper fix** — `bodge_distance`; the patch re-breaks at the same panel
+- [x] **Scarcity instead of cannibalising** — spares are generic (`spare_parts` group) and
+      there are only 3 for 4 scheduled faults. Chosen over cannibalising because the
+      simulation showed named one-per-system parts made the permanent fix free, so patching
+      was never worth choosing. Cannibalising is still open as a later addition.
+- [x] **Spend a resource to solve it** — `bodge_oxygen_cost`; venting 25s of air patches the
+      coolant loop
+- [x] Consequences are visible and attributable — same location, same panel, and a named
+      line in the run summary
+- [x] Run summary of the choices made, shown on the end screen
 
-#### Multiple solutions with consequences
+### 12e. Wiring & end states — **done**
 
-Only worth doing on 2–3 problems, not every one. Ranked by implementation cost — start at the top:
+- [x] Malfunction state → alert lighting; ship speed → starfield
+- [x] Win at distance zero, lose at oxygen zero, both to a summary screen and back to the menu
+- [x] Tests: `tests/smoke_run_state.gd`, 72 checks, all passing. Full regression: 11/11 suites.
+      The pod-refill and patch-expiry rules were mutation-tested to prove the tests can fail.
+- [x] **Balance pass.** `tests/balance_sim.gd` plays three strategies against the real scene:
 
-- [ ] **Patch vs proper fix** (cheapest, do this first). Same repair, two interaction options: a
-      fast bodge that costs little air but re-breaks after N minutes, or a slower permanent fix.
-      Implementation is one boolean and a re-fire timer, and it's already a real decision.
-- [ ] **Cannibalise** (cheap, high drama). Fix system A using a part taken from system B; B is now
-      broken or degraded. Reuses the carry system entirely — no new mechanics, and it produces the
-      best *Martian* moments because the player authors their own next crisis.
-- [ ] **Spend a resource to solve it** (best fit for the theme). Vent oxygen to smother a fire,
-      dump reserve air to repressurise a section. Makes oxygen a currency spendable *in fiction*,
-      not just a timer — the strongest tie between mechanic and story here.
-- [ ] Consequences must be *visible and attributable* — when the bodged coolant line fails an hour
-      later, the player has to recognise it as their own earlier choice, or it reads as random
-      punishment. Log/telegraph it: same location, same sound, a line of text.
-- [ ] Keep a short run summary of the choices made, for the end screen (step 12e) — cheap to build
-      and it makes the branches feel like they mattered
+      ignore   SUFFOCATED  600s  air left   0s   51.4 km of 54 km
+      patch    ARRIVED     210s  air left  44s   0 permanent / 7 patches (7 gave out)
+      proper   ARRIVED     170s  air left 145s   3 permanent / 1 patch
 
-### 12e. Wiring & end states
+      Doing nothing suffocates you just short of the destination; patching survives on 44s;
+      spending the spares well arrives comfortably. All values exported on `game.tscn`.
 
-- [ ] Malfunction state → alert lighting (step 10), ship speed → starfield (step 11)
-- [ ] Win at distance zero; lose at oxygen zero — both route back to the main menu with a summary
-      (distance covered, repairs made, air spent, and the choices made per 12d)
-- [ ] Test: headless — distance decreases at the expected rate and slows per active malfunction;
-      oxygen drains only while outside the pod and does **not** refill on entering; a repair clears
-      its malfunction and restores speed; a bodged repair re-fires after its interval; win fires
-      exactly once at distance zero and lose exactly once at oxygen zero
-- [ ] **Balance pass — the whole game is in these numbers.** Total oxygen must be tight enough that
-      you can't fix everything, but loose enough to finish. Expose oxygen total, drain rate, speed
-      penalties and malfunction intervals as exported values so they're tunable without code edits.
+#### Step 12 follow-ups
+
+- [ ] Repairs are instant once you reach the panel — a hold-to-repair timer would let the
+      two routes differ in duration as well as in scarcity
+- [ ] Faults fire on a fixed schedule, so run two is identical to run one. Randomise *which*
+      system fires (never where the rooms are).
+- [ ] `SlidingDoor.jammed` is still unused as a fault type
+- [ ] Optimal play is ~3 minutes; the 5-10 minute target relies on real players being slower
+      than the simulation. Re-check against an actual playthrough.
 
 ## 13. Polish / remaining
 

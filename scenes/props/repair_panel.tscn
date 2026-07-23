@@ -1,0 +1,39 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/repair_point.gd" id="1_repair"]
+
+; Wall-mounted repair panel. The root is a plain Node3D carrying the RepairPoint script,
+; with the collider on a child body: Interactor walks UP from whatever the ray hits, so
+; the Interactable does not have to be the physics body itself.
+;
+; Mount it with the front face (+Z) pointing into the room. The status light is given a
+; per-instance material in code — sharing one would tint every panel on the ship alike.
+
+[sub_resource type="BoxMesh" id="BoxMesh_housing"]
+size = Vector3(0.9, 1.1, 0.16)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_housing"]
+albedo_color = Color(0.3, 0.33, 0.38, 1)
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_housing"]
+size = Vector3(0.9, 1.1, 0.16)
+
+[sub_resource type="BoxMesh" id="BoxMesh_status"]
+size = Vector3(0.16, 0.16, 0.04)
+
+[node name="RepairPanel" type="Node3D"]
+script = ExtResource("1_repair")
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Housing" type="MeshInstance3D" parent="Body"]
+mesh = SubResource("BoxMesh_housing")
+surface_material_override/0 = SubResource("StandardMaterial3D_housing")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+shape = SubResource("BoxShape3D_housing")
+
+[node name="StatusLight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.28, 0.38, 0.09)
+mesh = SubResource("BoxMesh_status")

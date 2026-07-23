@@ -57,8 +57,19 @@ var speed: float = 0.0:
 ## Total distance covered. Stars sit at fixed world positions, so this is what streams them.
 var distance_travelled: float = 0.0
 
-## Set by step 12 once there is a distance countdown: 0 hides the destination entirely.
+## Set by RunState as the destination nears: 0 hides it entirely.
 var destination_brightness: float = 0.0
+
+## Ship time per real second. RunState raises this while the player is in stasis, which
+## is what makes fast-forward *look* like fast-forward: the stars stream and streak at
+## the scaled rate without touching Engine.time_scale (that would speed the player up too).
+var time_scale: float = 1.0
+
+## Set by RunState for the duration of a run. Speed is then a function of which systems
+## are broken, rewritten every frame — so the debug speed keys would silently accomplish
+## nothing. Better to switch them off than to leave them looking broken. The star-density
+## keys are untouched, since nothing else drives those.
+var speed_driven_externally: bool = false
 
 
 func _ready() -> void:
@@ -66,7 +77,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	distance_travelled += speed * delta
+	distance_travelled += speed * delta * time_scale
 	_apply()
 
 
@@ -106,8 +117,12 @@ func adjust_density(amount: float) -> void:
 # for dialling in the look, and are harmless because they only exist while unpaused.
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("speed_up"):
+		if speed_driven_externally:
+			return
 		adjust_speed(1.0)
 	elif event.is_action_pressed("speed_down"):
+		if speed_driven_externally:
+			return
 		adjust_speed(-1.0)
 	elif event.is_action_pressed("stars_more"):
 		adjust_density(0.05)
@@ -132,5 +147,7 @@ func _apply() -> void:
 		# Stretch only ABOVE cruise. The previous form scaled by speed_ratio directly,
 		# so at cruise it already pushed the field 4x further out and the near stars
 		# barely moved — the stretch has to be 1.0 at normal speed by construction.
-		material.set_shader_parameter("streak", minf(streak_at_cruise * speed_ratio(), max_streak))
+		# time_scale counts toward the streak: in stasis you are covering ground 24x faster,
+		# so the sky should smear like it.
+		material.set_shader_parameter("streak", minf(streak_at_cruise * speed_ratio() * time_scale, max_streak))
 		material.set_shader_parameter("destination_brightness", destination_brightness)
