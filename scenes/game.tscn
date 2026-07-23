@@ -3,7 +3,6 @@
 [ext_resource type="Script" uid="uid://berd67fqyp7o0" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="3_pause"]
-[ext_resource type="PackedScene" path="res://ui/start_prompt.tscn" id="4_start"]
 [ext_resource type="PackedScene" path="res://ui/reticle.tscn" id="5_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
 [ext_resource type="Script" uid="uid://vawgqsgj76n8" path="res://scripts/level/ship_layout.gd" id="8_ship"]
@@ -168,8 +167,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.64972794, 0)
 [node name="HUD" parent="." unique_id=1271832624 instance=ExtResource("19_hud")]
 
 [node name="PauseMenu" parent="." unique_id=81343358 instance=ExtResource("3_pause")]
-
-[node name="StartPrompt" parent="." unique_id=1544078300 instance=ExtResource("4_start")]
 
 [node name="Reticle" parent="." unique_id=1864757001 instance=ExtResource("5_reticle")]
 

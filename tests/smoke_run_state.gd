@@ -721,7 +721,8 @@ class _Runner:
 				"with the eyes level with the middle of the screen")
 		suite.check(game.get_node_or_null("HUD") != null, "the HUD is present")
 		suite.check(game.get_node_or_null("RunEnd") != null, "the end screen is present")
-		# The countdowns must not start behind the start prompt.
-		suite.check(not run.running, "the run does not start until START is clicked")
+		# The game auto-starts on load (the intro video is the only gate now), so the run is
+		# already ticking by the time the scene is in the tree.
+		suite.check(run.running, "the run starts itself when the scene loads")
 
 		game.free()

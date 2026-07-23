@@ -56,15 +56,9 @@ func _run() -> void:
 		_finish()
 		return
 
-	# --- Esc is inert until the player clicks START -------------------------
-	_check("pause menu disabled before START", not pause_menu.enabled)
-	_press_escape()
-	await process_frame
-	_check("Esc does nothing before START", not paused and not pause_menu.visible)
-
-	game.start_game()
-	await process_frame
-	_check("pause menu enabled after START", pause_menu.enabled)
+	# The game auto-starts on load now, so Esc is live immediately — there is no START prompt
+	# to gate it behind any more.
+	_check("pause menu enabled from the start", pause_menu.enabled)
 
 	# --- Starts hidden and unpaused -----------------------------------------
 	_check("pause menu starts hidden", not pause_menu.visible)

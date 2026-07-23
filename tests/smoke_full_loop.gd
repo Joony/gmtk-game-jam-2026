@@ -102,10 +102,8 @@ func _play_a_bit(tag: String) -> void:
 	var player: CharacterBody3D = game.get_node_or_null("Player")
 	_check("%s: game has a player" % tag, player != null)
 	_check("%s: tree is not paused on entry" % tag, not paused)
-	_check("%s: game waits behind the START prompt" % tag, not game.is_started)
-	game.start_game()
-	await process_frame
-	_check("%s: START began the game" % tag, game.is_started)
+	# The game auto-starts on load now — there is no START prompt to wait behind.
+	_check("%s: game started itself on load" % tag, game.is_started)
 	for i in 30:
 		await physics_frame
 	if player != null:

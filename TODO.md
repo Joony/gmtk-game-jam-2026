@@ -202,9 +202,12 @@ more than action. Get this right before anything else in step 12:
 
 ## 7a. ✅ START prompt + font/theme + intro rework ([logs](docs/features/start-prompt.md))
 
-- [x] **START prompt** gates the game: cursor free and player frozen until clicked, Esc disabled
-      until then, capture happens in the button handler
-      ([start-prompt.md](docs/features/start-prompt.md))
+- [x] ~~**START prompt** gates the game~~ — **removed.** With the flow now menu → intro video →
+      game, a second "press START" screen was a redundant click, so the game auto-starts on load
+      (`start_game()` from `Game._ready()`; `ui/start_prompt.tscn` deleted). The one thing the
+      prompt did that this loses is the browser pointer-lock gesture: a video that plays to the end
+      leaves no user activation, so on web the mouse capture defers to the player's first click
+      rather than happening instantly. Desktop is unaffected.
 - [x] **Font** `AbolitionTest-Regular` applied project-wide via `ui/theme.tres` +
       `gui/theme/custom` — no per-node font overrides
       ([font-and-theme.md](docs/features/font-and-theme.md))

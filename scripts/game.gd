@@ -1,9 +1,9 @@
 extends Node3D
 
-# The game does not begin until the player clicks START. That click is what makes
-# mouse capture work in a browser: pointer lock is only granted inside a user-gesture
-# handler, so requesting it from _ready() after a scene transition is rejected on web.
-# It doubles as a decent "here are the controls" beat on desktop.
+# The game starts itself as soon as the scene loads — the intro video already gated the
+# launch, so there is no separate "press START" screen any more. See start_game() for the
+# one wrinkle this leaves: browser pointer lock wants a user gesture, which a video that
+# played to the end does not provide, so on web the capture waits for the first click.
 #
 # This node also owns the two things that have to happen to the PLAYER when the run state
 # changes — being put in the pod, and being taken out of the world at the end — because
@@ -14,7 +14,6 @@ signal started
 @onready var _player: CharacterBody3D = $Player
 @onready var _spawn: Marker3D = $PlayerSpawn
 @onready var _pause_menu: CanvasLayer = $PauseMenu
-@onready var _start_prompt: CanvasLayer = $StartPrompt
 @onready var _reticle: CanvasLayer = $Reticle
 @onready var _interactor: Interactor = $Player/Interactor
 @onready var _carry: Carry = $Player/Carry
@@ -54,7 +53,6 @@ var _nav_return_pitch: float = 0.0
 
 func _ready() -> void:
 	_player.global_transform = _spawn.global_transform
-	_start_prompt.get_node("%StartButton").pressed.connect(start_game)
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
 	_readout.bind(_motion)
@@ -83,7 +81,12 @@ func _ready() -> void:
 	_run_end.dismissed.connect(_on_run_end_dismissed)
 	_hud.bind(_run)
 
-	_show_start_prompt()
+	# The game starts itself the moment the scene loads: the intro video already gated the
+	# launch, so a second "press START" screen in here was just a redundant click. On desktop
+	# the mouse captures immediately. On web, pointer lock needs a user gesture — if the
+	# intro played to the end there was none, so Godot defers the capture to the player's
+	# first click, which is the graceful fallback rather than a wall.
+	start_game()
 
 
 ## Every sound the run makes, in one place. Game already holds references to all of these
@@ -162,24 +165,10 @@ func _on_oxygen_for_audio(remaining: float, _total: float) -> void:
 	Audio.set_breathing(1.0 - remaining / warn)
 
 
-func _show_start_prompt() -> void:
-	is_started = false
-	_start_prompt.visible = true
-	_reticle.visible = false
-	_hud.visible = false
-	# Freeze the player and disable Esc until the game actually begins.
-	_player.process_mode = Node.PROCESS_MODE_DISABLED
-	_pause_menu.enabled = false
-	MouseCapture.release()
-	_start_prompt.get_node("%StartButton").grab_focus()
-
-
 func start_game() -> void:
 	if is_started:
 		return
 	is_started = true
-	Audio.play(&"click")
-	_start_prompt.visible = false
 	_reticle.visible = true
 	_hud.visible = true
 	_player.process_mode = Node.PROCESS_MODE_INHERIT
