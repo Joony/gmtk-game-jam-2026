@@ -1,19 +1,19 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene format=3 uid="uid://cfnk4ll4wt4u0"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://berd67fqyp7o0" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="3_pause"]
 [ext_resource type="PackedScene" path="res://ui/start_prompt.tscn" id="4_start"]
 [ext_resource type="PackedScene" path="res://ui/reticle.tscn" id="5_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
-[ext_resource type="Script" path="res://scripts/level/ship_layout.gd" id="8_ship"]
-[ext_resource type="Script" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
-[ext_resource type="Script" path="res://scripts/level/ship_motion.gd" id="10_motion"]
-[ext_resource type="ShaderMaterial" path="res://assets/materials/starfield.tres" id="11_starfield"]
+[ext_resource type="Script" uid="uid://vawgqsgj76n8" path="res://scripts/level/ship_layout.gd" id="8_ship"]
+[ext_resource type="Script" uid="uid://dox4pdlpwd6jy" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
+[ext_resource type="Script" uid="uid://bkkwb6jo1e0c8" path="res://scripts/level/ship_motion.gd" id="10_motion"]
+[ext_resource type="Material" path="res://assets/materials/starfield.tres" id="11_starfield"]
 [ext_resource type="PackedScene" path="res://scenes/props/space_station.tscn" id="12_station"]
 [ext_resource type="PackedScene" path="res://ui/debug_readout.tscn" id="13_readout"]
-[ext_resource type="Script" path="res://scripts/game/run_state.gd" id="14_run"]
-[ext_resource type="Script" path="res://scripts/game/malfunction.gd" id="15_malfunction"]
+[ext_resource type="Script" uid="uid://cxeecy0cscktp" path="res://scripts/game/run_state.gd" id="14_run"]
+[ext_resource type="Script" uid="uid://cthperjuhxwxd" path="res://scripts/game/malfunction.gd" id="15_malfunction"]
 [ext_resource type="PackedScene" path="res://scenes/props/repair_panel.tscn" id="16_panel"]
 [ext_resource type="PackedScene" path="res://scenes/props/cryo_pod.tscn" id="17_pod"]
 [ext_resource type="PackedScene" path="res://scenes/props/spare_part.tscn" id="18_part"]
@@ -24,12 +24,6 @@
 [ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
 [ext_resource type="PackedScene" uid="uid://d3rvhjh1qhy4e" path="res://3D-Models/CD_CryoStation_v1.blend" id="24_station"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_shell"]
-radius = 1400.0
-height = 2800.0
-radial_segments = 32
-rings = 16
-
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
 background_color = Color(0.1, 0.11, 0.13, 1)
@@ -37,101 +31,83 @@ ambient_light_source = 2
 ambient_light_color = Color(0.62, 0.66, 0.72, 1)
 ambient_light_energy = 0.45
 
-[node name="Game" type="Node3D"]
+[sub_resource type="SphereMesh" id="SphereMesh_shell"]
+radius = 1400.0
+height = 2800.0
+radial_segments = 32
+rings = 16
+
+[node name="Game" type="Node3D" unique_id=1136072702]
 script = ExtResource("1_game")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=999056856]
 environment = SubResource("Environment_game")
 
-[node name="Starfield" type="MeshInstance3D" parent="." groups=["starfield"]]
+[node name="Starfield" type="MeshInstance3D" parent="." unique_id=800121551 groups=["starfield"]]
 mesh = SubResource("SphereMesh_shell")
 surface_material_override/0 = ExtResource("11_starfield")
 
-[node name="ExteriorSun" type="DirectionalLight3D" parent="."]
+[node name="ExteriorSun" type="DirectionalLight3D" parent="." unique_id=1890437606]
 transform = Transform3D(0.7, -0.42, 0.58, 0, 0.81, 0.58, -0.71, -0.41, 0.57, 0, 40, 0)
 light_energy = 1.5
 light_cull_mask = 2
-shadow_enabled = false
 
-[node name="Station" parent="." instance=ExtResource("12_station")]
+[node name="Station" parent="." unique_id=1272130075 instance=ExtResource("12_station")]
 transform = Transform3D(0.87, 0, -0.5, 0, 1, 0, 0.5, 0, 0.87, -74, 6, 0)
 
-[node name="Motion" type="Node" parent="."]
+[node name="Motion" type="Node" parent="." unique_id=900825783]
 script = ExtResource("10_motion")
 
-[node name="Lighting" type="Node" parent="."]
+[node name="Lighting" type="Node" parent="." unique_id=1492606501]
 script = ExtResource("9_lighting")
 
-[node name="Run" type="Node" parent="."]
+[node name="Run" type="Node" parent="." unique_id=1574846047]
 script = ExtResource("14_run")
-total_distance = 82.0
-cruise_speed_per_day = 2.6
-days_per_real_second = 0.011
 oxygen_total = 210.0
-stasis_time_scale = 24.0
-approach_distance = 8.0
 
-[node name="Ship" type="Node3D" parent="."]
+[node name="Ship" type="Node3D" parent="." unique_id=1323847786]
 script = ExtResource("8_ship")
 
-[node name="PlayerSpawn" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 8.5)
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1774573647]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 9.5)
 
-; FOUR cryo pods in a plus, centred on (0, 3) with a 2.6m radius, doors facing OUTWARD so
-; each occupant steps into the room rather than into the middle. One pod on each of the four
-; sides — fore, aft, port, starboard — rather than the old five-pod pentagon.
-;
-; Only the +Z (aft) pod is the player's, and it faces aft — you wake looking back down the
-; wake at where you came from, straight down the middle of the wide aft window. The other
-; three are scenery with `is_player_pod = false`, which stops them offering an identical
-; prompt for a pod that does nothing. Rotation is 180 + position-angle, which points each
-; door radially outward.
-;
-; CD_CryoStation_v1 — a furnace, and what the pods are clustered around. Its silhouette is
-; widest at the base: 1.19m half-width from the floor to 2.1m, then it tapers to the flue.
-; The pod backs sit 1.37m behind their origins, so at r = 2.6 they clear the furnace base by
-; ~4cm — near enough to read as docked to it. This is 30cm tighter than the old 2.9m ring;
-; the furnace's flue still clears the (shorter) pod tops so it stays visible over them.
-[node name="CryoStation" parent="." instance=ExtResource("24_station")]
-transform = Transform3D(0.43, 0, 0, 0, 0.43, 0, 0, 0, 0.43, 0, 0, 3)
+[node name="CryoStation" parent="." unique_id=341322163 instance=ExtResource("24_station")]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 3)
 
-[node name="StasisPod" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 5.6)
+[node name="StasisPod" parent="." unique_id=1635236617 instance=ExtResource("17_pod")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 7)
 
-[node name="CryoPodB" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.6, 0, 3)
+[node name="CryoPodB" parent="." unique_id=1502149935 instance=ExtResource("17_pod")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4, 0, 3)
 is_player_pod = false
 
-[node name="CryoPodC" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.4)
+[node name="CryoPodC" parent="." unique_id=302848152 instance=ExtResource("17_pod")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
 is_player_pod = false
 
-[node name="CryoPodD" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.6, 0, 3)
+[node name="CryoPodD" parent="." unique_id=1478676635 instance=ExtResource("17_pod")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4, 0, 3)
 is_player_pod = false
 
-[node name="SparePart1" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 8.7)
+[node name="SparePart1" parent="." unique_id=1949867003 instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 10)
 
-[node name="SparePart2" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 8.7)
+[node name="SparePart2" parent="." unique_id=715025122 instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 10)
 
-[node name="SparePart3" parent="." instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 8.7)
+[node name="SparePart3" parent="." unique_id=1994039836 instance=ExtResource("18_part")]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 10)
 
-; Nav console against the starboard wall of the cryo bay, a few steps from the player's
-; pod — so checking "how far have we actually got?" is the natural first thing to do on
-; waking, before deciding whether a repair is worth the air.
-[node name="Computer" parent="." instance=ExtResource("22_computer")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 6.75, 0, 5.0)
+[node name="Computer" parent="." unique_id=1037937627 instance=ExtResource("22_computer")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7.75, 0, 5)
 
-[node name="PickupA" parent="." instance=ExtResource("6_pickup")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.0, 0.25, 1.0)
+[node name="PickupA" parent="." unique_id=2143839495 instance=ExtResource("6_pickup")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.25, 1)
 
-[node name="PickupB" parent="." instance=ExtResource("6_pickup")]
+[node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.4, 0.25, 1.6)
 
-[node name="MainDrive" type="Node3D" parent="." groups=["malfunctions"]]
+[node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
 script = ExtResource("15_malfunction")
 system_name = "MAIN DRIVE"
@@ -141,11 +117,11 @@ speed_penalty = 0.45
 fire_at_distance = 70.0
 bodge_distance = 30.0
 
-[node name="RepairPanel" parent="MainDrive" instance=ExtResource("16_panel")]
+[node name="RepairPanel" parent="MainDrive" unique_id=1959993164 instance=ExtResource("16_panel")]
 patch_text = "Clamp the coupling"
 fit_text = "Fit a spare coupling"
 
-[node name="O2Scrubber" type="Node3D" parent="." groups=["malfunctions"]]
+[node name="O2Scrubber" type="Node3D" parent="." unique_id=1384330610 groups=["malfunctions"]]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.83, 1.3, -8)
 script = ExtResource("15_malfunction")
 system_name = "O2 SCRUBBER"
@@ -156,33 +132,25 @@ fire_at_distance = 52.0
 bodge_distance = 27.0
 repair_oxygen_bonus = 30.0
 
-[node name="RepairPanel" parent="O2Scrubber" instance=ExtResource("16_panel")]
+[node name="RepairPanel" parent="O2Scrubber" unique_id=1523373737 instance=ExtResource("16_panel")]
 patch_text = "Bleed the scrubber"
 fit_text = "Fit a spare cartridge"
 
-[node name="CoolantLoop" type="Node3D" parent="." groups=["malfunctions"]]
+[node name="CoolantLoop" type="Node3D" parent="." unique_id=999796197 groups=["malfunctions"]]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 0, -17)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
 severity = 1
-speed_penalty = 0.3
 fire_at_distance = 33.0
 bodge_distance = 33.0
 bodge_oxygen_cost = 25.0
 
-; The coolant loop gets the pipe instead of a flat panel: it is the fault whose patch costs
-; air, so it is the one that most needs the player to SEE what they bought.
-; The pipe is a floor-standing 3.5m column now rather than a panel on the wall, so it hangs
-; off the malfunction node with no offset. Its rupture sits at about 1.7m, which is eye
-; height — that matters, because a level look-ahead ray once sailed clean over the old
-; waist-high pipe and it was visible but not targetable.
-[node name="RepairPanel" parent="CoolantLoop" instance=ExtResource("21_pipe")]
-patch_text = "Tape the split"
+[node name="RepairPanel" parent="CoolantLoop" unique_id=1867762064 instance=ExtResource("21_pipe")]
 fit_text = "Fit a machined sleeve"
 
-[node name="NavArray" type="Node3D" parent="." groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6.83, 1.3, -2)
+[node name="NavArray" type="Node3D" parent="." unique_id=2085409010 groups=["malfunctions"]]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.83, 1.3, -2)
 script = ExtResource("15_malfunction")
 system_name = "NAV ARRAY"
 fault_text = "drifting off course"
@@ -190,22 +158,22 @@ speed_penalty = 0.2
 fire_at_distance = 15.0
 bodge_distance = 24.0
 
-[node name="RepairPanel" parent="NavArray" instance=ExtResource("16_panel")]
+[node name="RepairPanel" parent="NavArray" unique_id=1878315499 instance=ExtResource("16_panel")]
 patch_text = "Realign by hand"
 fit_text = "Fit a spare module"
 
-[node name="Player" parent="." instance=ExtResource("2_player")]
+[node name="Player" parent="." unique_id=804150623 instance=ExtResource("2_player")]
 
-[node name="HUD" parent="." instance=ExtResource("19_hud")]
+[node name="HUD" parent="." unique_id=1271832624 instance=ExtResource("19_hud")]
 
-[node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
+[node name="PauseMenu" parent="." unique_id=81343358 instance=ExtResource("3_pause")]
 
-[node name="StartPrompt" parent="." instance=ExtResource("4_start")]
+[node name="StartPrompt" parent="." unique_id=1544078300 instance=ExtResource("4_start")]
 
-[node name="Reticle" parent="." instance=ExtResource("5_reticle")]
+[node name="Reticle" parent="." unique_id=1864757001 instance=ExtResource("5_reticle")]
 
-[node name="DebugReadout" parent="." instance=ExtResource("13_readout")]
+[node name="DebugReadout" parent="." unique_id=887057737 instance=ExtResource("13_readout")]
 
-[node name="NavScreen" parent="." instance=ExtResource("23_navscreen")]
+[node name="NavScreen" parent="." unique_id=1200580728 instance=ExtResource("23_navscreen")]
 
-[node name="RunEnd" parent="." instance=ExtResource("20_runend")]
+[node name="RunEnd" parent="." unique_id=1278206934 instance=ExtResource("20_runend")]

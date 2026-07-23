@@ -15,14 +15,15 @@ func build_ship() -> void:
 	rooms.clear()
 	doorways.clear()
 
-	# Cryo bay — the loop anchor, and the biggest room on the ship because it has to hold a
-	# ring of five 2.7m-wide pods AND leave lanes to walk round them. At the original 10x12
-	# the gap between the ring and the side walls was 12cm and the player simply could not
-	# get past. Tall, too: the pods are 3.25m with a ceiling pipe reaching 4.17m, and the
-	# extra headroom above that is what stops a room this wide feeling like a corridor.
-	add_room(Rect2i(-7, -4, 14, 14), {
+	# Cryo bay — the loop anchor, and by far the biggest room on the ship. It holds four
+	# 2.7m-wide pods ringed around the CryoStation furnace, with walking lanes around them.
+	# TALL because the furnace is: at 0.9 scale it stands 9.27m to the top of its flue, and
+	# the ceiling is set to just clear it — the top of the station touches the roof. The
+	# forward wall stays at z=-4 because the spine corridor connects there; the room is
+	# enlarged sideways (to x=±8) and aft (to z=11) instead.
+	add_room(Rect2i(-8, -4, 16, 15), {
 		"id": "pod_bay",
-		"height": 5.0,
+		"height": 9.3,
 		"floor_color": Color(0.28, 0.30, 0.34),
 		"wall_color": Color(0.50, 0.53, 0.58),
 		"ceiling_color": Color(0.44, 0.46, 0.50),
@@ -51,8 +52,8 @@ func build_ship() -> void:
 
 	# Windows on exterior walls only — an opening onto another room would show stars
 	# through the ship. Sill at 1.0m so they sit at eye level.
-	add_window(Vector2(-7, 3), Doorway.Axis.Z, 3.0, 1.0, 1.3)     # cryo bay, port side
-	add_window(Vector2(7, 3), Doorway.Axis.Z, 3.0, 1.0, 1.3)      # cryo bay, starboard
+	add_window(Vector2(-8, 3), Doorway.Axis.Z, 3.0, 1.0, 1.3)     # cryo bay, port side
+	add_window(Vector2(8, 3), Doorway.Axis.Z, 3.0, 1.0, 1.3)      # cryo bay, starboard
 	add_window(Vector2(-6, -17), Doorway.Axis.Z, 4.0, 1.2, 1.6)   # engine room, port
 
 	# Fore and aft. Travel is -Z, so the engine room's far wall looks FORWARD (where
@@ -61,6 +62,6 @@ func build_ship() -> void:
 	# ONE wide aft window, not a pair. The player's pod looks straight down its centre line,
 	# so this is the first thing seen on every waking — two smaller panes put a strip of
 	# wall exactly where the view should be, and the pod's own axis pointed at it.
-	add_window(Vector2(0, 10), Doorway.Axis.X, 9.0, 1.0, 2.2)     # cryo bay, aft
+	add_window(Vector2(0, 11), Doorway.Axis.X, 9.0, 1.0, 2.2)     # cryo bay, aft
 
 	build()

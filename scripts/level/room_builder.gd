@@ -257,7 +257,11 @@ func _build_light(room: Room) -> void:
 			var light := OmniLight3D.new()
 			light.name = "Light_%s_%d_%d" % [room.id, i, j]
 			light.position = Vector3(at.x, room.height - 0.25, at.y)
-			light.omni_range = light_range
+			# The range must reach the FLOOR, or a tall room goes black below the lights.
+			# Ceiling lights in the 9.3m cryo bay were 9.05m up against a 9.0m range and the
+			# floor got nothing but ambient. Short rooms keep the default; only genuinely
+			# tall ones widen it.
+			light.omni_range = maxf(light_range, room.height + 2.0)
 			light.light_color = light_color
 			light.light_energy = light_energy
 			# Shadowless on purpose: shadows are what make interior lighting read as
