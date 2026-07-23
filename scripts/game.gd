@@ -125,6 +125,10 @@ func _wire_audio() -> void:
 		Audio.play_at(&"click_low", item.global_position, -4.0))
 	_computer.opened.connect(func() -> void: Audio.play_at(&"click", _computer.global_position))
 	_pod.entered.connect(func() -> void: Audio.play_at(&"plug", _pod.global_position, -2.0))
+	# The pod's door gets its own sound. It is a curved panel driven round a cylinder and
+	# sealed, not a door sliding in a frame, and it is the one you hear from the inside.
+	_pod.door_moved.connect(func(opening: bool) -> void:
+		Audio.pod_door(opening, _pod.global_position))
 
 
 ## Music AND klaxon follow the ship's state: stasis wins over everything, then any CRITICAL

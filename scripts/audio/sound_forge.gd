@@ -199,6 +199,55 @@ static func tape_tear(seed_value: int = 41) -> AudioStreamWAV:
 	return _to_stream(samples)
 
 
+## The cryo pod's door. Deliberately nothing like the ship's sliding doors — those are
+## recordings of a door sliding, while this is a curved panel driven round a cylinder and
+## then sealed. So it is built from what that actually is: a servo whirring through the
+## move, a pneumatic hiss, and a latch.
+##
+## The hiss and the latch swap ends depending on direction, which is most of what makes the
+## two directions readable without looking. OPENING releases pressure first and unlatches at
+## the start; CLOSING seals at the end, after the panel has arrived.
+static func pod_door(opening: bool, seed_value: int = 61) -> AudioStreamWAV:
+	# Matches StasisPod.door_time, so the sound ends when the panel stops moving.
+	var move := 0.9
+	var count := int(RATE * (move + 0.35))
+	var rng := _rng(seed_value)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+
+	var phase := 0.0
+	var hiss_state := 0.0
+	var hiss_prev := 0.0
+	for i in count:
+		var t := float(i) / RATE
+		var through := clampf(t / move, 0.0, 1.0)
+
+		# Servo: rises as it drives open, falls as it settles closed. The slow wobble is
+		# what stops it sounding like a synthesiser holding a note.
+		var base := lerpf(205.0, 262.0, through) if opening else lerpf(258.0, 188.0, through)
+		var wobble := 1.0 + 0.035 * sin(TAU * 33.0 * t)
+		phase += TAU * base * wobble / RATE
+		var servo := sin(phase) + 0.45 * sin(phase * 2.0) + 0.22 * sin(phase * 3.0)
+		var servo_env := minf(t / 0.07, 1.0) * clampf((move + 0.06 - t) / 0.18, 0.0, 1.0)
+
+		# Pneumatics: a band of noise, front-loaded opening and tail-loaded closing.
+		var noise := rng.randf_range(-1.0, 1.0)
+		hiss_state = lerpf(hiss_state, noise, 0.5)
+		var band := hiss_state - hiss_prev
+		hiss_prev = lerpf(hiss_prev, hiss_state, 0.12)
+		var hiss_env := _decay(t, 0.3) if opening else exp(-pow((t - move) / 0.22, 2.0))
+
+		# Latch: unlatching to start the move, or seating home at the end of it.
+		var latch_at := 0.0 if opening else move - 0.02
+		var since_latch := t - latch_at
+		var latch := 0.0
+		if since_latch >= 0.0:
+			latch = sin(TAU * 74.0 * since_latch) * _decay(since_latch, 0.09)
+
+		samples[i] = servo * servo_env * 0.42 + band * hiss_env * 0.9 + latch * 0.75
+	return _to_stream(samples)
+
+
 ## Running out of air. A slow, tightening breath — pitched noise with a swell, so it can be
 ## looped faster and faster as the oxygen drops.
 static func breath(seed_value: int = 53) -> AudioStreamWAV:

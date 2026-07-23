@@ -19,6 +19,10 @@ extends Interactable
 
 signal entered
 signal exited
+## Emitted when the door actually starts moving — not for the instant set-up call that
+## poses every pod at startup, and not when re-setting a state it is already in. Game wires
+## this to the audio, so the pod itself still knows nothing about sound.
+signal door_moved(opening: bool)
 
 ## Only one pod in the bay is the player's. The rest are scenery and must never offer a
 ## prompt — five identical interactable pods would be five identical wrong answers.
@@ -41,6 +45,7 @@ var occupied: bool = false
 
 var _door: Node3D = null
 var _door_closed_y: float = 0.0
+var _door_open: bool = false
 var _door_tween: Tween
 
 
@@ -94,12 +99,16 @@ func exit_transform() -> Transform3D:
 func set_door_open(open: bool, instant: bool = false) -> void:
 	if _door == null:
 		return
+	var changed := open != _door_open
+	_door_open = open
 	var target := _door_closed_y + (deg_to_rad(door_open_degrees) if open else 0.0)
 	if _door_tween != null and _door_tween.is_valid():
 		_door_tween.kill()
 	if instant or door_time <= 0.0:
 		_door.rotation.y = target
 		return
+	if changed:
+		door_moved.emit(open)
 	_door_tween = create_tween()
 	_door_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_door_tween.tween_property(_door, "rotation:y", target, door_time)

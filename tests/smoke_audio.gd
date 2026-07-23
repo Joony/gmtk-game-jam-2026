@@ -76,6 +76,7 @@ class _Runner:
 		await _test_wiring()
 		await _test_positional()
 		await _test_alarm_lifetime()
+		await _test_pod_door()
 
 		print("-- %d checks, %d failures --" % [suite.checks, suite.failures.size()])
 		for failure in suite.failures:
@@ -105,6 +106,8 @@ class _Runner:
 	func _test_generated() -> void:
 		print("[generated effects]")
 		var expected := {
+			&"pod_open": {"min_s": 0.8, "max_s": 2.0},
+			&"pod_close": {"min_s": 0.8, "max_s": 2.0},
 			&"door_open": {"min_s": 0.1, "max_s": 4.0},
 			&"door_close": {"min_s": 0.1, "max_s": 4.0},
 			&"bump": {"min_s": 1.0, "max_s": 2.0},
@@ -309,6 +312,73 @@ class _Runner:
 		suite.check(not controller._alarm_player.playing,
 			"freeing the game scene stops the klaxon — it must not follow you to the menu")
 		suite.check(controller.music_state == controller.Music.NONE, "and stops the music")
+
+
+	## The pod's door must not borrow the ship doors' sound, and must actually fire.
+	func _test_pod_door() -> void:
+		print("[the cryo pod has its own door]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var pod_open: AudioStream = controller._sounds.get(&"pod_open")
+		var pod_close: AudioStream = controller._sounds.get(&"pod_close")
+		suite.check(pod_open != null and pod_close != null, "both pod door sounds exist")
+		suite.check(pod_open != controller._sounds.get(&"door_open")
+				and pod_close != controller._sounds.get(&"door_close"),
+			"and are NOT the ship's sliding door sounds")
+		suite.check(pod_open != pod_close, "opening and closing differ from each other")
+		# The two directions swap where the hiss and the latch sit, so their energy should not
+		# sit in the same half of the sound.
+		if pod_open is AudioStreamWAV and pod_close is AudioStreamWAV:
+			var open_front := _front_weight(pod_open)
+			var close_front := _front_weight(pod_close)
+			suite.check(open_front > close_front,
+				"opening is front-loaded, closing back-loaded (%.2f vs %.2f)" % [open_front, close_front])
+
+		var game: Node3D = load("res://scenes/game.tscn").instantiate()
+		suite.root.add_child(game)
+		suite.current_scene = game
+		await suite.process_frame
+		game.start_game()
+		await suite.process_frame
+
+		var pod: StasisPod = game.get_node("StasisPod")
+		# Posing the pods at startup must be silent, or the game opens with five door noises.
+		pod.set_door_open(false, true)
+		await suite.process_frame
+		suite.check(not _heard(pod_close), "posing a door instantly makes no sound")
+
+		pod.set_door_open(true)
+		await suite.process_frame
+		suite.check(_heard(pod_open), "opening the pod plays its own sound")
+
+		pod.set_door_open(false)
+		await suite.process_frame
+		suite.check(_heard(pod_close), "and closing plays the other one")
+
+		game.free()
+
+
+	## Is this exact stream sitting on one of the 3D voices?
+	func _heard(want: AudioStream) -> bool:
+		if want == null:
+			return false
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		for voice in controller._voices_3d:
+			if voice.stream == want:
+				return true
+		return false
+
+
+	## Fraction of a sound's energy sitting in its first half.
+	func _front_weight(stream: AudioStreamWAV) -> float:
+		var count := stream.data.size() / 2
+		var front := 0.0
+		var total := 0.0
+		for i in count:
+			var value := absf(float(stream.data.decode_s16(i * 2)))
+			total += value
+			if i < count / 2:
+				front += value
+		return front / maxf(total, 1.0)
 
 
 	## Positional audio has a silent failure mode that is easy to ship: if the 3D voices are

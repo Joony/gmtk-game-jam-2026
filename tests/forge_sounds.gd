@@ -14,6 +14,8 @@ func _init() -> void:
 		"ratchet": SoundForge.ratchet(),
 		"tape_tear": SoundForge.tape_tear(),
 		"breath": SoundForge.breath(),
+		"pod_door_open": SoundForge.pod_door(true),
+		"pod_door_close": SoundForge.pod_door(false),
 	}
 	for name in sounds:
 		var stream: AudioStreamWAV = sounds[name]

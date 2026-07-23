@@ -125,6 +125,8 @@ func _forge() -> void:
 		&"ratchet": SoundForge.ratchet(),
 		&"tape": SoundForge.tape_tear(),
 		&"breath": SoundForge.breath(),
+		&"pod_open": SoundForge.pod_door(true),
+		&"pod_close": SoundForge.pod_door(false),
 	}
 	_alarm_player.stream = _sounds[&"klaxon"]
 	for name in FILE_SOUNDS:
@@ -201,6 +203,12 @@ func repair(permanent: bool, position: Vector3) -> void:
 
 func door(opening: bool, position: Vector3) -> void:
 	play_at(&"door_open" if opening else &"door_close", position, -4.0)
+
+
+## The pod's own door, which must not share the ship doors' sound — it is the one you hear
+## from inside, sealing you in.
+func pod_door(opening: bool, position: Vector3) -> void:
+	play_at(&"pod_open" if opening else &"pod_close", position, -2.0)
 
 
 # --- low oxygen -------------------------------------------------------------------------

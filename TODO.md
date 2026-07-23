@@ -547,6 +547,13 @@ them to disk with `tests/forge_sounds.gd` to listen.
       was facing. There is a test for that, because it is an easy thing to "fix" wrongly.
 - [x] **Door sounds** from GMTK 2025's `Sounds/` folder, where they were sitting unused —
       nothing in that project ever played them. 0.81s each, 34 KB the pair.
+- [x] **The cryo pod has its own door sound**, synthesised rather than borrowed: it is a
+      curved panel driven round a cylinder and sealed, not a door sliding in a frame, and it
+      is the one you hear from the inside. Servo + pneumatics + latch, with the hiss and the
+      latch swapping ends by direction — opening releases and unlatches at the start,
+      closing seals home at the end. `StasisPod.door_moved` carries it, so the pod still
+      knows nothing about audio, and the instant set-up call that poses all five pods at
+      startup deliberately stays silent.
 
 - [x] **The klaxon is state-driven, not event-driven.** It has its own player and is on
       exactly while a critical fault is unrepaired — so repairing it, pausing, entering the
