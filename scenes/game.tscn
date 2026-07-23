@@ -75,18 +75,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1, 13.5)
 transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 6.5)
 
 [node name="StasisPod" parent="." unique_id=1635236617 instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, 0, 10.37)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, 0, 9.98)
 
 [node name="CryoPodB" parent="." unique_id=1502149935 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.37, 0, 6.5)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.98, 0, 6.5)
 is_player_pod = false
 
 [node name="CryoPodC" parent="." unique_id=302848152 instance=ExtResource("17_pod")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 2.63)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 3.02)
 is_player_pod = false
 
 [node name="CryoPodD" parent="." unique_id=1478676635 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.37, 0, 6.5)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.98, 0, 6.5)
 is_player_pod = false
 
 [node name="SparePart1" parent="." unique_id=1949867003 instance=ExtResource("18_part")]
