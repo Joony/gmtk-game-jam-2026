@@ -1,0 +1,39 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/stasis_pod.gd" id="1_pod"]
+[ext_resource type="PackedScene" uid="uid://bfmyhxscvste7" path="res://CD_Cryo_v2.blend" id="2_model"]
+
+; CD_Cryo_v2, re-based so the wrapper's origin is the pod's vertical axis and the door
+; faces -Z (Godot forward). The .blend authors the pod off-centre — its meshes share a pivot
+; at (0.8, 1, 0) with the door pointing local +X, because it is modelled as one pod of a
+; five-pod ring. Rotating 90 degrees about Y sends that +X door to -Z, which carries the
+; pivot to (0, 0, -0.8), so the model is shifted +0.8 in Z to bring it back to the origin.
+;
+; NOTE the basis literal is ROW-major, like every Transform3D in a .tscn — writing it from
+; column vectors produces the transpose, which for a rotation is the opposite rotation. That
+; mistake put the door on the wrong side here and buried three repair panels inside walls.
+;
+; Doing the correction HERE means every placement in game.tscn is just "position and face",
+; and the markers below can be written in obvious local coordinates.
+;
+; The model's `-col` suffixes gave Door and Frame their own StaticBody3D children on import,
+; so the pod is solid and the Interactor's ray reaches this script by walking up the tree.
+
+[node name="CryoPod" type="Node3D"]
+script = ExtResource("1_pod")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 0, 0.8)
+
+; Player BODY position while sealed in. The camera anchor sits 0.65m above the body origin,
+; so 0.95 here puts the eyes at 1.6m — standing upright inside the shell, looking out
+; through the door down the -Z axis (identity basis is already facing -Z).
+[node name="PodView" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+
+; Where the player is set down on the way out: clear of the shell (radius ~1.4m plus the
+; player's 0.4m capsule), facing the SAME way they were facing inside. You walk out forwards
+; and keep looking where you were looking; spinning the camera 180 degrees on the way out is
+; disorienting and takes the choice of where to look away from the player.
+[node name="PodExit" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -2.6)

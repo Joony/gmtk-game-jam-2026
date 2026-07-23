@@ -88,6 +88,13 @@ func use_with_item(item: Node3D) -> void:
 		used_with_item.emit(self, item)
 
 
+## Whether the item handed to the last use_with_item() was used up by it. Overridden by
+## things that fit a part permanently (see RepairPoint); Interactor checks this instead
+## of guessing, so an item is only ever destroyed by a use that genuinely succeeded.
+func consumed_last_item() -> bool:
+	return false
+
+
 func on_pickup() -> void:
 	picked_up.emit(self)
 	# Stop the ray re-targeting the thing already in your hands.

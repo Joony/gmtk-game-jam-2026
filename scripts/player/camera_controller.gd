@@ -13,6 +13,10 @@ extends Node3D
 # Mouse capture is deliberately NOT handled here — the pause menu owns the cursor
 # so there is a single source of truth for capture state.
 
+## Turned off while the camera is being driven by something else — the ride into the
+## stasis pod, for instance. The controller keeps running (so the view still tracks and
+## renders smoothly), it just stops taking the mouse.
+@export var input_enabled: bool = true
 @export var mouse_sensitivity: float = 0.002
 @export var pitch_min_deg: float = -89.0
 @export var pitch_max_deg: float = 89.0
@@ -31,6 +35,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled:
+		return
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return
 	if event is InputEventMouseMotion:
@@ -59,3 +65,20 @@ func _process(_delta: float) -> void:
 # body basis every frame and would discard that rotation).
 func adopt_body_yaw() -> void:
 	_yaw = _player.global_transform.basis.get_euler().y
+
+
+func get_yaw() -> float:
+	return _yaw
+
+
+func get_pitch() -> float:
+	return _pitch
+
+
+## Aim the camera directly. Used to fly the view into and out of the pod: the controller
+## overwrites the body basis from `_yaw` every frame, so rotating the body from outside
+## would simply be discarded — the yaw has to be set here instead.
+func set_look(yaw: float, pitch: float) -> void:
+	_yaw = yaw
+	_pitch = clampf(pitch, deg_to_rad(pitch_min_deg), deg_to_rad(pitch_max_deg))
+	_mouse = Vector2.ZERO

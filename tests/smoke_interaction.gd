@@ -65,6 +65,15 @@ func _run() -> void:
 
 	await _physics_frames(45)  # settle on the floor
 
+	# Move to the middle of the engine room before any of the physics work below. The carry
+	# and throw sections walk the player 2m forward and park items 1.4m in front of that,
+	# and the spawn point no longer has that much clear space — the cryo pod ring is right
+	# there, so the "thrown" crate was being released inside a pod and going nowhere.
+	_player.global_position = Vector3(0.0, 0.9, -17.0)
+	_player.reset_physics_interpolation()
+	(_game.get_node("Player/CameraRig") as CameraController).set_look(0.0, 0.0)
+	await _physics_frames(20)
+
 	var pickup: Node3D = _game.get_node("PickupA")
 	# The Interactable script sits on the RigidBody3D itself — verify that actually works.
 	_check("pickup is an Interactable", pickup is Interactable)
@@ -217,38 +226,79 @@ func _run() -> void:
 		pickup.linear_velocity.length() > 1.0 and travelled > 0.1
 	)
 
-	# --- USE_ITEM: carrying a part to a socket ------------------------------
-	var socket: Interactable = _game.get_node("Socket")
-	var used := [false]
-	socket.used_with_item.connect(func(_s: Interactable, _i: Node3D) -> void: used[0] = true)
+	# --- USE_ITEM: carrying a spare part to a repair panel -------------------
+	# Runs against the REAL panel from step 12 rather than a stand-in socket, so this
+	# covers the actual repair route the game ships.
+	var fault: Malfunction = _game.get_node("MainDrive")
+	var panel: RepairPoint = fault.get_node("RepairPanel")
+	var part: Node3D = _game.get_node("SparePart1")
 
-	# Empty-handed the socket asks for a part and is not actionable.
+	# A healthy system's panel is invisible to the ray — otherwise every panel on the
+	# ship would offer a prompt for a problem the player does not have.
 	pickup.global_position = Vector3(0, -50, 0)
 	await _physics_frames(2)
-	_place_in_front(socket, 1.2)
+	_place_in_front(panel, 1.2)
 	await _physics_frames(3)
-	_check("socket is targeted", _interactor.current == socket)
-	_check("socket asks for a part when empty-handed", _interactor.get_prompt() == "Needs a part")
-	_check("socket is not actionable empty-handed", not _interactor.is_actionable())
+	_check("a working system's panel is not targeted", _interactor.current == null)
 
-	# Now carry the part to it.
-	socket.global_position = Vector3(0, -50, 0)
+	fault.break_now()
+	await _physics_frames(3)
+	_check("a broken system's panel is targeted", _interactor.current == panel)
+	# The patch route has to be offered empty-handed, or the player never discovers it.
+	_check(
+		"panel offers the patch when empty-handed (got '%s')" % _interactor.get_prompt(),
+		"Clamp the coupling" in _interactor.get_prompt()
+	)
+	_check("panel is actionable empty-handed", _interactor.is_actionable())
+
+	# Wrong item: refused by name, and the reticle must not promise anything.
+	# The panel has to be moved aside first — it is a solid box, and leaving it in front
+	# would mean the grab press hits the panel and patches the fault instead.
+	panel.global_position = Vector3(0, -50, 0)
 	await _physics_frames(2)
 	pickup.linear_velocity = Vector3.ZERO
 	_place_in_front(pickup, 1.2)
 	await _physics_frames(3)
 	_press("interact")
 	await _frames(20)
-	_check("carrying the part to the socket", _carry.is_holding())
-	_place_in_front(socket, 1.5)
+	_check("carrying a generic crate", _carry.is_holding())
+	_place_in_front(panel, 1.5)
 	await _physics_frames(3)
-	_check("socket is targeted while carrying", _interactor.current == socket)
-	_check("socket prompt changes when holding a part", _interactor.get_prompt() == "[E] Fit the part")
-	_check("socket is actionable while carrying", _interactor.is_actionable())
+	_check(
+		"the wrong part is refused by name (got '%s')" % _interactor.get_prompt(),
+		"Wrong part" in _interactor.get_prompt()
+	)
 	_press("interact")
-	await _frames(2)
-	_check("using the item on the socket fires used_with_item", used[0])
-	_check("using an item on a socket does not drop it", _carry.is_holding())
+	await _frames(4)
+	_check("the wrong part does not repair anything", fault.is_active)
+
+	# Right part: fits permanently and is consumed.
+	_carry.drop(false)
+	panel.global_position = Vector3(0, -50, 0)
+	await _physics_frames(3)
+	pickup.global_position = Vector3(0, -50, 0)
+	part.linear_velocity = Vector3.ZERO
+	_place_in_front(part, 1.2)
+	await _physics_frames(3)
+	_press("interact")
+	await _frames(20)
+	_check("carrying a spare part", _carry.is_holding())
+	_place_in_front(panel, 1.5)
+	await _physics_frames(3)
+	_check(
+		"panel offers the permanent fix while carrying the part (got '%s')" % _interactor.get_prompt(),
+		"Fit a spare coupling" in _interactor.get_prompt()
+	)
+	_check("panel is actionable while carrying the part", _interactor.is_actionable())
+	_press("interact")
+	await _frames(4)
+	_check("fitting the part repairs the system", not fault.is_active)
+	_check("and permanently, not as a patch", not fault.is_patched)
+	# One spare, one fix — the part must leave the world, or a single coupling could be
+	# walked around the ship repairing everything.
+	_check("the part is taken out of the player's hands", not _carry.is_holding())
+	await _frames(4)
+	_check("and is removed from the world", not is_instance_valid(part))
 
 	if _failures.is_empty():
 		print("INTERACTION TEST PASS")

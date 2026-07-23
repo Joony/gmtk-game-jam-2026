@@ -16,7 +16,12 @@ func _ready() -> void:
 
 
 func bind(motion: ShipMotion) -> void:
-	motion.speed_changed.connect(func(_s: float) -> void: _show(motion))
+	# Once RunState is driving speed, every malfunction and repair would pop this up —
+	# debug chrome appearing in response to gameplay. The HUD already reports drive %,
+	# so stay quiet and leave this to the star-density keys.
+	motion.speed_changed.connect(func(_s: float) -> void:
+		if not motion.speed_driven_externally:
+			_show(motion))
 	motion.settings_changed.connect(func() -> void: _show(motion))
 
 
