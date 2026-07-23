@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://scenes/props/vent_pipe.tscn" id="21_pipe"]
 [ext_resource type="PackedScene" path="res://scenes/props/computer.tscn" id="22_computer"]
 [ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
+[ext_resource type="PackedScene" uid="uid://d3rvhjh1qhy4e" path="res://3D-Models/CD_CryoStation_v1.blend" id="24_station"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_shell"]
 radius = 1400.0
@@ -74,32 +75,44 @@ approach_distance = 8.0
 script = ExtResource("8_ship")
 
 [node name="PlayerSpawn" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 8.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 8.5)
 
-; Five cryo pods in a pentagon, centred on (0, 3) with a 2.6m radius, doors facing OUTWARD
+; Five cryo pods in a pentagon, centred on (0, 3) with a 2.9m radius, doors facing OUTWARD
 ; so each occupant steps into the room rather than into the middle of the ring.
 ;
 ; Only the +Z pod is the player's, and it faces aft — you wake looking back down the wake at
 ; where you came from, straight down the middle of the wide aft window. The other four are scenery and have
 ; `is_player_pod = false`, which stops them offering an identical prompt for a pod that does
 ; nothing. Rotation is 180 + i*72 degrees, which is what points each door away from centre.
+; CD_CryoStation_v1 — a furnace, and what the pod ring is arranged around. The model is
+; authored 6.6m across and 10.3m tall to the top of its flue; at 0.43 it is 2.84m wide and
+; 4.43m tall, with about 11cm to each pod's back — they read as docked to it.
+;
+; The ring went back out from 2.6m to 2.9m to allow this. At 2.6m the only station that fit
+; was 3.5m tall, which is SHORTER than the 3.25m pods once their own ceiling pipes are
+; counted — it was completely enclosed and could not be seen from anywhere in the room. A
+; prop nobody can see is not worth placing. At 2.9m the flue clears the pods by over a metre
+; and the cluster still reads as tight.
+[node name="CryoStation" parent="." instance=ExtResource("24_station")]
+transform = Transform3D(0.43, 0, 0, 0, 0.43, 0, 0, 0, 0.43, 0, 0, 3)
+
 [node name="StasisPod" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 5.6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 5.9)
 
 [node name="CryoPodB" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, -0.309017, 2.4728, 0, 3.8034)
+transform = Transform3D(-0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, -0.309017, 2.7581, 0, 3.8961)
 is_player_pod = false
 
 [node name="CryoPodC" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, 0.809017, 1.5282, 0, 0.8966)
+transform = Transform3D(0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, 0.809017, 1.7046, 0, 0.6538)
 is_player_pod = false
 
 [node name="CryoPodD" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, 0.809017, -1.5282, 0, 0.8966)
+transform = Transform3D(0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, 0.809017, -1.7046, 0, 0.6538)
 is_player_pod = false
 
 [node name="CryoPodE" parent="." instance=ExtResource("17_pod")]
-transform = Transform3D(-0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, -0.309017, -2.4728, 0, 3.8034)
+transform = Transform3D(-0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, -0.309017, -2.7581, 0, 3.8961)
 is_player_pod = false
 
 [node name="SparePart1" parent="." instance=ExtResource("18_part")]
@@ -153,7 +166,7 @@ patch_text = "Bleed the scrubber"
 fit_text = "Fit a spare cartridge"
 
 [node name="CoolantLoop" type="Node3D" parent="." groups=["malfunctions"]]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 1.3, -17)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 0, -17)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
@@ -165,10 +178,11 @@ bodge_oxygen_cost = 25.0
 
 ; The coolant loop gets the pipe instead of a flat panel: it is the fault whose patch costs
 ; air, so it is the one that most needs the player to SEE what they bought.
-; Raised to eye height. At the panel's default 1.3m the pipe sat BELOW the camera and a
-; level look-ahead ray sailed straight over it — the pipe was visible but not targetable.
+; The pipe is a floor-standing 3.5m column now rather than a panel on the wall, so it hangs
+; off the malfunction node with no offset. Its rupture sits at about 1.7m, which is eye
+; height — that matters, because a level look-ahead ray once sailed clean over the old
+; waist-high pipe and it was visible but not targetable.
 [node name="RepairPanel" parent="CoolantLoop" instance=ExtResource("21_pipe")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 patch_text = "Tape the split"
 fit_text = "Fit a machined sleeve"
 

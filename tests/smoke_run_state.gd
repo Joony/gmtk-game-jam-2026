@@ -527,23 +527,31 @@ class _Runner:
 		panel.add_child(crack)
 		panel.add_child(tape)
 		panel.add_child(sleeve)
+		# `damaged` stands in for the vent pipe's ruptured model: it must stay visible under
+		# the tape (broken OR patched), which is why it cannot just live in broken_nodes.
+		var damaged := Node3D.new()
+		damaged.name = "Damaged"
+		panel.add_child(damaged)
 		panel.broken_nodes = [NodePath("Crack")]
 		panel.patched_nodes = [NodePath("Tape")]
 		panel.fixed_nodes = [NodePath("Sleeve")]
+		panel.damaged_nodes = [NodePath("Damaged")]
 		fault.add_child(panel)
 
-		suite.check(not crack.visible and not tape.visible and sleeve.visible,
+		suite.check(not crack.visible and not tape.visible and sleeve.visible and not damaged.visible,
 			"a healthy system shows only the intact fix")
 		fault.break_now()
-		suite.check(crack.visible and not tape.visible and not sleeve.visible,
+		suite.check(crack.visible and not tape.visible and not sleeve.visible and damaged.visible,
 			"breaking it shows the damage")
 		fault.repair(false, 100.0)
 		suite.check(tape.visible and not crack.visible and not sleeve.visible,
 			"a patch shows the patch — visible evidence of the choice made")
+		suite.check(damaged.visible,
+			"and the damage stays visible UNDER the patch — the split is still there")
 		fault.break_now()
 		fault.repair(true, 100.0)
-		suite.check(sleeve.visible and not tape.visible and not crack.visible,
-			"a permanent fix replaces the patch with the proper part")
+		suite.check(sleeve.visible and not tape.visible and not crack.visible and not damaged.visible,
+			"a permanent fix replaces everything with the intact part")
 		holder.free()
 
 

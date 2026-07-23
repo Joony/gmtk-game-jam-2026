@@ -42,8 +42,13 @@ const COLOR_FIXED := Color(0.24, 0.90, 0.40)
 ## Nodes shown only while running on a PATCH. This is what makes the two repair routes
 ## legible: a bodge you can see is a bodge, sitting there reminding you it will fail.
 @export var patched_nodes: Array[NodePath] = []
-## Nodes shown only once PERMANENTLY repaired — a proper welded sleeve.
+## Nodes shown only once PERMANENTLY repaired — the intact part.
 @export var fixed_nodes: Array[NodePath] = []
+## Nodes shown while the system is broken OR running on a patch, i.e. anything but properly
+## fixed. Needed because the vent pipe swaps between two whole models: the ruptured pipe has
+## to stay visible under the tape, and a node cannot live in two of the lists above — they
+## are applied in order, so the later one always wins and the node just disappears.
+@export var damaged_nodes: Array[NodePath] = []
 
 var malfunction: Malfunction = null
 
@@ -84,6 +89,7 @@ func refresh() -> void:
 	var patched := malfunction != null and malfunction.is_patched
 	_show(broken_nodes, broken)
 	_show(patched_nodes, patched)
+	_show(damaged_nodes, broken or patched)
 	_show(fixed_nodes, not broken and not patched)
 
 	if _status_material == null:

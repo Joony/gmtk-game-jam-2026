@@ -488,9 +488,12 @@ look out of.
 - [ ] The four scenery pods are empty — occupants would sell the fiction cheaply
 - [x] ~~Move `CD_Cryo_v2.blend` out of the repo root~~ — LoganDevz did it, into `3D-Models/`.
       `cryo_pod.tscn` followed. `node_3d.tscn` is still a scratch scene at the root.
-- [ ] Unused models now sitting in `3D-Models/`: `CD_PipeBroken_v1` (a direct upgrade for the
-      vent pipe's placeholder box-and-slab), `CD_Crate_v1.1` (replaces the yellow box pickups),
-      `CD_PipeDecor_v1`. Also `Perpetual Pickle Intro.mp4` for the intro rework.
+- [x] Real models swapped in: `CD_CryoStation_v1` (the furnace at the centre of the pod
+      ring), `CD_PipeBroken_v1` + `CD_PipeDecor_v1` (the coolant line — the permanent fix now
+      literally swaps the ruptured pipe for the intact one), `CD_Crate_v1.1` (the pickups).
+- [ ] Still unused from `3D-Models/`: `CD_Pc_v2.1` (would replace the box nav console),
+      `CD_Plug_v1` (for the cables, 14d), `CD_Hammer_v1` (a tool — repair, or a carryable).
+      Also `Perpetual Pickle Intro.mp4` for the intro rework.
 - [ ] Name the two worlds on the nav chart, and the game
 - [ ] **`.tscn` Transform3D basis literals are ROW-major.** Writing one from column vectors
       gives the transpose, i.e. the opposite rotation. This buried three repair panels inside

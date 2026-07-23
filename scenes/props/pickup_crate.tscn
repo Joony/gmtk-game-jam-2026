@@ -1,12 +1,15 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
+[ext_resource type="PackedScene" uid="uid://dh3p1153cu6lc" path="res://3D-Models/CD_Crate_v1.1.blend" id="2_model"]
 
-[sub_resource type="BoxMesh" id="BoxMesh_crate"]
-size = Vector3(0.4, 0.4, 0.4)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_crate"]
-albedo_color = Color(0.72, 0.62, 0.28, 1)
+; CD_Crate_v1.1, scaled to something a person can pick up. The model is authored 2m on a
+; side — a shipping container, not a crate you carry — so 0.2 brings it to the 0.4m the
+; carry system was built around.
+;
+; The model's origin sits at its BASE (its node is translated +1 with the mesh spanning -1
+; to +1), so the instance is dropped a further 0.2 to centre the box on the RigidBody's
+; origin. A rigid body rotating about its corner looks broken the moment you throw it.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_crate"]
 size = Vector3(0.4, 0.4, 0.4)
@@ -19,9 +22,16 @@ script = ExtResource("1_interactable")
 interaction_type = 0
 interaction_text = "Pick up crate"
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-mesh = SubResource("BoxMesh_crate")
-surface_material_override/0 = SubResource("StandardMaterial3D_crate")
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2, 0, -0.2, 0)
+
+; The .blend's `-col` suffix gives the mesh its own StaticBody3D. Right for scenery, wrong
+; here: a static body parented to a rigid body does not simulate, it is just teleported
+; around, leaving a solid ghost the player can walk into wherever the crate has been.
+; Layers cleared so it collides with nothing; the RigidBody's own shape below is the collider.
+[node name="StaticBody3D" parent="Model/Crate" index="0"]
+collision_layer = 0
+collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_crate")
