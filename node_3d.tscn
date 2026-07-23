@@ -1,7 +1,3 @@
 [gd_scene format=3 uid="uid://btpww3atdcmd1"]
 
-[ext_resource type="PackedScene" uid="uid://d2am813sjskhb" path="res://CD_Cryo_v1.2.blend" id="1_a202f"]
-
 [node name="Node3D" type="Node3D" unique_id=1262964198]
-
-[node name="CD_Cryo_v1_2" parent="." unique_id=924533935 instance=ExtResource("1_a202f")]
