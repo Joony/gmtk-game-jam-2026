@@ -38,22 +38,12 @@ signal settings_changed
 ## Streak is unbounded by speed otherwise, and past a point the sky turns into a smear.
 @export var max_streak: float = 22.0
 
-# --- Field depth -----------------------------------------------------------------
-# The star field spans a fixed depth range, so at speed a star crosses the whole range
-# in well under a second: it fades in, streaks, and fades out almost at once, which
-# reads as stars vanishing mid-view. Scaling the grid WITH speed fixes that — cell size
-# and the near/far limits grow together, so angular density and star size are unchanged
-# but each star lasts proportionally longer.
-#
-# TRADE-OFF: scaling fully would make warp look like cruise (apparent motion is
-# speed/cell_size, so scaling cell with speed cancels it out). This factor is the dial:
-# 0 keeps the old behaviour and the full sense of speed but short-lived stars; 1.0 makes
-# stars maximally persistent but flattens the speed sensation. The streaking carries the
-# speed impression either way.
-@export_range(0.0, 1.0) var field_stretch_with_speed: float = 0.2
-@export var base_cell_size: float = 45.0
-@export var base_near_distance: float = 15.0
-@export var base_far_distance: float = 700.0
+# NOTE: the star grid's cell size and range are deliberately NOT driven from here.
+# An earlier version scaled them with speed so stars would last longer at speed, but
+# changing cell_size re-rolls the whole grid — every star jumps to a new position, which
+# read as the sky flickering whenever you changed speed. Stars are fixed objects: going
+# faster moves you past them faster, nothing more. The distant shell supplies the
+# persistence that scaling was trying to buy.
 
 ## Current speed. Zero stops the starfield dead, which is what a stalled ship should look like.
 var speed: float = 0.0:
@@ -142,9 +132,5 @@ func _apply() -> void:
 		# Stretch only ABOVE cruise. The previous form scaled by speed_ratio directly,
 		# so at cruise it already pushed the field 4x further out and the near stars
 		# barely moved — the stretch has to be 1.0 at normal speed by construction.
-		var stretch := maxf(1.0, 1.0 + (speed_ratio() - 1.0) * field_stretch_with_speed)
-		material.set_shader_parameter("cell_size", base_cell_size * stretch)
-		material.set_shader_parameter("near_distance", base_near_distance * stretch)
-		material.set_shader_parameter("far_distance", base_far_distance * stretch)
 		material.set_shader_parameter("streak", minf(streak_at_cruise * speed_ratio(), max_streak))
 		material.set_shader_parameter("destination_brightness", destination_brightness)

@@ -364,6 +364,9 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       field depth scales with speed so a star is not crossing the whole range in under a second.
       Measured 0.2% -> 0.0% vanished at 20x cruise. `field_stretch_with_speed` dials persistence
       against the sense of speed.
+- [x] Field stretching removed — changing `cell_size` re-rolled the whole grid, so every speed
+      change flickered. Near field brought in to 10–260m so its stars actually stream.
+      Measured: 28% sky change per second at cruise, 0.0% re-roll on speed change.
 - [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
       field to move against. One sample per ray; angular density so it fills the sky independently
       of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.

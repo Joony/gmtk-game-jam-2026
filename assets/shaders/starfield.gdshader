@@ -13,15 +13,15 @@ uniform vec4 space_color : source_color = vec4(0.006, 0.008, 0.016, 1.0);
 /// Elongates stars along the direction of travel as speed rises.
 uniform float streak : hint_range(0.0, 40.0) = 0.0;
 /// Apparent size of a star, in radians. Small: a star is a point of light, not a disc.
-uniform float star_angular_size : hint_range(0.0002, 0.02) = 0.0018;
+uniform float star_angular_size : hint_range(0.0002, 0.02) = 0.0026;
 /// World spacing of the star grid, and how far out the field is sampled.
-uniform float cell_size = 45.0;
+uniform float cell_size = 30.0;
 /// Stars start FAR away. Close stars sweep across the view in a second and read as
 /// specks flying past the hull rather than a distant sky.
-uniform float near_distance = 15.0;
+uniform float near_distance = 10.0;
 /// Stars fade out approaching this. Kept below the DDA's worst-case reach so the
 /// fade, not the walk running out of steps, is what ends the field.
-uniform float far_distance = 700.0;
+uniform float far_distance = 260.0;
 // --- Nebula ---------------------------------------------------------------------
 // Computed from the view DIRECTION only, never from position, so it behaves as if
 // infinitely far away: it does not slide past as the ship travels, which is correct
@@ -54,8 +54,8 @@ uniform float destination_brightness : hint_range(0.0, 4.0) = 0.0;
 uniform float destination_size : hint_range(0.0005, 0.2) = 0.02;
 
 // Cells visited per ray by the DDA below. A diagonal ray crosses ~1.7 cells per cell
-// length, so this reaches ~700m worst case — matching far_distance.
-const int STEPS = 28;
+// length, so 18 reaches ~310m worst case — comfortably past far_distance.
+const int STEPS = 18;
 
 varying vec3 world_position;
 

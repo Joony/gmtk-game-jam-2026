@@ -159,13 +159,34 @@ Cruise now reports `cell=45 near=15 far=700` (unscaled); 60x reports `cell=576 n
 white. Now `angular_cell = 0.05`, density 0.35: about **1,760** over the sphere, ~64 through a
 single window.
 
-### The trade-off, and the dial
+### Field stretching removed (2026-07-23)
 
-Apparent motion is roughly `speed / cell_size`, so scaling the cell fully with speed would cancel
-the sense of speed entirely — warp would look like cruise with longer streaks.
-`field_stretch_with_speed` (default **0.35**) is the dial: **0** restores the old behaviour, full
-speed sensation and short-lived stars; **1.0** gives maximum persistence and the flattest sense of
-speed. The streaking carries much of the speed impression regardless.
+Scaling the grid with speed was the wrong idea and is gone. **Changing `cell_size` re-rolls the
+entire grid** — every star jumps to a new position — so every speed change made the sky flicker.
+Stars are fixed objects; going faster moves you past them faster, and nothing else should change.
+
+It also had a second bug: the scale was computed from `speed_ratio()` directly, so at *cruise* it
+already pushed the field 4x out and the near stars barely moved.
+
+The distant shell now supplies the persistence that scaling was trying to buy, so nothing is lost.
+`cell_size`, `near_distance` and `far_distance` are once again plain static settings on the
+material, and edits to them stick.
+
+### The near field is deliberately NEAR
+
+With the shell handling the distant sky, the near field's only job is *moving* parallax stars, so
+it now spans **10–260m** (was 15–700m) with 30m cells. Visible stars sit close enough to stream
+past at a readable rate rather than crawling.
+
+Measured, with streaking disabled so only star positions count:
+
+| | result |
+|---|---|
+| one second of travel at cruise | **28%** of a whole-new-sky change — stars visibly move |
+| changing speed at a fixed position | **0.0%** — no re-roll, the field is identical |
+
+(Measuring this needs `_process` frozen and the uniforms pushed by hand; otherwise
+`distance_travelled` keeps accumulating between frames and "the same position" is not.)
 
 ## How it was verified
 
