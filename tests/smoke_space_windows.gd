@@ -37,25 +37,27 @@ func _run() -> void:
 
 	var motion: ShipMotion = game.get_node("Motion")
 	var ship: Node3D = game.get_node("Ship")
-	var panes := get_nodes_in_group(RoomBuilder.GROUP_WINDOW)
-	_check("the ship has windows (%d)" % panes.size(), panes.size() >= 2)
-	if panes.is_empty():
+	# --- The starfield is a BACKDROP SHELL, not panes in the windows ---------
+	# That is what makes each window a genuine hole, so real exterior geometry shows
+	# through it, occluded by the walls and parallaxed because it is actually there.
+	var shells := get_nodes_in_group(ShipMotion.GROUP_STARFIELD)
+	_check("there is a starfield shell (%d)" % shells.size(), shells.size() == 1)
+	if shells.is_empty():
 		_report()
 		return
 
-	# --- The pane and its shader --------------------------------------------
-	var pane: MeshInstance3D = panes[0]
-	var material: ShaderMaterial = pane.material_override as ShaderMaterial
-	_check("window uses a ShaderMaterial", material != null)
+	var shell: MeshInstance3D = shells[0]
+	var material: ShaderMaterial = shell.get_surface_override_material(0) as ShaderMaterial
+	_check("the shell carries a ShaderMaterial", material != null)
 	_check("the starfield shader is loaded", material != null and material.shader != null)
-	_check("pane is sized to the opening", (pane.mesh as QuadMesh).size.x > 0.5)
+	_check("the shell encloses the ship", (shell.mesh as SphereMesh).radius > 200.0)
 
-	# One shared material, so windows cannot disagree about speed or heading.
-	var shared := true
-	for other in panes:
-		if (other as MeshInstance3D).material_override != material:
-			shared = false
-	_check("all windows share one material", shared)
+	# Windows must build NO pane — a pane would hide anything outside the hull.
+	var panes := 0
+	for node in ship.get_node("Built").find_children("*", "MeshInstance3D", true, false):
+		if node.mesh is QuadMesh:
+			panes += 1
+	_check("windows build no pane (%d found)" % panes, panes == 0)
 
 	# --- The opening is really cut through the wall -------------------------
 	# Find the window opening in the ship's data, then prove no wall piece covers
@@ -98,7 +100,11 @@ func _run() -> void:
 
 		# Glass, or thrown items would fly out into space.
 		var glazing := get_nodes_in_group(RoomBuilder.GROUP_WINDOW_GLASS)
-		_check("every opening is glazed (%d panes, %d glass)" % [panes.size(), glazing.size()], glazing.size() == panes.size())
+		var window_count := 0
+		for candidate2 in ship.doorways:
+			if candidate2.fit_window:
+				window_count += 1
+		_check("every opening is glazed (%d windows, %d glass)" % [window_count, glazing.size()], glazing.size() == window_count)
 
 	# --- Motion drives the starfield ----------------------------------------
 	motion.speed = motion.cruise_speed
@@ -148,6 +154,27 @@ func _run() -> void:
 		"destination can be turned on",
 		float(material.get_shader_parameter("destination_brightness")) > 0.5
 	)
+
+	# --- Real geometry outside the hull -------------------------------------
+	var station: Node3D = game.get_node_or_null("Station")
+	_check("there is a station outside", station != null)
+	if station != null:
+		_check(
+			"the station is outside the hull (%.0fm out)" % absf(station.global_position.x),
+			absf(station.global_position.x) > 20.0
+		)
+		var hub: MeshInstance3D = station.get_node("Hub")
+		# Layer 2 keeps the exterior sun off the interior.
+		_check("station renders on the exterior layer (%d)" % hub.layers, hub.layers == 2)
+		_check("the station is inside the shell", station.global_position.length() < (shell.mesh as SphereMesh).radius)
+
+	var sun: DirectionalLight3D = game.get_node_or_null("ExteriorSun")
+	_check("there is an exterior sun", sun != null)
+	if sun != null:
+		_check(
+			"the exterior sun cannot light the interior (cull mask %d)" % sun.light_cull_mask,
+			sun.light_cull_mask == 2
+		)
 
 	_report()
 

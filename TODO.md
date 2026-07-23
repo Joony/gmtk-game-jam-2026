@@ -346,9 +346,17 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Tested: shader loads, opening genuinely cut (geometric check), glazing, motion advances and
       stops, streak responds, destination toggles
 
+- [x] **Windows are real holes** — the starfield moved from per-window panes to a backdrop shell
+      (inverted sphere, `starfield` group), so real exterior geometry shows through them
+- [x] **Space station outside the hull**, on render layer 2 with an `ExteriorSun` whose
+      `light_cull_mask` keeps it off the interior
+
 ### Follow-ups (not blocking)
 
 - [ ] Rename `Doorway` → `WallOpening` (six files) now that it models windows too
+- [ ] A planet is still best done procedurally in the shader (ray-sphere) — real geometry can't
+      sit at a believable distance given the 4000m far plane
+- [ ] Nebula / Milky Way band for depth (procedural, direction-only so it behaves as if at infinity)
 - [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must
 - [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
 - [ ] Optional polish from the original plan not done: passing debris, a distant planet

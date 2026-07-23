@@ -36,7 +36,6 @@ const GROUP_WALL := &"room_wall"
 const GROUP_LIGHT := &"room_lights"
 const GROUP_DOOR := &"room_door"
 const GROUP_LIGHT_PANEL := &"room_light_panels"
-const GROUP_WINDOW := &"space_windows"
 const GROUP_WINDOW_GLASS := &"space_window_glass"
 
 @export var tile_size: float = 1.0
@@ -158,26 +157,16 @@ func _build_window(opening: Doorway) -> void:
 	if height <= 0.01:
 		return
 
-	var pane := MeshInstance3D.new()
-	pane.name = "Window_%s" % opening.id
-	var quad := QuadMesh.new()
-	quad.size = Vector2(opening.width * tile_size, height)
-	pane.mesh = quad
-	pane.material_override = _starfield_material()
-
+	# No pane: the starfield is a backdrop shell around the whole ship (see
+	# ShipMotion), so a window is a genuine hole and anything outside the hull —
+	# a station, a planet, debris — is simply visible through it.
 	var at := grid_to_world(opening.position.x, opening.position.y)
-	pane.position = Vector3(at.x, opening.sill + height * 0.5, at.y)
-	# A QuadMesh faces +Z; an opening spanning Z sits in a wall whose normal is X.
-	if opening.axis == Doorway.Axis.Z:
-		pane.rotate_y(PI * 0.5)
-	pane.add_to_group(GROUP_WINDOW)
-	_built_root.add_child(pane)
 
-	# Glass. Without it the opening is a hole: the player can't fit through (the sill
-	# blocks them) but a thrown crate would sail out into space.
+	# Glass. The opening is a real hole now: the player can't fit through (the sill
+	# blocks them) but a thrown crate would otherwise sail out into space.
 	var glass := StaticBody3D.new()
 	glass.name = "WindowGlass_%s" % opening.id
-	glass.position = pane.position
+	glass.position = Vector3(at.x, opening.sill + height * 0.5, at.y)
 	var shape := CollisionShape3D.new()
 	shape.name = "Shape"
 	var box := BoxShape3D.new()
@@ -192,15 +181,6 @@ func _build_window(opening: Doorway) -> void:
 	glass.add_to_group(GROUP_WINDOW_GLASS)
 	_built_root.add_child(glass)
 
-
-## One shared material across every window, so ShipMotion updates them all at once.
-func _starfield_material() -> ShaderMaterial:
-	if _materials.has("starfield"):
-		return _materials["starfield"]
-	var material := ShaderMaterial.new()
-	material.shader = load("res://assets/shaders/starfield.gdshader")
-	_materials["starfield"] = material
-	return material
 
 
 func _build_door(doorway: Doorway) -> void:

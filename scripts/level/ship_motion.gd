@@ -1,12 +1,18 @@
 class_name ShipMotion
 extends Node
 
-# The ship's travel state, and the single source of truth every window reads from — so
-# they can never disagree about speed or heading.
+# The ship's travel state, and the single source of truth for the starfield.
 #
-# Same pattern as LightingController: values are pushed to everything in the
-# `space_windows` group each frame, so a window built later (a new room, a repaired
-# section) picks up the current motion with no registration step.
+# The stars live on a BACKDROP SHELL around the ship, not on panes in the windows.
+# That makes each window a genuine hole: real geometry outside the hull (a station,
+# a planet, debris) is simply visible through it, correctly occluded by the walls and
+# correctly parallaxed, because it is actually there.
+#
+# Same push-to-a-group pattern as LightingController, so anything added to the
+# `starfield` group later is driven with no registration step.
+
+## Anything carrying the starfield material — currently the backdrop shell.
+const GROUP_STARFIELD := &"starfield"
 
 signal speed_changed(speed: float)
 
@@ -52,8 +58,10 @@ func speed_fraction() -> float:
 
 func _apply() -> void:
 	var fraction := speed_fraction()
-	for pane in get_tree().get_nodes_in_group(RoomBuilder.GROUP_WINDOW):
-		var material := (pane as MeshInstance3D).material_override as ShaderMaterial
+	for pane in get_tree().get_nodes_in_group(GROUP_STARFIELD):
+		var material := (pane as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		if material == null:
+			material = (pane as MeshInstance3D).material_override as ShaderMaterial
 		if material == null:
 			continue
 		material.set_shader_parameter("travel_direction", travel_direction.normalized())
