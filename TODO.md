@@ -538,9 +538,13 @@ lurching ship with no sound is worse than a still one.
 - [ ] Everything loose gets a small upward impulse at once, like the ship struck something
 - [ ] `apply_central_impulse()` over the `interactables` and `spare_parts` groups, with a
       little random lateral scatter so it does not look like a single scripted jolt
-- [ ] **The carried item will not respond** — `Carry` authors its position every frame, so an
-      impulse is overwritten. Either skip the held item, or make a hard enough bump knock it
-      out of the player's hands (which is more fun, and `Carry.drop()` already exists).
+- [ ] **A hard bump knocks the carried item out of the player's hands.** Threshold on the
+      bump's magnitude, so a light knock rattles the room and a real impact costs you your
+      grip — losing a spare mid-corridor and having to chase it is exactly the right kind of
+      *Martian* indignity.
+- [ ] That has to be an explicit `Carry.drop()` call, not an impulse: `Carry` authors the held
+      item's position every frame, so an impulse applied to it is simply overwritten. Drop
+      first, THEN impulse, or the item will not move at all.
 - [ ] Give the player a matching vertical nudge, or the room bounces and they do not
 - [ ] Pairs with 14a and with the same alarm event; needs a sound more than it needs anything
       else (step 13)
@@ -558,10 +562,14 @@ penalty, and a repair panel that switches it back on.
       `is_on_floor()`; this is a flag it checks before applying the jump impulse.
 - [ ] Items: `gravity_scale = 0` across the loose bodies, plus a gentle drift and enough
       linear damping that the room does not turn into a blender
-- [ ] **Two hazards to design around before building it:**
-      an item that drifts to the ceiling, or into a wall, is a spare the player can no longer
-      reach — so either clamp drift to a height they can still grab from, or make restoring
-      gravity drop everything back within reach
+- [ ] Items drifting out of reach is **fine and intended** — no drift clamp. Restoring gravity
+      drops everything back, so a floating spare is a delay, not a loss, and "I cannot reach
+      that until I fix the gravity" is a better puzzle than anything a clamp would give.
+- [ ] What makes that safe is worth stating, because it is the thing that must not regress:
+      **the gravity fault can always be cleared empty-handed.** `RepairPoint`'s patch route
+      needs no spare, so a player whose only spare is floating past the ceiling can still
+      switch gravity back on. Give this fault a wall panel like the others and never make it
+      require a carried part, or a stranded spare becomes an unwinnable run.
 - [ ] Carrying still works — `Carry` authors position directly and never asked for gravity
 - [ ] Ties into the theme nicely: floating is also how you *notice* the fault, before the HUD
       tells you
