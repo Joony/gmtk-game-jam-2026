@@ -703,9 +703,12 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
       `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()` — Phase 2:
       copied unchanged, full API verified by `tests/smoke_cable_socket.gd` (25 checks). Seating
       confirmed to stay on the **proximity-release** model.
-- [ ] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels
-- [ ] Some cables start permanently plugged in at one end — one plug seated and non-removable,
-      so the player only ever handles the free end
+- [x] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels — Phase 4:
+      `scenes/props/power_cable.tscn` hand-placed in the engine room (screenshot-verified). Polish
+      left: nudge the socket flush to the wall + swap in `CD_Plug_v1.blend`.
+- [x] Some cables start permanently plugged in at one end — one plug seated and non-removable,
+      so the player only ever handles the free end. Phase 4: `CablePlug.fixed` +
+      `fixed_socket_path`; unbreakable + non-grabbable. Verified by `tests/smoke_cable_placement.gd`.
 - [ ] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
       discharges while powering something. Carryable, so it reaches things no cable can.
 - [ ] Charge indicator: a row of small emissive bars on the cube. Same trick as

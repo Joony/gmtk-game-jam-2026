@@ -1,0 +1,59 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" uid="uid://bvbhh3yj2jjod" path="res://addons/cables/scripts/cable_3d.gd" id="1_cable"]
+[ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="Script" uid="uid://bp803jqilruil" path="res://scripts/game/cable_plug.gd" id="3_plug"]
+
+; A power cable: one end (FixedPlug) is bolted permanently into a wall SOURCE socket, the other
+; (FreePlug) hangs loose for the player to carry and plug into a sink. Mount the root with the
+; SourceSocket's +Z pointing into the room (its -Z goes into the wall). Plug bodies are simple
+; boxes for now; swap in CD_Plug_v1.blend as a polish pass.
+
+[sub_resource type="BoxMesh" id="BoxMesh_plug"]
+size = Vector3(0.12, 0.12, 0.22)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plug"]
+albedo_color = Color(0.18, 0.19, 0.22, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.12, 0.12, 0.22)
+
+[node name="PowerCable" type="Node3D"]
+
+[node name="SourceSocket" type="Node3D" parent="."]
+script = ExtResource("2_socket")
+is_power_source = true
+
+[node name="FixedPlug" type="RigidBody3D" parent="."]
+continuous_cd = true
+script = ExtResource("3_plug")
+fixed = true
+fixed_socket_path = NodePath("../SourceSocket")
+
+[node name="Mesh" type="MeshInstance3D" parent="FixedPlug"]
+mesh = SubResource("BoxMesh_plug")
+surface_material_override/0 = SubResource("StandardMaterial3D_plug")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FixedPlug"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="FreePlug" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, -0.25, 0.35)
+continuous_cd = true
+script = ExtResource("3_plug")
+
+[node name="Mesh" type="MeshInstance3D" parent="FreePlug"]
+mesh = SubResource("BoxMesh_plug")
+surface_material_override/0 = SubResource("StandardMaterial3D_plug")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FreePlug"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="Cable" type="Node3D" parent="."]
+script = ExtResource("1_cable")
+plug_a_path = NodePath("../FixedPlug")
+plug_b_path = NodePath("../FreePlug")
+rest_length = 4.0
+segment_length = 0.12

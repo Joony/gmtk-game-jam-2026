@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://scenes/props/computer.tscn" id="22_computer"]
 [ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
 [ext_resource type="PackedScene" uid="uid://d3rvhjh1qhy4e" path="res://3D-Models/CD_CryoStation_v1.blend" id="24_station"]
+[ext_resource type="PackedScene" path="res://scenes/props/power_cable.tscn" id="25_cable"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -105,6 +106,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
+
+; Wall power cable in the engine room: one end bolted to a source socket, the free end for the
+; player to run to a device. Placement screenshot-verified; adjust if the ship walls move.
+[node name="PowerCable" parent="." instance=ExtResource("25_cable")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.3, -20)
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)

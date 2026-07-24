@@ -28,6 +28,12 @@ const RESEAT_COOLDOWN := 0.75
 # Group every CableSocket registers in (see cable_socket.gd).
 const SOCKET_GROUP := &"cable_sockets"
 
+# A FIXED plug is bolted to the ship: it starts permanently seated in `fixed_socket_path`,
+# is never a pickup target (is_enabled stays false), and never pops (force_unseat is a no-op).
+# So the player only ever handles the OTHER, free end of the cable.
+@export var fixed: bool = false
+@export var fixed_socket_path: NodePath
+
 # Back-reference to the cable whose rope ends at this plug (set by Cable3D at its ready via the
 # duck-typed `"cable" in node` probe — so the plug must expose this property by this name).
 var cable: Cable3D = null
@@ -71,6 +77,28 @@ func _ready() -> void:
 	# contact (the play-reported cube shove).
 	_body.contact_monitor = true
 	_body.max_contacts_reported = 4
+
+	if fixed:
+		# Freeze immediately so it can't fall in the frame before the deferred seat authors it
+		# onto the socket. The seat is deferred because it needs the cable back-ref (set in
+		# Cable3D._ready) and the socket's own _ready to have run first.
+		_body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		_body.freeze = true
+		is_enabled = false  # a bolted-in end is never a ray target
+		_seat_fixed.call_deferred()
+
+
+# Seat a `fixed` plug into its bolted socket at startup. Idempotent-safe: only seats a free
+# socket, and does nothing if already seated.
+func _seat_fixed() -> void:
+	if is_seated():
+		return
+	var socket := get_node_or_null(fixed_socket_path) as CableSocket
+	if socket == null:
+		push_error("CablePlug.fixed is set but fixed_socket_path did not resolve to a CableSocket")
+		return
+	if socket.can_accept(self):
+		_seat(socket)
 
 
 func is_held() -> bool:
@@ -125,6 +153,8 @@ func on_drop() -> void:
 # unfreezes BEFORE the impulse (an impulse on a frozen body is a no-op); and the re-seat cooldown
 # blocks an immediate re-plug.
 func force_unseat(recoil: Vector3) -> void:
+	if fixed:
+		return  # a bolted-in end never pops, no matter how hard the cable is pulled
 	if not is_seated():
 		return
 	var socket := _seated_socket

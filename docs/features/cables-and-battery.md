@@ -124,6 +124,40 @@ the cable's breakaway → `force_unseat`. The player is added to `cable_ignore` 
 shoves it (Doortal did the same). `smoke_interaction.gd` still passes — no regression on the
 shared Interactable/Carry path.
 
+## Phase 4 — Wall sockets & permanently-seated ends ✅
+
+Three pieces:
+
+- **`cable_ignore` on the player** ([scenes/player.tscn](../../scenes/player.tscn)). The cable's
+  default `exclude_groups` is `[cable_ignore]`; without the player in it, the rope would collide
+  with and shove the player, and a tension-dragged plug would push it around. Doortal put the
+  player in the same group. (Phase 3's test added it in code; now it ships on the scene.)
+- **`fixed` plugs** ([scripts/game/cable_plug.gd](../../scripts/game/cable_plug.gd)). A plug with
+  `fixed = true` + a `fixed_socket_path` is bolted to the ship: it freezes and seats into that
+  socket at startup (deferred, so the cable back-ref and the socket's `_ready` land first), sets
+  `is_enabled = false` so it is never a ray target, and its `force_unseat` is a **no-op** so the
+  cable's breakaway can never pop it. The player only ever handles the free end.
+- **A reusable [scenes/props/power_cable.tscn](../../scenes/props/power_cable.tscn)**: a source
+  `CableSocket`, a `FixedPlug` bolted into it, a loose `FreePlug`, and the `Cable3D` between them.
+  One instance is hand-placed in the engine room in [game.tscn](../../scenes/game.tscn) (like the
+  repair panels — the ship walls are procedural, so the spot was screenshot-verified rather than
+  wall-snapped). Plug bodies are plain boxes for now; **polish TODO:** nudge the socket flush to
+  the wall and swap in `CD_Plug_v1.blend`.
+
+### Verified — [tests/smoke_cable_placement.gd](../../tests/smoke_cable_placement.gd)
+
+`... -s tests/smoke_cable_placement.gd` → **CABLE PLACEMENT TEST PASS**. Part A drives
+`power_cable.tscn` in isolation: the fixed end seats into the source, powers the cable, is frozen
+and non-targetable; the free end is loose, grabbable, and falls under gravity; and pinning the
+free end 8 m out (massive overstretch, held past several breakaway windows) **cannot** pop the
+bolted-in end. Part B loads `game.tscn` and confirms the player carries `cable_ignore` and the
+in-ship `PowerCable`'s fixed end is seated and powering the cable. `smoke_interaction.gd` still
+passes after the `player.tscn` group change.
+
+**Visual proof:** a capture of the engine-room cable ([tests/capture_cable.gd](../../tests/capture_cable.gd))
+shows the wall socket, the rope draping to the floor **glowing warm** (the powered emission — so
+power reads visually too), and the free plug resting at its end.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
