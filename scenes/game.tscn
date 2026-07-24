@@ -112,7 +112,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
 ; window (x -2.5..2.5) and the MainDrive (x=-3.5). One end bolted to a source socket, the free
 ; end for the player to run to a device. Placement screenshot-verified.
 [node name="PowerCable" parent="." instance=ExtResource("25_cable")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.95)
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)

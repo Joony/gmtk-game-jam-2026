@@ -1,24 +1,20 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" uid="uid://bvbhh3yj2jjod" path="res://addons/cables/scripts/cable_3d.gd" id="1_cable"]
 [ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
 [ext_resource type="Script" uid="uid://bp803jqilruil" path="res://scripts/game/cable_plug.gd" id="3_plug"]
+[ext_resource type="PackedScene" uid="uid://dkair2f4bvk4g" path="res://3D-Models/CD_Plug_v1.blend" id="4_model"]
 
 ; A power cable: one end (FixedPlug) is bolted permanently into a wall SOURCE socket, the other
 ; (FreePlug) hangs loose for the player to carry and plug into a sink. Mount the root with the
-; SourceSocket's +Z pointing into the room (its -Z goes into the wall). Plug bodies are simple
-; boxes for now; swap in CD_Plug_v1.blend as a polish pass.
-
-[sub_resource type="BoxMesh" id="BoxMesh_plug"]
-size = Vector3(0.12, 0.12, 0.22)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plug"]
-albedo_color = Color(0.18, 0.19, 0.22, 1)
-metallic = 0.6
-roughness = 0.4
+; SourceSocket's +Z pointing into the room (its -Z, the plug nose direction, goes into the wall).
+;
+; Plug visual is CD_Plug_v1 scaled to ~0.19 m (its prongs point down -Z, the nose convention, so
+; it needs no rotation). The model ships a nested StaticBody3D collider (the .blend `-col` mesh);
+; its layers are zeroed like the crate's so the RigidBody's own box below is the only collider.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.12, 0.12, 0.22)
+size = Vector3(0.18, 0.09, 0.14)
 
 [node name="PowerCable" type="Node3D"]
 
@@ -32,9 +28,12 @@ script = ExtResource("3_plug")
 fixed = true
 fixed_socket_path = NodePath("../SourceSocket")
 
-[node name="Mesh" type="MeshInstance3D" parent="FixedPlug"]
-mesh = SubResource("BoxMesh_plug")
-surface_material_override/0 = SubResource("StandardMaterial3D_plug")
+[node name="Model" parent="FixedPlug" instance=ExtResource("4_model")]
+transform = Transform3D(0.03, 0, 0, 0, 0.03, 0, 0, 0, 0.03, 0, 0.03, 0)
+
+[node name="StaticBody3D" parent="FixedPlug/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="FixedPlug"]
 shape = SubResource("BoxShape3D_plug")
@@ -46,9 +45,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0.5)
 continuous_cd = true
 script = ExtResource("3_plug")
 
-[node name="Mesh" type="MeshInstance3D" parent="FreePlug"]
-mesh = SubResource("BoxMesh_plug")
-surface_material_override/0 = SubResource("StandardMaterial3D_plug")
+[node name="Model" parent="FreePlug" instance=ExtResource("4_model")]
+transform = Transform3D(0.03, 0, 0, 0, 0.03, 0, 0, 0, 0.03, 0, 0.03, 0)
+
+[node name="StaticBody3D" parent="FreePlug/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="FreePlug"]
 shape = SubResource("BoxShape3D_plug")

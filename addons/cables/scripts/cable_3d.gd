@@ -226,7 +226,7 @@ const PIN_RESETTLE_JUMP := 0.5
 ## BREAKAWAY_RATIO for BREAKAWAY_TIME pops the non-held seated end, recoiling
 ## along the rope by IMPULSE_PER_METER x excess, clamped to [MIN, MAX].
 ## (The freed plug's re-seat cooldown lives in CablePlug.RESEAT_COOLDOWN.)
-const BREAKAWAY_RATIO := 1.6
+const BREAKAWAY_RATIO := 1.2
 const BREAKAWAY_TIME := 0.25
 const BREAKAWAY_IMPULSE_PER_METER := 1.5
 const BREAKAWAY_IMPULSE_MIN := 0.5

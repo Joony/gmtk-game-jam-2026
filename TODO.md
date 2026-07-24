@@ -704,8 +704,8 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
       copied unchanged, full API verified by `tests/smoke_cable_socket.gd` (25 checks). Seating
       confirmed to stay on the **proximity-release** model.
 - [x] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels — Phase 4:
-      `scenes/props/power_cable.tscn` hand-placed in the engine room (screenshot-verified). Polish
-      left: nudge the socket flush to the wall + swap in `CD_Plug_v1.blend`.
+      `scenes/props/power_cable.tscn` hand-placed on the engine-room forward wall, socket flush,
+      `CD_Plug_v1.blend` plug model, breakaway lowered to 1.2× (screenshot-verified).
 - [x] Some cables start permanently plugged in at one end — one plug seated and non-removable,
       so the player only ever handles the free end. Phase 4: `CablePlug.fixed` +
       `fixed_socket_path`; unbreakable + non-grabbable. Verified by `tests/smoke_cable_placement.gd`.

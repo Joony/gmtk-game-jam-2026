@@ -141,8 +141,9 @@ Three pieces:
   `CableSocket`, a `FixedPlug` bolted into it, a loose `FreePlug`, and the `Cable3D` between them.
   One instance is hand-placed in the engine room in [game.tscn](../../scenes/game.tscn) (like the
   repair panels — the ship walls are procedural, so the spot was screenshot-verified rather than
-  wall-snapped). Plug bodies are plain boxes for now; **polish TODO:** nudge the socket flush to
-  the wall and swap in `CD_Plug_v1.blend`.
+  wall-snapped). Plug visual is `CD_Plug_v1.blend` scaled to ~0.19 m (its prongs point down -Z,
+  the nose convention, so it needs no rotation; the model's nested `-col` StaticBody has its layers
+  zeroed like the crate's, leaving the RigidBody's own box the only collider).
 
 ### Verified — [tests/smoke_cable_placement.gd](../../tests/smoke_cable_placement.gd)
 
@@ -179,6 +180,19 @@ Two issues from playing the build:
   through a new `carries` group that `Carry` registers in. Verified by a new held-drop section in
   [smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd) (pulling a held plug past the ratio drops
   it with a measured recoil); the seated-pop and fixed-never-breaks cases still pass.
+
+### Phase 4 polish (playtest round 2)
+
+- **Socket nudged flush** to the forward wall (`z` −21.8 → −21.95): the receptacle now sits on the
+  wall surface with the plug's prongs seated into it, instead of floating ~0.2 m proud.
+- **Real plug model** (`CD_Plug_v1.blend`) replaces the placeholder boxes on both ends.
+- **Breakaway threshold lowered `1.6 → 1.2`** (`Cable3D.BREAKAWAY_RATIO`): overstretch now releases
+  at 1.2× rest instead of 1.6×, so the drop/pop triggers with a gentler pull (~4.8 m on the 4 m
+  ship cable). Note for Phase 6: a cable plugged at *both* ends must span less than 1.2× rest or it
+  breaks itself at rest — sink sockets need to sit within that of their source.
+
+All five cable/interaction smoke tests still pass; re-captured screenshots confirm the flush socket
+and the plug model on both ends.
 
 ## Notes for later phases
 
