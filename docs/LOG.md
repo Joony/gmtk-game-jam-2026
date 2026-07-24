@@ -2,6 +2,10 @@
 
 Overview of implemented features. Each entry links to a detailed per-feature log in `features/`.
 
+> **Testing:** [`testing.md`](testing.md) documents the working procedure — run
+> `tools/run_tests.sh` before every commit; screenshots for anything visual; measure, don't
+> eyeball; prove every regression test can fail.
+>
 > **Hit a weird Godot behaviour?** [`debugging-gotchas.md`](debugging-gotchas.md) collects the
 > non-obvious traps this project ran into (row-major `.tscn` bases, the one-frame origin
 > flash, silent audio/particle no-ops, headless-test pitfalls) with the workaround for each.

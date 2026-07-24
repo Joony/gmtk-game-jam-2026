@@ -136,10 +136,17 @@ func _run() -> void:
 
 	# Doors are shut until you approach, and would wall off the whole ship from a static
 	# sweep. Open every one first: the question is whether the LAYOUT is connected.
+	#
+	# Disable each door's _physics_process after opening. A door auto-closes ~0.1s after it
+	# is opened while empty (the cable-guillotine guard added in the door), so without this
+	# every door re-shuts before the flood runs and the ship reads as disconnected. In real
+	# play the door is open because the player is standing in its trigger; we are proving the
+	# layout is connected, not the door dynamics, so holding them open is the correct model.
 	var doors := 0
 	for door in get_nodes_in_group(RoomBuilder.GROUP_DOOR):
 		if door is SlidingDoor:
 			(door as SlidingDoor).open()
+			(door as SlidingDoor).set_physics_process(false)
 			doors += 1
 	# The panels slide on a tween over open_time; sampling before it finishes reports the
 	# ship as walled off at every doorway.
