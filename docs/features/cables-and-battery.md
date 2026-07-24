@@ -461,13 +461,31 @@ fixes in [cable_3d.gd](../../addons/cables/scripts/cable_3d.gd):
    Stable (velocity-level, no energy added) and physical (no teleport — it still collides with
    walls). Only free plug ends towed against an anchoring far end; cube-drag and seated ends untouched.
 
+### Follow-up — a snagged cable must still release (the gate was too absolute)
+
+First cut of fix 1 above *never* dropped a held plug against a non-anchored far end. Play feedback:
+walk between rooms and the cable catches on a door frame — the far end is physically blocked, the
+tow can't reel it in, and with no release the rope just stretched forever. The gate was a band-aid
+from before the tow existed; the tow makes it unnecessary and harmful. Measured: during a normal
+towed drag the gap peaks at **2.64 m** against the **3.0 m** breakaway threshold — so re-enabling
+the held-plug breakaway can't false-fire during a real carry. Reaching the breakaway distance now
+means the cable genuinely *can't* follow (snagged, or out-walked past the reel), which is exactly
+when it should give.
+
+Fix: the gate is removed. `_break_away` again drops the held plug on sustained overstretch (with its
+existing recoil), and the tow keeps a *followable* loose end well under the threshold so this only
+fires as a release valve for a stuck cable — the design choice the player picked over a movement
+"leash" (which would have reintroduced the cable→player shove that `cable_ignore` deliberately
+removes).
+
 ### Verified — [tests/smoke_cable_drag.gd](../../tests/smoke_cable_drag.gd)
 
-**CABLE DRAG TEST PASS**, driven through the real pickup path: (a) sustained overstretch against a
-free far end never drops the held plug and the far plug is towed along; (b) walking a light loose
-cable at a deterministic 3.6 m/s keeps the far plug within the breakaway distance (a spring-only
-cable balloons to ~4.3 m). Both mutation-tested — defeating the gate drops the held plug; disabling
-the tow balloons the gap. Full cable/battery/interaction suite green.
+**CABLE DRAG TEST PASS**, driven through the real pickup path: (a) TAUT DRAG — walking a followable
+light loose cable at a deterministic 3.6 m/s keeps the far plug within the breakaway distance and
+never drops it (a spring-only cable balloons to ~4.3 m); (b) SNAG RELEASE — a far end that can't
+follow (too heavy to reel, standing in for a plug wedged on a door frame) pops the held plug from
+your hand instead of stretching forever. Both mutation-tested — disabling the tow balloons the gap;
+blocking the held-drop leaves the snagged cable stuck. Full cable/battery/interaction suite green.
 
 ## Notes for later phases
 

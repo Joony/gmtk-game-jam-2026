@@ -1184,18 +1184,11 @@ func _tension_receiver(endpoint: Node3D, socket: CableSocket) -> RigidBody3D:
 
 ## Elastic breakaway (ADR 0046 mechanism 3): the stretch ratio must hold past
 ## BREAKAWAY_RATIO for BREAKAWAY_TIME continuously — a momentary yank never
-## pops a connection.
-# An endpoint the player cannot drag toward: no tension receiver (a bolted-in plug, a bare static
-# anchor, or a plug seated in a static/frozen mount — all effectively infinite-mass) and not being
-# carried. A HELD plug only breaks away against a far end like this; a loose far end tows instead.
-func _endpoint_is_anchored(node: Node3D, socket: CableSocket) -> bool:
-	if node == null:
-		return true  # a missing/severed far end is a dead anchor — releasing the held end is fine
-	if node.has_method("is_held") and node.is_held():
-		return false
-	return _tension_receiver(node, socket) == null
-
-
+## pops a connection. With the free-end tow (see _tow_free_end) holding a
+## FOLLOWABLE loose end well under BREAKAWAY_RATIO, reaching this threshold now
+## means the cable genuinely CAN'T follow — snagged on geometry, or walked away
+## from faster than it reels — so the breakaway becomes the release valve for a
+## stuck cable rather than something that fires during a normal carry.
 func _update_breakaway(delta: float, length: float) -> void:
 	if length > rest_length * BREAKAWAY_RATIO:
 		_breakaway_time += delta
@@ -1214,10 +1207,13 @@ func _update_breakaway(delta: float, length: float) -> void:
 ## ALONG the cable toward the far end rather than through geometry; magnitude scales with the
 ## overstretch excess, clamped.
 ##
-## Two passes: pass 1 (allow_held = false) sacrifices a SEATED end first, keeping the player's
-## grip; only pass 2 (allow_held = true) drops a HELD plug, for when nothing else could give (the
-## classic case: the far end is bolted down and the near end is in your hand). End B is tried
-## before A within each pass (tiebreak kept from the seat-preference history).
+## Two passes: pass 1 (allow_held = false) sacrifices a SEATED end first, keeping the player's grip
+## (so an over-pulled cable pops out of a socket/cube before it leaves your hand); only pass 2
+## (allow_held = true) drops a HELD plug, for when nothing else could give — the far end is bolted
+## down, OR it is a loose end the cable can no longer follow (snagged, or out-walked past the tow's
+## reel). The free-end tow keeps a followable loose end under BREAKAWAY_RATIO, so reaching pass 2
+## against one means it is genuinely stuck. End B is tried before A within each pass (tiebreak kept
+## from the seat-preference history).
 func _break_away(length: float) -> void:
 	var last := points.size() - 1
 	for allow_held: bool in [false, true]:
@@ -1225,16 +1221,6 @@ func _break_away(length: float) -> void:
 			var endpoint := _anchor_b if which == 1 else _anchor_a
 			if endpoint == null or not endpoint.has_method("break_connection"):
 				continue
-			# A HELD plug is sacrificed ONLY when the FAR end is a true anchor (bolted, or seated in
-			# a static/frozen mount) the player cannot pull toward. If the far end is loose — a free
-			# plug or a draggable cube — it tows along instead, so the cable must never yank out of
-			# your hand (play feedback: carrying a cable whose other end is plugged into nothing
-			# should just drag the far end, not drop the one you're holding).
-			if allow_held and endpoint.has_method("is_held") and endpoint.is_held():
-				var far := _anchor_a if which == 1 else _anchor_b
-				var far_socket := socket_a if which == 1 else socket_b
-				if not _endpoint_is_anchored(far, far_socket):
-					continue
 			var idx := last if which == 1 else 0
 			var n_idx := last - 1 if which == 1 else 1
 			var dir := points[n_idx] - points[idx]

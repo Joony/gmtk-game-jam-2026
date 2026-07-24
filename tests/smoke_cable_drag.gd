@@ -1,12 +1,15 @@
 extends SceneTree
 # Step 14d playtest fix: dragging a cable whose FAR end is loose.
 # When you carry one plug and the other end is plugged into nothing, walking the cable to where you
-# need it must TOW the loose end along — never yank the plug out of your hand, and not rubber-band.
-# Two guarantees, driven through the real Interactor -> Carry pickup path against the game scene:
-#   * NO-DROP: sustained overstretch against a free far end does not drop the held plug (a HELD plug
-#     only breaks away when the far end is a true anchor). The far plug is towed toward the near one.
-#   * TAUT DRAG: steadily walking a light loose cable keeps it within the breakaway distance (the
-#     stiffer free-end tow keeps up) and never drops it.
+# need it must TOW the loose end along without rubber-banding — but if the cable genuinely can't
+# follow (the far end snagged on geometry, or out-walked past what the tow reels), it must RELEASE
+# instead of stretching forever. Two guarantees, driven through the real Interactor -> Carry pickup
+# path against the game scene:
+#   * TAUT DRAG: steadily walking a followable light loose cable keeps it within the breakaway
+#     distance (the free-end tow keeps up) and never drops it.
+#   * SNAG RELEASE: when the far end can't follow (here, too heavy to reel in time — standing in for
+#     a plug wedged against a door frame), sustained overstretch pops the held plug from your hand
+#     (the breakaway release valve) rather than stretching without bound.
 # Run: godot --headless --path . -s tests/smoke_cable_drag.gd
 
 const GAME_SCENE := "res://scenes/game.tscn"
@@ -102,9 +105,11 @@ func _run() -> void:
 	_player.add_to_group(&"cable_ignore")  # the cable must never shove the player
 	await _physics_frames(20)
 
-	# ================= NO-DROP: sustained overstretch against a free far end =================
-	# Near plug A (carried) <-> far plug B (heavy, loose — plugged into nothing). Heavy B so the tow
-	# can't erase the gap before the breakaway window elapses, keeping the overstretch honest.
+	# ================= SNAG RELEASE: a far end that can't follow pops the held plug =========
+	# Near plug A (carried) <-> far plug B (heavy, loose). The heavy B stands in for a plug wedged
+	# against a door frame: the tow can't reel it in fast enough, so the straight-line cable holds
+	# past breakaway (REST * 1.2 = 3.0 m) — and the breakaway must then release the held plug rather
+	# than let the cable stretch forever.
 	var plug_a := _make_plug(1.0)
 	var plug_b := _make_plug(50.0)
 	var cable := Cable3D.new()
@@ -121,14 +126,12 @@ func _run() -> void:
 	_check("carrying the near plug", _carry.is_holding() and _carry.held_item() == plug_a)
 
 	# Park the free far end just ahead of the held one, then walk the player steadily BACKWARD away
-	# from it (small per-tick steps — a teleport makes Carry auto-drop). The heavy far plug lags, so
-	# the straight-line cable holds well past breakaway (REST * 1.2 = 3.0 m) the whole walk. Move on
-	# RENDER frames, where Carry builds its carry velocity.
+	# from it (small per-tick steps — a teleport makes Carry auto-drop). Move on RENDER frames, where
+	# Carry builds its carry velocity.
 	var forward := -_cam.global_transform.basis.z
 	plug_b.global_position = _cam.global_position + forward * 0.5
 	(plug_b as RigidBody3D).linear_velocity = Vector3.ZERO
 	await _physics_frames(2)
-	var b_start := plug_b.global_position
 	var dropped_a := false
 	for i in 150:
 		_player.global_position -= forward * 0.08
@@ -137,15 +140,11 @@ func _run() -> void:
 			dropped_a = true
 			break
 	await _physics_frames(5)
-	# A held plug against a FREE far end must survive the whole drag: the cable tows the far plug, it
-	# never pops from your hand. (Mutation-tests the breakaway gate — remove it and this drops.)
-	_check("carrying a cable whose far end is loose never drops the held plug",
-		not dropped_a and _carry.is_holding())
-	# Only the tow acts on the (gravity-free) far plug, so any displacement from rest is the tow
-	# pulling it along after the carried end.
-	_check("the loose far end is towed along (moved %.2f m)"
-			% b_start.distance_to(plug_b.global_position),
-		b_start.distance_to(plug_b.global_position) > 0.03)
+	# The cable can't follow the far end, so walking on must release the held plug (the breakaway
+	# valve) instead of stretching without bound. (Mutation-tests the removed gate — re-add it and
+	# the held plug never drops, so this fails.)
+	_check("a cable that can't follow releases the held plug rather than stretching forever",
+		dropped_a and not _carry.is_holding())
 
 	# Put the held plug down and clear the scene for the next phase.
 	_press("interact")
