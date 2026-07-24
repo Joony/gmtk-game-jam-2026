@@ -345,6 +345,10 @@ var _material: ShaderMaterial = null
 
 func _ready() -> void:
 	process_priority = 150
+	# So obstruction-aware machinery (e.g. a sliding door that won't close on the line the player is
+	# running between rooms) can find every cable and query its polyline. The rope is not a physics
+	# body, so an Area3D can't see it; a group + the public `points` is how it is detected.
+	add_to_group(&"cables")
 	_anchor_a = _resolve_endpoint(plug_a_path, anchor_a_path)
 	_anchor_b = _resolve_endpoint(plug_b_path, anchor_b_path)
 	var g: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)

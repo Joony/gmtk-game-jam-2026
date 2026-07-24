@@ -487,6 +487,11 @@ follow (too heavy to reel, standing in for a plug wedged on a door frame) pops t
 your hand instead of stretching forever. Both mutation-tested — disabling the tow balloons the gap;
 blocking the held-drop leaves the snagged cable stuck. Full cable/battery/interaction suite green.
 
+The commonest snag — a door closing on the line as you cross between rooms — is prevented upstream:
+a sliding door now stays open while a cable runs through it (see
+[sliding-doors.md](sliding-doors.md)), so breakaway is left to handle only genuine snags on static
+wall geometry.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

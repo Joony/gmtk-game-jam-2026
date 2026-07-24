@@ -100,6 +100,35 @@ still closed further down the corridor (`doors open: [true, false]`).
 
 Regression: all eight headless suites pass.
 
+## Cable obstruction — a door won't close on a cable running through it (step 14d)
+
+Running power between rooms (battery/socket → device) drapes a cable through a doorway. The door
+closed the instant the player left the trigger, guillotining the line — pinching the rope, or (with
+the cable breakaway) popping the plug out of the player's hand. So a door now stays open while a
+cable crosses its opening, and closes once the line is clear.
+
+- **Detection.** The rope is a verlet polyline, **not a physics body**, so the trigger `Area3D`
+  (player-only) can't see it — and when the door closes both plugs are usually in *other* rooms with
+  only the rope spanning the gap. So the door finds cables via the `cables` group (Cable3D joins it
+  at `_ready`) and tests each cable's public `points` against an opening box. The box is where the
+  closed panels sit, widened in depth (`OPENING_MIN_DEPTH = 0.25`, vs a ~0.05 m panel) so a crossing
+  rope point — spaced ~`segment_length` apart — always lands inside; points are tested in door-local
+  space via `to_local`, so it's orientation-agnostic.
+- **Asymmetric by design.** Obstruction only *defers the close*, never opens: `_on_body_exited`
+  closes only if the opening is clear, and while open-and-empty `_physics_process` rechecks
+  (throttled to `RECHECK_INTERVAL = 0.1 s`) and closes once the cable leaves. A cable merely lying
+  *near* a closed door must never make it yawn open, so opening stays player-only (the trigger).
+- Complements the cable breakaway (see [cables-and-battery.md](cables-and-battery.md)): the door no
+  longer *causes* a snag; breakaway remains the release valve for a genuine snag on static geometry.
+
+### Verified — [tests/smoke_door_cable.gd](../../tests/smoke_door_cable.gd)
+
+**DOOR CABLE TEST PASS**: a cable crossing the opening is detected (and one clear of it, or just past
+the depth, is not); a cable in the doorway keeps the door open when the player leaves, and it closes
+once the line is dragged clear; with the opening clear a normal exit still closes immediately.
+Mutation-tested (forcing "never obstructed" fails both the detection and the stay-open checks). Full
+suite green, including `smoke_run_state` (the whole ship with real doors).
+
 ## Scene fix found while testing
 
 The demo `Socket` sat centred directly in front of the pod-bay doorway, blocking the route to the
