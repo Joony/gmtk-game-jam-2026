@@ -105,6 +105,24 @@ func is_held() -> bool:
 	return _held
 
 
+# Explicitly seat this plug into `socket`, dropping it from the player's hands first if held. This
+# is the look-and-press route (a USE_ITEM target like the battery calls it), as opposed to nosing
+# the plug into snap range and releasing. Returns whether it seated.
+func plug_into(socket: CableSocket) -> bool:
+	if socket == null or not socket.can_accept(self) or is_seated():
+		return false
+	if is_held():
+		# Clear any snap candidate so on_drop (fired inside Carry.drop) can't seat us elsewhere.
+		_set_snap_candidate(null)
+		var carrier := _carrier_holding_self()
+		if carrier != null:
+			carrier.drop(false)
+	if is_seated():
+		return true  # already handled by on_drop (shouldn't happen with the candidate cleared)
+	_seat(socket)
+	return true
+
+
 func is_seated() -> bool:
 	return _seated_socket != null and is_instance_valid(_seated_socket)
 
@@ -208,22 +226,37 @@ func force_unseat(recoil: Vector3) -> void:
 	_reseat_cooldown = RESEAT_COOLDOWN
 
 
-# The cable's PHYSICS pin: where the rope endpoint is constrained each tick. The body centre is
-# the attachment point (v1 — no tail offset); a seated plug pins at the socket, which tracks a
-# moving mount ahead of the body's tick lag.
+# The cable attaches at a gland on the BACK of the plug (the nose is -Z, so the back is +Z), not
+# the body centre — otherwise the rope emerged from the middle of the model and pivoted freely,
+# reading as a loose joint. cable_exit_dir() additionally lines the first rope segment up with the
+# plug's axis so it comes straight out the back.
+const CABLE_BACK_OFFSET := 0.16
+
+
+# The transform whose +Z is the plug's back: the socket while seated (so the pin tracks a moving
+# mount ahead of the body's tick lag), else the body itself. Carry authors the whole body each
+# render frame, so global_transform is both the physics and the render pose.
+func _attach_transform() -> Transform3D:
+	return _seated_socket.snap_transform() if is_seated() else global_transform
+
+
+# The cable's PHYSICS pin: the back-gland world position.
 func cable_pin() -> Vector3:
-	if is_seated():
-		return _seated_socket.snap_transform().origin
-	return global_position
+	return _attach_transform() * Vector3(0.0, 0.0, CABLE_BACK_OFFSET)
 
 
-# The cable's RENDER pin. Unlike Doortal (where the held mesh was top_level and authored ahead of
-# the body), our Carry authors the whole BODY's transform each render frame, so the body pose IS
-# the render pose — global_position serves both held and free. A seated plug pins at the socket.
+# The cable's RENDER pin — same gland (see _attach_transform).
 func cable_render_pin() -> Vector3:
-	if is_seated():
-		return _seated_socket.snap_transform().origin
-	return global_position
+	return cable_pin()
+
+
+# The world direction the cable should leave the plug: straight out the back (+Z). Zero while the
+# plug is loose and tumbling (let the rope just hang); only enforced when held or seated, where the
+# plug has a stable orientation to line up with.
+func cable_exit_dir() -> Vector3:
+	if is_seated() or is_held():
+		return _attach_transform().basis.z
+	return Vector3.ZERO
 
 
 # Seat into `socket`: freeze kinematic and hard-SERVER-set the body onto the snap transform
@@ -277,7 +310,9 @@ func _update_snap_candidate() -> void:
 	if not _held or _reseat_cooldown > 0.0:
 		_set_snap_candidate(null)
 		return
-	var pin := cable_render_pin()
+	# Proximity snapping measures from the plug CENTRE (where the body meets the socket), not the
+	# back-gland cable pin — you nose the plug INTO the socket.
+	var pin := global_position
 	var best: CableSocket = null
 	var best_dist := INF
 	for node in get_tree().get_nodes_in_group(SOCKET_GROUP):

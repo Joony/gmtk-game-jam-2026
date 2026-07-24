@@ -156,6 +156,14 @@ func _run() -> void:
 	await _physics_frames(2)
 	_check("seating into a source powers the cable", cable.powered)
 
+	# --- The cable leaves the plug straight out its back (not a loose joint) ---------------
+	# The seated plug's back is the socket's +Z; the first rope segment must line up with it.
+	var exit := socket.snap_transform().basis.z.normalized()
+	var seg := (cable.points[1] - cable.points[0])
+	if seg.length() > 1e-4:
+		seg = seg.normalized()
+	_check("the cable exits the plug along its back axis (dot=%.2f)" % seg.dot(exit), seg.dot(exit) > 0.85)
+
 	# --- Seated plug follows a moving socket -----------------------------------------------
 	socket.global_position = _cam.global_position + forward * 1.0
 	await _physics_frames(6)

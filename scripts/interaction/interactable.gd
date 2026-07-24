@@ -56,7 +56,10 @@ func can_act_on(held_item: Node3D = null) -> bool:
 			return true
 
 
-func get_interaction_type() -> InteractionType:
+# `held_item` lets a target choose its interaction from what you're carrying — e.g. the battery is
+# a PICKUP empty-handed but a USE_ITEM (plug the cable in) while you hold a plug. Most interactables
+# ignore it.
+func get_interaction_type(_held_item: Node3D = null) -> InteractionType:
 	if not is_enabled:
 		return InteractionType.DISABLED
 	return interaction_type

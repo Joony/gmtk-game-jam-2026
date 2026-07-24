@@ -64,6 +64,49 @@ func charge_fraction() -> float:
 	return 0.0 if capacity <= 0.0 else clampf(charge / capacity, 0.0, 1.0)
 
 
+# --- Interaction: PICKUP empty-handed, USE_ITEM (plug the cable in) while holding a plug ---------
+# Looking at the whole cube counts, not just the tiny port, so you can plug in by looking at the
+# battery and pressing E — the standard use-item interaction — instead of nosing the plug into
+# snap range.
+
+func _holding_plug(item: Node3D) -> bool:
+	return item != null and item.has_method("plug_into")
+
+
+func get_interaction_type(held_item: Node3D = null) -> InteractionType:
+	if not is_enabled:
+		return InteractionType.DISABLED
+	return InteractionType.USE_ITEM if _holding_plug(held_item) else InteractionType.PICKUP
+
+
+func can_act_on(held_item: Node3D = null) -> bool:
+	if not is_enabled:
+		return false
+	if _holding_plug(held_item):
+		return _port != null and _port.can_accept(held_item)
+	return held_item == null  # empty-handed: pick the cube up
+
+
+func get_interaction_text(held_item: Node3D = null) -> String:
+	if _holding_plug(held_item):
+		if _port != null and _port.can_accept(held_item):
+			return "Plug in cable"
+		return "Port in use"
+	return interaction_text
+
+
+func can_use_with_item(item: Node3D) -> bool:
+	return _holding_plug(item) and _port != null and _port.can_accept(item)
+
+
+func use_with_item(item: Node3D) -> void:
+	if not can_use_with_item(item):
+		return
+	var plug := item as CablePlug
+	if plug != null and plug.plug_into(_port):
+		used_with_item.emit(self, item)
+
+
 func _physics_process(delta: float) -> void:
 	if _port == null:
 		return

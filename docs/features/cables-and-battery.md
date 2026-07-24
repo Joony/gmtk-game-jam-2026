@@ -249,6 +249,31 @@ is matched to it (`0.42×0.18×0.42`). Now the visual and the collider agree (no
 plug keeps its centre ~0.2 m off the wall, so the rope endpoint stays in open space. `smoke_plug_wall`
 guards the clamp (it fails if the plug can't collide); all other cable/interaction tests still pass.
 
+### Playtest fixes — plug-into-battery interaction & cable-to-plug alignment
+
+**"Hands full" when plugging into the battery.** Seating was proximity-release only, so looking at
+the battery while carrying a plug hit the PICKUP path ("Hands full"). The battery now presents as a
+**USE_ITEM** target while you hold a plug and as a **PICKUP** empty-handed — look at the whole cube,
+press E to plug in. This needed `Interactable.get_interaction_type(held_item)` to be held-aware (the
+`Interactor` now passes the carried item into the dispatch); the base class ignores it, the battery
+overrides `get_interaction_type` / `can_act_on` / `get_interaction_text` / `use_with_item`. Seating
+itself is a new `CablePlug.plug_into(socket)` — drop from the carrier, then seat — reusable by any
+future USE_ITEM plug target (wall sockets, Phase 6 devices). Proximity-release still works too.
+Verified by [tests/smoke_battery_interact.gd](../../tests/smoke_battery_interact.gd): empty-handed
+"Pick up battery", holding a plug "Plug in cable" + actionable (not "Hands full"), E seats it and the
+cube charges. `smoke_interaction` still passes (the shared dispatch change is transparent to crates
+and repair panels).
+
+**Cable looked like a loose joint.** The rope pinned at the plug's *centre* and pivoted at any
+angle. Now it attaches at a gland on the **back** of the plug (`CABLE_BACK_OFFSET` along +Z, since
+the nose is -Z), and `CablePlug.cable_exit_dir()` reports the back axis so `Cable3D._pin_exit` pins
+the first interior point one segment along it — the rope leaves **straight out the back** when the
+plug is held or seated (a loose, tumbling plug reports no direction, so its cable just hangs). The
+snap scan still measures from the plug centre (you nose it *into* a socket). Verified by an
+alignment assertion in [smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd) (first segment vs the
+plug's back axis, `dot > 0.85`); mutation-tested — with the exit direction removed the segment
+droops to `dot −0.58` and the check fails.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

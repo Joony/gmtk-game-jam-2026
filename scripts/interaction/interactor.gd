@@ -113,9 +113,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("interact"):
 		var holding := _carry.is_holding()
+		var held := _carry.held_item()
 		# Using the held item on something takes priority over dropping it —
-		# that's the repair loop: carry the part, look at the panel, press E.
-		if holding and current != null and current.get_interaction_type() == Interactable.InteractionType.USE_ITEM:
+		# that's the repair loop: carry the part, look at the panel, press E. The held item is
+		# passed in so a target can present as USE_ITEM only for what you're carrying (the battery
+		# accepts a plug this way).
+		if holding and current != null and current.get_interaction_type(held) == Interactable.InteractionType.USE_ITEM:
 			var item := _carry.held_item()
 			current.use_with_item(item)
 			# A part fitted into a panel is gone. Drop first so Carry lets go of a body

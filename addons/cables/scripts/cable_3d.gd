@@ -632,6 +632,24 @@ func _pin_endpoints() -> void:
 	prev_points[0] = points[0]
 	points[last] = _endpoint_pin(_anchor_b)
 	prev_points[last] = points[last]
+	_pin_exit(_anchor_a, 0, 1)
+	_pin_exit(_anchor_b, last, last - 1)
+
+
+## If an endpoint exposes a cable exit direction (a plug reports the way out of its back), pin the
+## adjacent interior point one segment along it, so the rope leaves the plug IN LINE with it — out
+## the back — instead of pivoting at the attach point like a loose joint. Endpoints without the
+## method (a bare anchor) are left free.
+func _pin_exit(node: Node3D, end_i: int, next_i: int) -> void:
+	if node == null or not node.has_method("cable_exit_dir"):
+		return
+	if next_i < 0 or next_i > points.size() - 1:
+		return
+	var dir: Vector3 = node.cable_exit_dir()
+	if dir.length_squared() < 1e-6:
+		return
+	points[next_i] = points[end_i] + dir.normalized() * _eff_segment
+	prev_points[next_i] = points[next_i]
 
 
 ## One stretch-only distance-constraint pass. Endpoints have weight 0 (pinned);
