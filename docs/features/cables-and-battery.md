@@ -274,6 +274,11 @@ alignment assertion in [smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd) (f
 plug's back axis, `dot > 0.85`); mutation-tested — with the exit direction removed the segment
 droops to `dot −0.58` and the check fails.
 
+`CABLE_BACK_OFFSET` is deliberately small (0.08 m, well inside the ~0.22 m base half-extent): a
+first pass at 0.16 m read as *disconnected* because a floor-resting plug can point its +Z any way,
+so the gland floated out past the plug's side. Small keeps it inside the body at any orientation;
+the exit-pin still supplies the straight-out-the-back look when held or seated.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

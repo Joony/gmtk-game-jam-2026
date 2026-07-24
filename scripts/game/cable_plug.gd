@@ -226,11 +226,13 @@ func force_unseat(recoil: Vector3) -> void:
 	_reseat_cooldown = RESEAT_COOLDOWN
 
 
-# The cable attaches at a gland on the BACK of the plug (the nose is -Z, so the back is +Z), not
-# the body centre — otherwise the rope emerged from the middle of the model and pivoted freely,
-# reading as a loose joint. cable_exit_dir() additionally lines the first rope segment up with the
-# plug's axis so it comes straight out the back.
-const CABLE_BACK_OFFSET := 0.16
+# The cable attaches at a gland just behind the plug's body centre, toward the back (the nose is
+# -Z, so the back is +Z). Kept SMALL — well inside the ~0.22 m base half-extent — so the gland
+# stays within the plug body at any orientation (a loose plug on the floor can point its +Z any
+# way; a bigger offset floated the attach point out to the side, reading as disconnected).
+# cable_exit_dir() lines the first rope segment up with the plug's axis so a held/seated plug's
+# cable still comes straight out the back.
+const CABLE_BACK_OFFSET := 0.08
 
 
 # The transform whose +Z is the plug's back: the socket while seated (so the pin tracks a moving
