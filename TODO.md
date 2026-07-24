@@ -694,8 +694,11 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
       layer and the two-real-room renderer removed, single tube. Verified by
       `tests/smoke_cable_sim.gd` (settle, overstretch, power). See
       [docs/features/cables-and-battery.md](docs/features/cables-and-battery.md).
-- [ ] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Our carry
-      is Doortal's, so the physics side should line up; it is the pickup base class that differs.
+- [x] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Phase 3:
+      `scripts/game/cable_plug.gd` — held-state from Carry's `on_pickup`/`on_drop`, seat-on-drop,
+      re-grab-to-unseat, `force_unseat` for breakaway. Verified end-to-end through the real input
+      path by `tests/smoke_cable_plug.gd` (24 checks); no regression on `smoke_interaction.gd`.
+      (Watch the `self as RigidBody3D` cross-branch cast trap — see docs/debugging-gotchas.md.)
 - [x] `CableSocket` already has what is needed: `is_power_source`, `powered`,
       `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()` — Phase 2:
       copied unchanged, full API verified by `tests/smoke_cable_socket.gd` (25 checks). Seating

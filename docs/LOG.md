@@ -33,3 +33,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-23 | Ship fittings: million-mile/day units, fixed-width readouts, cryo pod ring, vent pipe, nav console | Done, verified | [ship-fittings.md](features/ship-fittings.md) |
 | 2026-07-24 | Cables (step 14d, Phase 1): verlet rope ported from Doortal, portals stripped (1868→1280 lines) | Phase 1 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables (step 14d, Phase 2): CableSocket copied unchanged, full API verified; proximity-release confirmed | Phase 2 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 3): CablePlug rebased onto Interactable+Carry — grab/seat/re-grab/breakaway via the real input path | Phase 3 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |

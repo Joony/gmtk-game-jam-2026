@@ -172,6 +172,41 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
 
 ---
 
+## GDScript typing
+
+### `self as OtherType` is a compile error across sibling branches
+
+- **Symptom:** a script attached to a `RigidBody3D` but declared `extends Interactable` (which
+  `extends Node3D`) fails to compile with *"Invalid cast. Cannot convert from 'CablePlug' to
+  'RigidBody3D'"* the moment it tries `self as RigidBody3D` — even though the node genuinely *is*
+  a RigidBody3D at runtime.
+- **Cause:** `Interactable`/`Node3D` and `RigidBody3D` are sibling branches off `Node3D`. `as`
+  raises a *compile* error (not a runtime null) when the compiler can prove the two static types
+  are incompatible, and it can here — neither branch is an ancestor of the other.
+- **Fix:** launder the cast through a common ancestor the compiler accepts:
+  `var n: Node = self; var body := n as RigidBody3D`. `Node` is an ancestor of both, so the
+  upcast is valid and the following downcast is merely runtime-checked (it succeeds because the
+  node really is a RigidBody3D). The same applies to any test that needs both views of one node —
+  type the handle as `Node3D`, then cast to each concrete type separately. This is the price of
+  putting an `Interactable` (Node3D-branch) script on a physics body; see
+  [scripts/game/cable_plug.gd](../scripts/game/cable_plug.gd).
+
+### An editor scan registers a `class_name` even when the script won't compile
+
+- **Symptom:** `godot --headless --editor --quit-after N` prints `update_scripts_classes |
+  MyClass` and the name appears in `.godot/global_script_class_cache.cfg`, so the class looks
+  ready — but a `-s` test that `load()`s it dies with *"Invalid cast…"* / *"Compile Error: Failed
+  to compile depended scripts"*.
+- **Cause:** the global-class registration is driven by the `class_name` **declaration line**
+  during a light pre-parse; it does **not** require the body to type-check. A script with a
+  compile error still gets its name cached.
+- **Fix:** don't treat "the class is in the cache" as "the script compiles." The reliable compile
+  check is running a headless test that actually `load()`s (or instances) the script — the error
+  surfaces at load time. (New `class_name`s still need one editor scan first so *other* scripts
+  can resolve the name; that scan just isn't a compile gate.)
+
+---
+
 ## Headless testing & the test harness
 
 ### A parse error makes a `-s` test exit 0
