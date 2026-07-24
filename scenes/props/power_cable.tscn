@@ -14,7 +14,7 @@
 ; its layers are zeroed like the crate's so the RigidBody's own box below is the only collider.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.18, 0.09, 0.14)
+size = Vector3(0.42, 0.18, 0.42)
 
 [node name="PowerCable" type="Node3D"]
 
@@ -29,7 +29,7 @@ fixed = true
 fixed_socket_path = NodePath("../SourceSocket")
 
 [node name="Model" parent="FixedPlug" instance=ExtResource("4_model")]
-transform = Transform3D(0.03, 0, 0, 0, 0.03, 0, 0, 0, 0.03, 0, 0.03, 0)
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
 
 [node name="StaticBody3D" parent="FixedPlug/Model/Base" index="0"]
 collision_layer = 0
@@ -46,7 +46,7 @@ continuous_cd = true
 script = ExtResource("3_plug")
 
 [node name="Model" parent="FreePlug" instance=ExtResource("4_model")]
-transform = Transform3D(0.03, 0, 0, 0, 0.03, 0, 0, 0, 0.03, 0, 0.03, 0)
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
 
 [node name="StaticBody3D" parent="FreePlug/Model/Base" index="0"]
 collision_layer = 0

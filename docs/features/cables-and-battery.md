@@ -230,6 +230,25 @@ load, and at empty stops sourcing so the sink loses power; `charge_fraction` rea
 full. Screenshot confirms 3/5 bars lit green at 60% with the port ring on the face. All prior
 cable/interaction smoke tests still pass.
 
+### Playtest fix — plug size & wall clip
+
+Report: "picked up the plug, walked slowly into a wall, the plug pushed right through; let go and
+the cable was stuck in the wall."
+
+Investigating, Carry's collide-and-slide sweep **always** clamps the held plug to the near side of
+a wall — [tests/smoke_plug_wall.gd](../../tests/smoke_plug_wall.gd) confirms it, and it still passed
+with the *old* small box (only failing when the plug has no collider at all). So the plug never
+physically tunnelled. What "pushed through" was the **`CD_Plug_v1` model overhanging its collision
+box**: the box was `0.18×0.09×0.14` while the model reads ~0.19 m plus prongs, so the visual poked
+into the wall while the box sat clamped at the surface — and with the box that shallow, the rope
+endpoint (the plug centre) sat almost on the wall, so the slack rope draped into it and the verlet
+depenetration couldn't always dig back out.
+
+Fix: the plug model is scaled up ~2.3× (`0.03 → 0.07`, ~0.44 m) as requested, and the collision box
+is matched to it (`0.42×0.18×0.42`). Now the visual and the collider agree (no clip), and a clamped
+plug keeps its centre ~0.2 m off the wall, so the rope endpoint stays in open space. `smoke_plug_wall`
+guards the clamp (it fails if the plug can't collide); all other cable/interaction tests still pass.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

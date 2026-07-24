@@ -38,3 +38,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-24 | Cables 14d playtest fixes: moved the cable off the wall (forward wall), overstretch now drops from hand / pops from wall with an elastic recoil | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables 14d polish: socket flush to wall, CD_Plug_v1 model, breakaway threshold 1.6→1.2 | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables (step 14d, Phase 5): battery cube — charges from a source, drains into a sink, per-instance charge bars | Phase 5 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: plug scaled ~2.3× with collision box matched — model no longer clips walls, rope endpoint stays clear | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
