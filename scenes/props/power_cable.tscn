@@ -39,8 +39,10 @@ surface_material_override/0 = SubResource("StandardMaterial3D_plug")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="FixedPlug"]
 shape = SubResource("BoxShape3D_plug")
 
+; Hangs down and OUT into the room (+Z is the room side, per the socket convention) so it and the
+; slack rope settle in open space, never inside the mounting wall.
 [node name="FreePlug" type="RigidBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, -0.25, 0.35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0.5)
 continuous_cd = true
 script = ExtResource("3_plug")
 

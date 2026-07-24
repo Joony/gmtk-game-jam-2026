@@ -147,6 +147,45 @@ func on_drop() -> void:
 		_seat(socket)
 
 
+# The cable's overstretch release (called by Cable3D._break_away). Returns whether this end
+# actually gave. A bolted-in end never does; a seated end pops out of its socket; a held end drops
+# from the player's hands — but only on the second (allow_drop_held) pass, so the cable sacrifices
+# a socketed end before the player's grip. In every case the plug whips back along the cable with
+# `recoil` for a little elastic snap.
+func break_connection(recoil: Vector3, allow_drop_held: bool) -> bool:
+	if fixed:
+		return false
+	if is_seated():
+		force_unseat(recoil)
+		return true
+	if allow_drop_held and is_held():
+		_drop_from_carrier(recoil)
+		return true
+	return false
+
+
+# Drop this plug out of the player's hands, then fling it toward the far end of the cable. The
+# re-seat cooldown is set BEFORE the drop so on_drop() (which fires inside Carry.drop) can't
+# immediately re-seat the plug into a socket it happens to be near.
+func _drop_from_carrier(recoil: Vector3) -> void:
+	_reseat_cooldown = RESEAT_COOLDOWN
+	var carrier := _carrier_holding_self()
+	if carrier != null:
+		carrier.drop(false)
+	_body.sleeping = false
+	_body.apply_central_impulse(recoil)
+
+
+# The Carry currently holding this plug, found via the "carries" group Carry registers in. There
+# is normally one carrier (the player), but the held_item() check is exact regardless.
+func _carrier_holding_self() -> Carry:
+	for node in get_tree().get_nodes_in_group(&"carries"):
+		var carry := node as Carry
+		if carry != null and carry.held_item() == self:
+			return carry
+	return null
+
+
 # The cable pops this SEATED plug loose with an elastic recoil (ADR 0046 breakaway). The
 # seated-socket reference clears FIRST so _follow_seated_socket can never re-author the freed body
 # onto the vacated socket; the unseat + set_endpoint_socket(null) route the power unfeed; the body

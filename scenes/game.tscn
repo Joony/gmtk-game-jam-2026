@@ -107,10 +107,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
 
-; Wall power cable in the engine room: one end bolted to a source socket, the free end for the
-; player to run to a device. Placement screenshot-verified; adjust if the ship walls move.
+; Power cable on the engine room's FORWARD wall (z=-22, room is z>-22 so +Z faces into the room —
+; identity basis, no rotation needed). Set to the starboard side (x=3), clear of the forward
+; window (x -2.5..2.5) and the MainDrive (x=-3.5). One end bolted to a source socket, the free
+; end for the player to run to a device. Placement screenshot-verified.
 [node name="PowerCable" parent="." instance=ExtResource("25_cable")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1.3, -20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.8)
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)

@@ -31,8 +31,10 @@ extends Node3D
 ##   (a loose plug, or the cube a seated plug is mounted on) is pulled toward
 ##   its neighbour rope point, so a dragged cube follows the rope. A
 ##   held/seated/carried body gets no force — the carry system authors it.
-##   BREAKAWAY — sustained overstretch past BREAKAWAY_RATIO pops the non-held
-##   seated end out of its socket with an elastic recoil along the rope.
+##   BREAKAWAY — sustained overstretch past BREAKAWAY_RATIO releases whichever
+##   end can give (the endpoint's break_connection decides): a seated end pops
+##   out of its socket, a held end drops from the player's hands — with an
+##   elastic recoil along the rope. A bolted-in (fixed) end never releases.
 ##   POWER — ADR 0041's event-driven one-hop power via set_endpoint_socket.
 
 ## Preferred endpoint sources: bodies exposing cable_pin()/cable_render_pin().
@@ -1118,50 +1120,35 @@ func _update_breakaway(delta: float, length: float) -> void:
 		_breakaway_time = 0.0
 
 
-## The end breakaway disconnects: a SEATED end (socket non-null) whose plug is
-## not held. Prefer the end seated in a STATIC socket (mount_body() null) — a
-## plug pops out of a wall socket before one glued into a cube; tiebreak: end
-## B. Neither end seated -> no-op: the player's grip is never yanked, and
-## tension on a FREE end is the only coupling left.
-func _pick_breakaway_end() -> int:
-	var can_a := socket_a != null and not _endpoint_held(_anchor_a)
-	var can_b := socket_b != null and not _endpoint_held(_anchor_b)
-	if can_a and can_b:
-		if socket_a.mount_body() == null and socket_b.mount_body() != null:
-			return 0
-		return 1
-	if can_b:
-		return 1
-	if can_a:
-		return 0
-	return -1
-
-
-func _endpoint_held(endpoint: Node3D) -> bool:
-	return endpoint != null and endpoint.has_method("is_held") and endpoint.is_held()
-
-
-## Pop one seated end: recoil direction is the same neighbour-point local
-## direction the tension uses, at the freed end (the plug whips back along the
-## cable path, not straight through geometry); magnitude scales with the
-## overstretch excess, clamped. The plug's force_unseat does the physical part
-## (unseat, unfreeze, impulse, re-seat cooldown) and routes the power unfeed
-## through set_endpoint_socket (ADR 0041).
+## Break whichever end CAN give, so an overstretched pull always releases with a little elastic
+## recoil instead of going dead-taut. The endpoint decides HOW it gives (its duck-typed
+## break_connection): a seated plug pops out of its socket, a held plug drops from the player's
+## hands, a bolted-in (fixed) end or a bare anchor gives nothing. The recoil is the same
+## neighbour-point local direction the tension uses, at the freed end, so the plug whips back
+## ALONG the cable toward the far end rather than through geometry; magnitude scales with the
+## overstretch excess, clamped.
+##
+## Two passes: pass 1 (allow_held = false) sacrifices a SEATED end first, keeping the player's
+## grip; only pass 2 (allow_held = true) drops a HELD plug, for when nothing else could give (the
+## classic case: the far end is bolted down and the near end is in your hand). End B is tried
+## before A within each pass (tiebreak kept from the seat-preference history).
 func _break_away(length: float) -> void:
-	var which := _pick_breakaway_end()
-	if which < 0:
-		return
 	var last := points.size() - 1
-	var idx := 0 if which == 0 else last
-	var n_idx := 1 if which == 0 else last - 1
-	var dir := points[n_idx] - points[idx]
-	if dir.length_squared() < 1e-12:
-		return
-	var recoil := dir.normalized() * clampf(BREAKAWAY_IMPULSE_PER_METER * (length - rest_length),
-			BREAKAWAY_IMPULSE_MIN, BREAKAWAY_IMPULSE_MAX)
-	var endpoint := _anchor_a if which == 0 else _anchor_b
-	if endpoint.has_method("force_unseat"):
-		endpoint.force_unseat(recoil)
+	for allow_held: bool in [false, true]:
+		for which: int in [1, 0]:
+			var endpoint := _anchor_b if which == 1 else _anchor_a
+			if endpoint == null or not endpoint.has_method("break_connection"):
+				continue
+			var idx := last if which == 1 else 0
+			var n_idx := last - 1 if which == 1 else 1
+			var dir := points[n_idx] - points[idx]
+			if dir.length_squared() < 1e-12:
+				continue
+			var recoil := dir.normalized() * clampf(
+					BREAKAWAY_IMPULSE_PER_METER * (length - rest_length),
+					BREAKAWAY_IMPULSE_MIN, BREAKAWAY_IMPULSE_MAX)
+			if endpoint.break_connection(recoil, allow_held):
+				return
 
 
 func _process(_delta: float) -> void:

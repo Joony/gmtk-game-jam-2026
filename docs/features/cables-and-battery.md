@@ -158,6 +158,28 @@ passes after the `player.tscn` group change.
 shows the wall socket, the rope draping to the floor **glowing warm** (the powered emission — so
 power reads visually too), and the free plug resting at its end.
 
+### Phase 4 follow-up — playtest fixes
+
+Two issues from playing the build:
+
+- **Cable spawned inside the wall and thrashed.** The first placement was at `x=-6`, which is
+  *exactly* the engine room's port wall plane (`Rect2i(-6, -22, 12, 10)`) — so the rope seeded
+  inside the wall and the depenetration passes fought it forever. Moved to the **forward wall**
+  (`z=-22`, where "into the room" is `+Z` so identity basis needs no rotation), starboard side
+  `x=3` — clear of the forward window (`x -2.5..2.5`) and the MainDrive (`x=-3.5`). The free plug's
+  local offset is now `(0, -0.3, 0.5)` so it and the slack rope settle in open room space, never
+  in the mounting wall. Re-captured — it drapes cleanly now.
+- **Overstretch had no give.** Breakaway used to pop only a *seated* end and explicitly never
+  yanked the player's grip, so a cable bolted at one end and held at the other just went dead-taut.
+  Now `Cable3D._break_away` releases **whichever end can give**, and the endpoint decides how via a
+  duck-typed `break_connection(recoil, allow_drop_held)`: a seated plug pops, a **held plug drops
+  from the player's hands**, a bolted (`fixed`) end still never gives. Two passes sacrifice a
+  socketed end before the grip (`allow_drop_held` only on the second), and in every case the plug
+  gets an impulse **toward the far end** for a little elastic snap-back. The plug finds its carrier
+  through a new `carries` group that `Carry` registers in. Verified by a new held-drop section in
+  [smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd) (pulling a held plug past the ratio drops
+  it with a measured recoil); the seated-pop and fixed-never-breaks cases still pass.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

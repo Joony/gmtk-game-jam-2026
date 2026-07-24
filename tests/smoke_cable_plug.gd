@@ -187,6 +187,30 @@ func _run() -> void:
 	_check("breakaway freed the socket", socket.occupied_by == null)
 	_check("breakaway cleared the cable end", cable.socket_a == null)
 
+	# --- Elastic drop: overstretch while HELD drops the plug from the player ---------------
+	# The far end here is a bare anchor (can't give), so with the plug in hand the only release
+	# left is the player's grip — pulling too far drops it, flung toward the far end.
+	await _physics_frames(50)  # let the popped plug settle and its re-seat cooldown clear
+	body.freeze = false
+	body.gravity_scale = 0.0
+	body.linear_velocity = Vector3.ZERO
+	anchor.global_position = _cam.global_position + forward * 1.5 + Vector3(0, -0.5, 0)
+	_place_in_front(plug, 1.2)
+	await _physics_frames(3)
+	if not _carry.is_holding():
+		_press("interact")
+		await _frames(2)
+	_check("grabbed the free plug for the held-drop test", _carry.is_holding())
+	await _frames(30)  # reach the hold point
+	# Yank the far end well past the breakaway ratio while the plug is in hand.
+	anchor.global_position = (plug as Node3D).global_position + forward * 8.0
+	await _physics_frames(60)  # warm-up + breakaway hold + margin
+	_check("overstretch while held drops the plug from the player", not _carry.is_holding())
+	_check("the dropped plug reports no longer held", not cplug.is_held())
+	await _physics_frames(6)
+	_check("the dropped plug got an elastic recoil (%.2f m/s)" % body.linear_velocity.length(),
+		body.linear_velocity.length() > 0.3)
+
 	if _failures.is_empty():
 		print("CABLE PLUG TEST PASS")
 		quit(0)

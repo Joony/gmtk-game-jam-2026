@@ -35,3 +35,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-24 | Cables (step 14d, Phase 2): CableSocket copied unchanged, full API verified; proximity-release confirmed | Phase 2 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables (step 14d, Phase 3): CablePlug rebased onto Interactable+Carry — grab/seat/re-grab/breakaway via the real input path | Phase 3 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables (step 14d, Phase 4): fixed (bolted-in) plugs, power_cable.tscn, engine-room placement, player in cable_ignore | Phase 4 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fixes: moved the cable off the wall (forward wall), overstretch now drops from hand / pops from wall with an elastic recoil | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |

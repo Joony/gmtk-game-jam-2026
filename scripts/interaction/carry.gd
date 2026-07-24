@@ -54,6 +54,8 @@ var _prior_gravity_scale: float = 1.0
 func _ready() -> void:
 	# Must tick after CameraController has written the rig transform for this frame.
 	process_priority = 10
+	# So a held item can find its carrier (e.g. CablePlug asks to be dropped on overstretch).
+	add_to_group(&"carries")
 
 
 func is_holding() -> bool:
