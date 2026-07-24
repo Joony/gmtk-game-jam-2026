@@ -351,6 +351,27 @@ room and a plug sitting on the outside of the battery.
   residual "lag" when whipping a carried battery around is the physics rope tube swinging behind its
   endpoint, which is inherent to a simulated cable.
 
+### Wall sockets + a loose cable (pre-Phase 6 setup)
+
+- **[scripts/game/wall_socket.gd](../../scripts/game/wall_socket.gd) +
+  [scenes/props/wall_socket.tscn](../../scenes/props/wall_socket.tscn)** — a wall-mounted
+  `CableSocket` you plug a held cable into with the same look-and-press USE_ITEM interaction as the
+  battery (DISABLED empty-handed, since you can't pick up a wall fixture). It's a `StaticBody3D` so
+  the camera ray hits it; a seated plug excepts that body (its port's mount) and, being static, is
+  an infinite-mass anchor. `is_power_source` makes it a live outlet vs a device inlet.
+- **[scenes/props/loose_cable.tscn](../../scenes/props/loose_cable.tscn)** — a cable with a plug on
+  **both** ends, neither bolted; drop it on the floor and run either end to a socket.
+- Placed in the engine room: a live source outlet + two inlets on the forward wall, and the loose
+  cable on the floor. Running the loose cable source→sink powers it (glows) and feeds the sink.
+- **Placement gotcha:** the forward wall's *inner face* is at z=−21.92, not −22 (the wall is
+  `wall_thickness 0.15` centred on the rect edge). Sockets at −21.99 were buried behind it and
+  invisible; moved to −21.91 (a hair proud) so the faceplates show. The power cable moved with
+  them (its plug had been hiding its buried socket).
+- Verified by [tests/smoke_wall_socket.gd](../../tests/smoke_wall_socket.gd): the interaction
+  surface (USE_ITEM only with a plug, "Plug in cable"/"Socket in use"), seating a plug into the
+  port, and source→sink power through the loose cable (and death on unplug). Screenshot confirms
+  the sockets on the wall.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

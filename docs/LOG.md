@@ -43,3 +43,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-24 | Cables 14d playtest fix: a plug seated in a carried battery follows at render rate (no longer lags the cube) | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables 14d: merged main's prop models; socket receptacle now uses CD_Socket_v1.1 via a receptacle_scene export | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables 14d playtest: fixed wall-socket orientation/placement, plug seats OUTSIDE the socket (standoff), battery uses the socket model | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d (pre-Phase 6): wall sockets (look+E plug-in, source/sink) + a loose two-ended cable, placed in the engine room | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
