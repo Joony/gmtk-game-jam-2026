@@ -2,6 +2,10 @@
 
 Overview of implemented features. Each entry links to a detailed per-feature log in `features/`.
 
+> **Hit a weird Godot behaviour?** [`debugging-gotchas.md`](debugging-gotchas.md) collects the
+> non-obvious traps this project ran into (row-major `.tscn` bases, the one-frame origin
+> flash, silent audio/particle no-ops, headless-test pitfalls) with the workaround for each.
+
 | Date | Feature | Status | Details |
 |------|---------|--------|---------|
 | 2026-07-22 | Project structure (folders, `pause` input action, main scene) | Done, verified | [project-structure.md](features/project-structure.md) |

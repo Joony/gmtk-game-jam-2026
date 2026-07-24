@@ -81,6 +81,49 @@ hook `Carry`'s drop, not the socket's interaction.
   a child of one (the moving-mount case — a battery-cube face, later);
 - `snap_transform()` is the socket's own global transform.
 
+## Phase 3 — Rebase CablePlug onto Interactable + Carry ✅
+
+[scripts/game/cable_plug.gd](../../scripts/game/cable_plug.gd) — `class_name CablePlug extends
+Interactable`, attached to a `RigidBody3D` (the same "Interactable script on a RigidBody3D"
+convention `pickup_crate.tscn` uses). Rebased from Doortal's `PickableObject` subclass:
+
+- **Held-state** is no longer self-authored. Carry freezes and drives the body; the plug learns
+  it is held through `on_pickup()`/`on_drop()` and exposes `is_held()` from that flag (the cable's
+  tension/breakaway ask for it). `carry_did_teleport`/`on_teleport`/`notify_plug_teleport` — all
+  portal hooks — are gone.
+- **Seat-on-release** hooks `on_drop()` (Carry calls it last, after unfreezing): if a socket is
+  lit in snap range, the plug re-freezes kinematic, is server-authored onto `snap_transform()`,
+  and claims the socket — otherwise it drops normally. Re-grabbing a seated plug unseats it in
+  `on_pickup()` first. `force_unseat()` (the cable's breakaway) is unchanged.
+- **`cable_render_pin()` simplified.** Doortal's held mesh was `top_level` and authored ahead of
+  the lagging body, so the render pin read `render_body_transform()`. Our Carry authors the whole
+  **body** transform each render frame, so the body pose *is* the render pose — `global_position`
+  serves held and free alike.
+
+### The `self as RigidBody3D` trap
+
+The script's static base is `Interactable` (a `Node3D`); the node is a `RigidBody3D`. Those are
+**sibling** branches off `Node3D`, so `self as RigidBody3D` is a **compile error**, not a runtime
+null. It is laundered through a common ancestor — `var n: Node = self; _body = n as RigidBody3D` —
+which compiles and succeeds at runtime. The test needs both views of the same object and does the
+same: it types the handle as `Node3D`, then casts to `RigidBody3D` (body ops) and `CablePlug`
+(plug API) separately. (Godot's `as` only errors when it can *prove* the cast impossible.)
+
+**Gotcha for verification:** an editor `--editor` scan registers a `class_name` from its
+declaration line even when the script fails to fully compile — so "the class appears in the cache"
+is **not** proof it compiles. The reliable compile check is running a test that `load()`s it.
+
+### Verified — [tests/smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd)
+
+Drives the **real input path** (Interactor → Carry) against the shipping `game.tscn` →
+**CABLE PLUG TEST PASS** (24 checks): the ray finds the plug and E picks it up; a held plug in
+snap range lights the socket preview; releasing seats it (not a floor drop), powers the cable from
+a source socket, freezes the body and clears the preview; a seated plug follows a moved socket;
+re-grabbing unseats it and kills power; and sustained overstretch pops the seated end loose via
+the cable's breakaway → `force_unseat`. The player is added to `cable_ignore` so the rope never
+shoves it (Doortal did the same). `smoke_interaction.gd` still passes — no regression on the
+shared Interactable/Carry path.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
