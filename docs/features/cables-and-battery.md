@@ -415,6 +415,32 @@ recoil, so the recoil sets the direction. Guarded by the held-drop section of
 recoil must fling it back toward the far end; mutation-tested (reversing the recoil direction leaves
 it too weak/backwards and fails).
 
+### Playtest fix — a pulled cable tipped the battery and pushed the plug through the floor
+
+Report: pulling a cable plugged into the battery dragged the cube over onto its plugged face, and
+the plug then sank through the floor into the void. Root cause: a seated plug is a frozen
+**KINEMATIC** body authored onto the socket every frame — kinematic-vs-static doesn't resolve, so
+it ghosts straight through the floor. When the cube tipped so the plugged face pointed down, the
+plug was authored below the floor with nothing to stop it. (The cube tips at all because it's a
+dynamic body being dragged by its port; the tension already applies only central force + yaw, no
+pitch, so this is the floor-drag side-effect, not an applied moment.)
+
+Fix — a **floor guard** ([cable_plug.gd](../../scripts/game/cable_plug.gd) `_install_mount_guard`):
+when a plug seats into a **dynamic** mount, it clones its own collider onto that mount at the spot
+where it protrudes. The mount is a real dynamic body that *does* collide with the floor, so this
+extra shape props the cube up before it can tip far enough to bury the plug — and makes the cube
+naturally tip-resistant on exactly the plug side. It's the dual of the existing mount collision
+*exception* (that keeps the kinematic plug from shoving the cube; this lets the cube rest on the
+plug's footprint). Removed on unseat. **Static** mounts get no guard — a wall can't tip, and a
+shape jutting off a wall socket would block the player.
+
+### Verified — [tests/smoke_plug_guard.gd](../../tests/smoke_plug_guard.gd)
+
+**PLUG GUARD TEST PASS**: seating into a dynamic mount installs a `PlugGuard` collider on the mount,
+wearing the plug's own box shape, at the plug's protrusion (~`(0, -0.08, 0.38)` off a port at
+`z=0.2`); unseating removes it; seating into a static mount installs none. Mutation-tested (skipping
+the install fails the "installs a PlugGuard" check). `smoke_cable_plug` regression green.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

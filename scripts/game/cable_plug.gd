@@ -62,6 +62,15 @@ var _seated_socket: CableSocket = null
 # socket every tick — without the exception the physics engine perpetually extrudes the dynamic
 # mount away from the chasing kinematic plug, accelerating a plugged cube without bound).
 var _mount_exception: PhysicsBody3D = null
+# A stand-in collider parented to a DYNAMIC mount (the battery) covering where the seated plug
+# sticks out. The plug itself is frozen KINEMATIC, so it ghosts through the static floor; but the
+# mount is a real dynamic body that DOES collide with the floor. Giving the mount this extra shape
+# where the plug protrudes means that if a pulled cable tips the cube onto its plugged face, the
+# mount's own collision hits the floor and props it up before the plug can rotate under the floor
+# into the void. The dual of _mount_exception: that says "don't push the cube off me," this says
+# "but do let me hold the cube off the floor." Only dynamic mounts get one (a wall can't tip, and a
+# shape jutting into the room off a wall socket would block the player).
+var _mount_guard: CollisionShape3D = null
 # Last snap transform authored to the seated body, to re-author only when the socket's mount
 # actually moves (e.g. a socket on a carried cube).
 var _last_snap_xform := Transform3D.IDENTITY
@@ -299,6 +308,7 @@ func _seat(socket: CableSocket) -> void:
 	if mount != null:
 		_body.add_collision_exception_with(mount)
 		_mount_exception = mount
+		_install_mount_guard(mount)
 	_author_seated_body(_seated_body_xform())
 	socket.seat(self)
 	if cable != null:
@@ -311,6 +321,43 @@ func _clear_mount_exception() -> void:
 	if _mount_exception != null and is_instance_valid(_mount_exception):
 		_body.remove_collision_exception_with(_mount_exception)
 	_mount_exception = null
+	_remove_mount_guard()
+
+
+# Clone this plug's own collider onto `mount` where the seated plug protrudes, so the mount can
+# prop itself off the floor there (see _mount_guard). No-op for a non-dynamic mount: a static wall
+# neither tips nor should sprout a room-blocking shape. The guard is a child of the mount, so it
+# stays fixed in the mount's frame and tips/carries along with it.
+func _install_mount_guard(mount: PhysicsBody3D) -> void:
+	var rb := mount as RigidBody3D
+	if rb == null:
+		return
+	var src := _find_collision_shape()
+	if src == null or src.shape == null:
+		return
+	var guard := CollisionShape3D.new()
+	guard.name = "PlugGuard"
+	guard.shape = src.shape  # shared read-only collision geometry — safe to reuse the resource
+	mount.add_child(guard)
+	# Where the plug's own collider sits in world space right now; reparented under the mount this
+	# becomes a constant mount-local offset that tracks the cube wherever it goes.
+	guard.global_transform = _seated_body_xform() * src.transform
+	_mount_guard = guard
+
+
+func _remove_mount_guard() -> void:
+	if _mount_guard != null and is_instance_valid(_mount_guard):
+		_mount_guard.queue_free()
+	_mount_guard = null
+
+
+# The plug body's own collider (the first CollisionShape3D child), copied onto the mount as a guard.
+func _find_collision_shape() -> CollisionShape3D:
+	for child in _body.get_children():
+		var cs := child as CollisionShape3D
+		if cs != null:
+			return cs
+	return null
 
 
 func _author_seated_body(xform: Transform3D) -> void:
