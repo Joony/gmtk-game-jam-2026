@@ -35,6 +35,9 @@ enum PodPhase { OUT, ENTERING, IN, EXITING }
 
 ## How long the ride into or out of the pod takes.
 const POD_MOVE_TIME := 1.1
+## Volume of the seal-breaking pop as the pod door starts to open. Deliberately louder than the
+## door sound it plays over (Audio.pod_door uses -2 dB); see _wire_audio.
+const POD_POP_DB := 3.0
 ## Leaning in to the nav console is a shorter move over a shorter distance.
 const NAV_MOVE_TIME := 0.55
 
@@ -134,11 +137,22 @@ func _wire_audio() -> void:
 	_carry.dropped.connect(func(item: Node3D) -> void:
 		Audio.play_at(&"click_low", item.global_position, -4.0))
 	_computer.opened.connect(func() -> void: Audio.play_at(&"click", _computer.global_position))
-	_pod.entered.connect(func() -> void: Audio.play_at(&"plug", _pod.global_position, -2.0))
+	# Climbing in gets a small CLICK, on the frame the player commits to the pod. It used to be
+	# the "plug" pop, which was far too big for the moment and landed a full second before the
+	# door moved, so getting in sounded like "pop ... and then the door closes".
+	_pod.entered.connect(func() -> void: Audio.play_at(&"click", _pod.global_position, -3.0))
 	# The pod's door gets its own sound. It is a curved panel driven round a cylinder and
 	# sealed, not a door sliding in a frame, and it is the one you hear from the inside.
+	#
+	# The POP belongs to waking up: it fires on the same frame the panel starts to swing open,
+	# so it reads as the seal breaking. It has to sit ABOVE the door sound rather than beside
+	# it — pod_open is already at ~0.84 amplitude within its first 10 ms and holds ~0.75 for
+	# 300 ms, so a pop mixed at the door's own level is simply masked and you hear no transient
+	# at all. POD_POP_DB is the knob if it needs more or less bite.
 	_pod.door_moved.connect(func(opening: bool) -> void:
-		Audio.pod_door(opening, _pod.global_position))
+		Audio.pod_door(opening, _pod.global_position)
+		if opening:
+			Audio.play_at(&"plug", _pod.global_position, POD_POP_DB))
 
 
 ## Music AND klaxon follow the ship's state, both from the same function so the alarm and the
