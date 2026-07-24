@@ -639,21 +639,24 @@ class _Runner:
 		var faults := suite.root.get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION)
 		suite.check(faults.size() >= 3, "at least 3 malfunctions are placed (got %d)" % faults.size())
 
-		var missing_panel := 0
+		var missing_fix := 0
 		var missing_part := 0
 		for node in faults:
 			var fault := node as Malfunction
 			var panel: RepairPoint = null
+			var power_feed := false  # a power-only system (AUX POWER) is fixed by a cable, not a panel
 			for child in fault.get_children():
 				if child is RepairPoint:
 					panel = child
-			if panel == null:
-				missing_panel += 1
+				if child is SocketPowerRepair:
+					power_feed = true
+			if panel == null and not power_feed:
+				missing_fix += 1
 				continue
-			if panel.required_part != "" and game.get_node_or_null(NodePath(panel.required_part)) == null:
+			if panel != null and panel.required_part != "" and game.get_node_or_null(NodePath(panel.required_part)) == null:
 				missing_part += 1
 				push_error("no spare part named '%s' for %s" % [panel.required_part, fault.system_name])
-		suite.check(missing_panel == 0, "every malfunction has a repair panel")
+		suite.check(missing_fix == 0, "every malfunction is fixable (repair panel or power feed)")
 		suite.check(missing_part == 0, "every named spare part exists in the scene")
 
 		# Spares must be SCARCER than the faults, or fitting one is free and the patch

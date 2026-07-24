@@ -717,9 +717,12 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
 - [x] Charge indicator: a row of small emissive bars on the cube. Same trick as
       `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar. Phase 5:
       built at runtime on the top face; lit count = round(charge_fraction × bars). Screenshot-verified.
-- [ ] **Make it earn its place in the countdown design.** A rope simulation is a lot of code
-      for set dressing. The obvious fit: a repair somewhere with no wall socket in reach, so
-      the choice becomes *run a cable the long way* or *charge the cube and carry it* — a
-      third answer to "is this fix worth the air?", paid in walking rather than in parts.
-- [ ] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
-      gains charge on a live socket, loses it under load, and reads empty at zero
+- [x] **Make it earn its place in the countdown design.** Phase 6: the `AUX POWER` device
+      (`scenes/props/powered_device.tscn`) — a power-ONLY malfunction with no patch panel, ~11 m
+      from the outlet, fixed only by feeding its inlet. `scripts/game/socket_power_repair.gd`
+      bridges inlet power → permanent repair (+ red/green status light). Pre-Phase-6 also added
+      `WallSocket` (look+E wall sockets, source/sink) and a loose two-ended cable. The full loop
+      (charge battery at the outlet → carry → cable into the device → light goes green) is assembled.
+- [x] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
+      gains charge on a live socket, loses it under load, and reads empty at zero — covered by
+      `smoke_cable_battery.gd`, `smoke_wall_socket.gd`, `smoke_powered_device.gd`.

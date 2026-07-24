@@ -372,6 +372,36 @@ room and a plug sitting on the outside of the battery.
   port, and source→sink power through the loose cable (and death on unplug). Screenshot confirms
   the sockets on the wall.
 
+## Phase 6 — Earning its place: the AUX POWER device ✅
+
+The cables/battery now pay for themselves in the countdown loop. A new **power-only** malfunction —
+[scenes/props/powered_device.tscn](../../scenes/props/powered_device.tscn), the `AUX POWER`
+console — breaks like any fault (RunState finds it via the `malfunctions` group, it bleeds speed,
+shows on the HUD) but has **no patch panel**: the only way back is to feed its inlet socket. It sits
+~11 m from the engine-room outlet, so there's no socket in reach — the fix is paid in the walk to
+bring a feed, exactly the third answer to "is this fix worth the air?": **run a cable the long way,
+or charge the battery and carry it here.**
+
+- **[scripts/game/socket_power_repair.gd](../../scripts/game/socket_power_repair.gd)** bridges the
+  inlet `CableSocket`'s power to the `Malfunction`'s permanent repair — the moment the inlet goes
+  live while the fault is active (or the fault breaks while already fed), it repairs for good;
+  unplugging afterwards doesn't re-break it. It also drives a per-instance status light (red broken
+  / green fixed, the `RepairPoint` trick). This is the sole cable→Malfunction coupling, keeping the
+  addon game-agnostic.
+- The device has an `Inlet` (a sink `WallSocket`, look-and-press) and a status light on the console.
+- **Run-state invariant updated:** "every malfunction has a repair panel" → "every malfunction is
+  fixable (repair panel **or** power feed)", since a power-only fault is fixed by a cable, not a
+  panel.
+
+### Verified — [tests/smoke_powered_device.gd](../../tests/smoke_powered_device.gd)
+
+**POWERED DEVICE TEST PASS**: the fault breaks and stays broken while unpowered (an inlet plug on a
+dead cable does nothing); feeding it from a source through a loose cable repairs it **permanently**
+(not a patch); and unplugging afterwards leaves it fixed. `smoke_run_state` passes with the relaxed
+invariant; all cable/interaction tests green. The end-to-end loop — charge the battery at the
+outlet, carry it across, cable it into the device, watch the light go green — is now assembled from
+the pieces built in Phases 1–5.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
