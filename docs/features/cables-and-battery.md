@@ -441,6 +441,34 @@ wearing the plug's own box shape, at the plug's protrusion (~`(0, -0.08, 0.38)` 
 `z=0.2`); unseating removes it; seating into a static mount installs none. Mutation-tested (skipping
 the install fails the "installs a PlugGuard" check). `smoke_cable_plug` regression green.
 
+### Playtest fix — dragging a loose-ended cable dropped it, and felt too elastic
+
+Report: carrying one plug while the other end is plugged into nothing, the cable was too elastic and
+would *drop* out of your hand when you walked it to where you needed it. One scenario failing two
+ways — the far plug lagged (rubber-band), and the resulting overstretch popped the held plug. Two
+fixes in [cable_3d.gd](../../addons/cables/scripts/cable_3d.gd):
+
+1. **Breakaway never drops a held plug against a loose far end.** The held-drop pass of `_break_away`
+   is now gated on `_endpoint_is_anchored(far)` — true only for an immovable far end (a bolted plug,
+   a bare static anchor, or a plug seated in a static/frozen mount). A *draggable* far end (a free
+   plug, or a loose cube) tows along instead, so the cable can't yank out of your hand. The classic
+   "far end bolted down, you walk away" case still pops as before.
+2. **A free loose plug end tows inextensibly.** The endpoint spring caps at `TENSION_MAX_FORCE` and
+   lets a walked free plug lag; simply stiffening the spring *whips* a light body (an under-damped
+   spring pumps energy — observed velocity climbing without bound). Instead `_tow_free_end` is a
+   velocity constraint: while a free plug is past `rest_length` from the far *driving* pin, its
+   outward velocity is removed and the overshoot reeled in at a bounded speed (`FREE_TOW_REEL_MAX`).
+   Stable (velocity-level, no energy added) and physical (no teleport — it still collides with
+   walls). Only free plug ends towed against an anchoring far end; cube-drag and seated ends untouched.
+
+### Verified — [tests/smoke_cable_drag.gd](../../tests/smoke_cable_drag.gd)
+
+**CABLE DRAG TEST PASS**, driven through the real pickup path: (a) sustained overstretch against a
+free far end never drops the held plug and the far plug is towed along; (b) walking a light loose
+cable at a deterministic 3.6 m/s keeps the far plug within the breakaway distance (a spring-only
+cable balloons to ~4.3 m). Both mutation-tested — defeating the gate drops the held plug; disabling
+the tow balloons the gap. Full cable/battery/interaction suite green.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

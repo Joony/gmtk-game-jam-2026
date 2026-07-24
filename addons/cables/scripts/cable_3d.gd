@@ -177,6 +177,17 @@ const TENSION_MAX_FORCE := 15.0
 ## (CablePlug._ready); a CUBE receiver (a mounted socket's tow) has no contact
 ## monitor, reports no bodies and is never clamped — the tow keeps full force.
 const TENSION_CONTACT_SOFT := 4.0
+## Inextensible tow for a FREE loose plug end (see _tow_free_end) — you carry one plug and the far
+## plug hangs off nothing. The endpoint SPRING (capped at TENSION_MAX_FORCE) lets a walked free plug
+## lag until the rope rubber-bands, and simply stiffening it whips a light body (an under-damped
+## spring pumps energy). Instead a velocity constraint: while the free plug is past rest_length from
+## the driving pin, its OUTWARD velocity is removed and the overshoot is reeled in at a bounded
+## speed, so a dragged loose cable reads as an inextensible line. Stable (velocity-level, no energy
+## added) and physical (no teleport — the plug still collides with walls). BETA is the fraction of
+## the current overshoot corrected per tick; REEL_MAX caps the inward speed so a hard yank doesn't
+## rocket the plug through the player.
+const FREE_TOW_REEL_BETA := 0.5
+const FREE_TOW_REEL_MAX := 8.0
 ## Free-free pull budget (ticks): when NEITHER end is externally driven (held,
 ## seated, or a bare static anchor — i.e. both tension receivers are live free
 ## bodies), the spring may act only while pulling is making PROGRESS — the
@@ -603,6 +614,7 @@ func _physics_process(delta: float) -> void:
 		_warmup_ticks -= 1
 	else:
 		_apply_endpoint_tension(length)
+		_tow_free_ends(delta)
 		_update_breakaway(delta, length)
 	overstretched = length > rest_length * OVERSTRETCH_RATIO
 
@@ -1082,6 +1094,45 @@ func _tension_end(endpoint: Node3D, socket: CableSocket, end_p: Vector3,
 	return true
 
 
+## Inextensible tow for a FREE loose plug end (see FREE_TOW_REEL_BETA). Called each tick after the
+## endpoint spring: for a free plug whose FAR end DRIVES the rope (held, seated, or a static anchor),
+## keep the plug from lagging past rest_length — remove any velocity taking it further out and reel
+## the overshoot in at a bounded speed. This is what makes a carried loose cable drag like a line
+## instead of a rubber band, without the whip a stiffened spring gives a light body.
+func _tow_free_ends(delta: float) -> void:
+	_tow_free_end(_anchor_a, socket_a, _anchor_b, socket_b, delta)
+	_tow_free_end(_anchor_b, socket_b, _anchor_a, socket_a, delta)
+
+
+func _tow_free_end(endpoint: Node3D, socket: CableSocket, far_endpoint: Node3D,
+		far_socket: CableSocket, delta: float) -> void:
+	# Only a bare free plug (unsocketed, dynamic, not carried) is towed by this constraint.
+	if endpoint == null or far_endpoint == null or socket != null or delta <= 0.0:
+		return
+	if endpoint.has_method("is_held") and endpoint.is_held():
+		return
+	var body := endpoint as RigidBody3D
+	if body == null or body.freeze:
+		return
+	# The far end must ANCHOR the rope (held/seated/static — no tension receiver). If it is itself a
+	# loose free body, neither end is authored and clamping both would fight; let the spring settle.
+	if _tension_receiver(far_endpoint, far_socket) != null:
+		return
+	var far_pin := _endpoint_pin(far_endpoint)
+	var to_end := body.global_position - far_pin
+	var gap := to_end.length()
+	if gap <= rest_length or gap < 1e-4:
+		return
+	var n := to_end / gap  # unit vector pointing OUTWARD, from the anchoring pin toward the plug
+	# Reel the overshoot in over a few ticks (BETA), capped so a big yank can't rocket the plug.
+	var reel := minf((gap - rest_length) * FREE_TOW_REEL_BETA / delta, FREE_TOW_REEL_MAX)
+	var v_out := body.linear_velocity.dot(n)  # + = drifting further from the anchor
+	# Target inward speed -reel: if the plug is moving out (or in slower than the reel), correct it.
+	if v_out > -reel:
+		body.sleeping = false
+		body.linear_velocity += n * (-reel - v_out)
+
+
 ## True while `receiver` reports a contact with a foreign RigidBody3D — the
 ## cable's own plug bodies and any seated end's mount don't count (a plug
 ## resting against its own assembly is not a shove target). Requires the
@@ -1134,6 +1185,17 @@ func _tension_receiver(endpoint: Node3D, socket: CableSocket) -> RigidBody3D:
 ## Elastic breakaway (ADR 0046 mechanism 3): the stretch ratio must hold past
 ## BREAKAWAY_RATIO for BREAKAWAY_TIME continuously — a momentary yank never
 ## pops a connection.
+# An endpoint the player cannot drag toward: no tension receiver (a bolted-in plug, a bare static
+# anchor, or a plug seated in a static/frozen mount — all effectively infinite-mass) and not being
+# carried. A HELD plug only breaks away against a far end like this; a loose far end tows instead.
+func _endpoint_is_anchored(node: Node3D, socket: CableSocket) -> bool:
+	if node == null:
+		return true  # a missing/severed far end is a dead anchor — releasing the held end is fine
+	if node.has_method("is_held") and node.is_held():
+		return false
+	return _tension_receiver(node, socket) == null
+
+
 func _update_breakaway(delta: float, length: float) -> void:
 	if length > rest_length * BREAKAWAY_RATIO:
 		_breakaway_time += delta
@@ -1163,6 +1225,16 @@ func _break_away(length: float) -> void:
 			var endpoint := _anchor_b if which == 1 else _anchor_a
 			if endpoint == null or not endpoint.has_method("break_connection"):
 				continue
+			# A HELD plug is sacrificed ONLY when the FAR end is a true anchor (bolted, or seated in
+			# a static/frozen mount) the player cannot pull toward. If the far end is loose — a free
+			# plug or a draggable cube — it tows along instead, so the cable must never yank out of
+			# your hand (play feedback: carrying a cable whose other end is plugged into nothing
+			# should just drag the far end, not drop the one you're holding).
+			if allow_held and endpoint.has_method("is_held") and endpoint.is_held():
+				var far := _anchor_a if which == 1 else _anchor_b
+				var far_socket := socket_a if which == 1 else socket_b
+				if not _endpoint_is_anchored(far, far_socket):
+					continue
 			var idx := last if which == 1 else 0
 			var n_idx := last - 1 if which == 1 else 1
 			var dir := points[n_idx] - points[idx]
