@@ -402,6 +402,19 @@ invariant; all cable/interaction tests green. The end-to-end loop — charge the
 outlet, carry it across, cable it into the device, watch the light go green — is now assembled from
 the pieces built in Phases 1–5.
 
+### Playtest fix — disconnect recoil fired the wrong way
+
+Report: the breakaway impulse fired the plug *away* from the far end instead of toward it. The
+recoil direction (`Cable3D._break_away`: neighbour − endpoint, i.e. toward the other end) was
+correct, but on the **held-drop** path `Carry.drop` restores the *carry* velocity — which points
+away from the anchor, since you were walking away when it snapped — and at a brisk walk that
+swamped the smaller recoil, so the plug flew onward the wrong way for ~0.25 s before tension pulled
+it back. Fix: `CablePlug._drop_from_carrier` now zeroes the body velocity before applying the
+recoil, so the recoil sets the direction. Guarded by the held-drop section of
+[smoke_cable_plug.gd](../../tests/smoke_cable_plug.gd) — the player walks the plug away and the
+recoil must fling it back toward the far end; mutation-tested (reversing the recoil direction leaves
+it too weak/backwards and fails).
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

@@ -206,6 +206,10 @@ func _drop_from_carrier(recoil: Vector3) -> void:
 	if carrier != null:
 		carrier.drop(false)
 	_body.sleeping = false
+	# Carry.drop restores the CARRY velocity, which points AWAY from the anchor (you were walking
+	# away when it broke). Discard it so the recoil — which points back toward the far end — sets
+	# the direction; otherwise the plug flies the wrong way.
+	_body.linear_velocity = Vector3.ZERO
 	_body.apply_central_impulse(recoil)
 
 

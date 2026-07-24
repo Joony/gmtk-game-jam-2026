@@ -195,29 +195,40 @@ func _run() -> void:
 	_check("breakaway freed the socket", socket.occupied_by == null)
 	_check("breakaway cleared the cable end", cable.socket_a == null)
 
-	# --- Elastic drop: overstretch while HELD drops the plug from the player ---------------
-	# The far end here is a bare anchor (can't give), so with the plug in hand the only release
-	# left is the player's grip — pulling too far drops it, flung toward the far end.
+	# --- Elastic drop DIRECTION: overstretch while HELD drops the plug, and the recoil must fling
+	# it back TOWARD the far end — even though the player was walking AWAY, whose carry velocity
+	# would otherwise carry the plug onward the wrong way. ---
 	await _physics_frames(50)  # let the popped plug settle and its re-seat cooldown clear
 	body.freeze = false
 	body.gravity_scale = 0.0
 	body.linear_velocity = Vector3.ZERO
-	anchor.global_position = _cam.global_position + forward * 1.5 + Vector3(0, -0.5, 0)
-	_place_in_front(plug, 1.2)
+	# The far end (anchor) stays put where the player is now; the plug is carried AWAY from it.
+	anchor.global_position = _player.global_position
+	_place_in_front(plug, 1.0)
 	await _physics_frames(3)
 	if not _carry.is_holding():
 		_press("interact")
 		await _frames(2)
-	_check("grabbed the free plug for the held-drop test", _carry.is_holding())
-	await _frames(30)  # reach the hold point
-	# Yank the far end well past the breakaway ratio while the plug is in hand.
-	anchor.global_position = (plug as Node3D).global_position + forward * 8.0
-	await _physics_frames(60)  # warm-up + breakaway hold + margin
-	_check("overstretch while held drops the plug from the player", not _carry.is_holding())
-	_check("the dropped plug reports no longer held", not cplug.is_held())
-	await _physics_frames(6)
-	_check("the dropped plug got an elastic recoil (%.2f m/s)" % body.linear_velocity.length(),
-		body.linear_velocity.length() > 0.3)
+	_check("grabbed the plug for the recoil-direction test", _carry.is_holding())
+	await _physics_frames(20)  # reach the hold point (and let the pickup warm-up decay)
+	# Walk the player away from the anchor, carrying the plug, until the taut cable snaps mid-stride.
+	# Move every RENDER frame (Carry builds its carry velocity there) so the plug genuinely gains an
+	# away-pointing velocity; keep the step small enough that the per-physics-tick jump stays under
+	# PIN_RESETTLE_JUMP and doesn't re-arm the warm-up guard that would starve the breakaway.
+	for i in 120:
+		_player.global_position += forward * 0.08
+		await process_frame
+		if not _carry.is_holding():
+			break
+	await _physics_frames(2)
+	_check("walking too far drops the held plug", not _carry.is_holding())
+	var to_anchor := anchor.global_position - (plug as Node3D).global_position
+	to_anchor = to_anchor.normalized() if to_anchor.length() > 0.01 else Vector3.ZERO
+	var vdir := body.linear_velocity
+	vdir = vdir.normalized() if vdir.length() > 0.01 else Vector3.ZERO
+	_check("the recoil flings the plug TOWARD the far end (dot=%.2f, %.2f m/s)"
+			% [vdir.dot(to_anchor), body.linear_velocity.length()],
+		body.linear_velocity.length() > 0.3 and vdir.dot(to_anchor) > 0.3)
 
 	if _failures.is_empty():
 		print("CABLE PLUG TEST PASS")
