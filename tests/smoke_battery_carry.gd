@@ -103,7 +103,10 @@ func _run() -> void:
 		_player.global_position += Vector3(0.06, 0.0, 0.0)
 		rig.set_look(float(i) * 0.05, 0.0)  # look around as we go
 		await process_frame
-		worst = maxf(worst, (plug as Node3D).global_position.distance_to(bport.global_position))
+		# The plug seats a standoff OUT along the port's +Z, so compare against that pose, not the
+		# port origin — any gap beyond it is lag.
+		var expected := bport.global_transform.translated_local(Vector3(0.0, 0.0, CablePlug.SEAT_STANDOFF)).origin
+		worst = maxf(worst, (plug as Node3D).global_position.distance_to(expected))
 	Engine.physics_ticks_per_second = 60
 
 	_check("a plug in a carried battery stays glued to its port (worst %.3f m)" % worst, worst < 0.05)

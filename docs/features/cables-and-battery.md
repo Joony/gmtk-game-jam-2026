@@ -314,6 +314,28 @@ now — the model's exact front-facing/centering is worth a tuning pass once **P
 sink sockets on devices, where it's fully visible. All cable/interaction smoke tests still pass with
 the export change.
 
+### Socket-model follow-ups (playtest)
+
+- **Wall socket faced the wrong way / off-centre.** Hand-authoring the `.tscn` `Transform3D` basis
+  went wrong twice (the row-major trap, then a +90° that left it facing up) because the model's
+  `Socket` node carries its own rotation, so the raw mesh AABB axes lie about which way the plate
+  faces. Settled it empirically: a framed probe that measures the plate's actual world normal for
+  each candidate rotation showed the plate faces **−Z** as imported, so `rotation_degrees =
+  (180,0,0)` turns it to +Z; `position = (0,0,-0.015)` recentres it on the socket origin. The
+  wrapper now uses clean `rotation_degrees`/`scale`/`position` instead of a raw matrix.
+- **Plug buried inside the battery.** A seated plug took the socket transform verbatim, so on the
+  cube's face socket its body sank into the cube. Added `CablePlug.SEAT_STANDOFF` (0.18 m): the
+  seated body is pushed out along the socket's +Z, so the prongs enter the receptacle while the
+  body stays outside (a wall plug just sits proud of the wall). `_seated_body_xform()` centralises
+  this; `smoke_battery_carry` now measures lag against that standoff pose.
+- **Battery uses the socket model** too (its `Port` gets the same `receptacle_scene`), so a plug
+  reads as plugged into a socket on the cube rather than stuck to a bare face.
+- **Both ends always carry a plug**, one bolted into the wall source and non-removable — this was
+  already how `power_cable.tscn` is built (`fixed` plug + free plug); confirmed intact.
+
+All 8 cable/interaction smoke tests pass; screenshots confirm the wall socket on the wall facing the
+room and a plug sitting on the outside of the battery.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

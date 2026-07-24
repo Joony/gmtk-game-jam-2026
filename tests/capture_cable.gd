@@ -27,7 +27,7 @@ func _run() -> void:
 	# A dedicated camera framing the cable at (-6, 1.3, -20).
 	var cam := Camera3D.new()
 	game.add_child(cam)
-	cam.global_position = Vector3(2.4, 1.42, -21.2)
+	cam.global_position = Vector3(1.5, 1.32, -20.9)
 	cam.look_at(Vector3(3.0, 1.3, -21.9), Vector3.UP)
 	cam.make_current()
 

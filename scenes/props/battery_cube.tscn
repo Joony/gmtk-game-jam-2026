@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/battery_cube.gd" id="1_battery"]
 [ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="3_receptacle"]
 
 ; A carryable ~0.4 m power cube. Charge bars are built at runtime on the top face (each its own
 ; material). The Port socket is on the +Z face (+Z faces out, so a plug seats nose-first into it);
@@ -34,3 +35,4 @@ shape = SubResource("BoxShape3D_cube")
 [node name="Port" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.2)
 script = ExtResource("2_socket")
+receptacle_scene = ExtResource("3_receptacle")

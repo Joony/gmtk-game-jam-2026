@@ -25,6 +25,10 @@ extends Interactable
 # lights, releasing never seats) — an overstretched cable must not immediately re-plug itself
 # into the socket it just popped out of.
 const RESEAT_COOLDOWN := 0.75
+# A seated plug's body sits this far OUT along the socket's +Z, so its prongs go into the
+# receptacle while its body stays OUTSIDE the socket/mount — otherwise a plug seated in the
+# battery's face socket buried itself in the cube. (A wall plug just sits proud of the wall.)
+const SEAT_STANDOFF := 0.18
 # Group every CableSocket registers in (see cable_socket.gd).
 const SOCKET_GROUP := &"cable_sockets"
 
@@ -249,7 +253,7 @@ const CABLE_BACK_Y_OFFSET := 0.09
 # mount ahead of the body's tick lag), else the body itself. Carry authors the whole body each
 # render frame, so global_transform is both the physics and the render pose.
 func _attach_transform() -> Transform3D:
-	return _seated_socket.snap_transform() if is_seated() else global_transform
+	return _seated_body_xform() if is_seated() else global_transform
 
 
 # The cable's PHYSICS pin: the back-gland world position.
@@ -286,7 +290,7 @@ func _seat(socket: CableSocket) -> void:
 	if mount != null:
 		_body.add_collision_exception_with(mount)
 		_mount_exception = mount
-	_author_seated_body(socket.snap_transform())
+	_author_seated_body(_seated_body_xform())
 	socket.seat(self)
 	if cable != null:
 		cable.set_endpoint_socket(self, socket)
@@ -313,10 +317,16 @@ func _author_seated_body(xform: Transform3D) -> void:
 # global_transform directly — the same way Carry drives a held item — so the plug stays glued to a
 # carried socket with no interpolation lag. (The initial seat still uses the server-set teleport in
 # _author_seated_body; this is only the per-frame follow of small deltas.)
+# Where the seated body sits: the socket transform pushed out along its +Z by SEAT_STANDOFF, so
+# the plug stays outside the socket/mount (see SEAT_STANDOFF).
+func _seated_body_xform() -> Transform3D:
+	return _seated_socket.snap_transform().translated_local(Vector3(0.0, 0.0, SEAT_STANDOFF))
+
+
 func _follow_seated_socket() -> void:
 	if not is_seated():
 		return
-	var xform := _seated_socket.snap_transform()
+	var xform := _seated_body_xform()
 	if not xform.is_equal_approx(_last_snap_xform):
 		_body.global_transform = xform
 		_last_snap_xform = xform
