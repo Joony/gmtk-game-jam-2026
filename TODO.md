@@ -709,11 +709,14 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
 - [x] Some cables start permanently plugged in at one end — one plug seated and non-removable,
       so the player only ever handles the free end. Phase 4: `CablePlug.fixed` +
       `fixed_socket_path`; unbreakable + non-grabbable. Verified by `tests/smoke_cable_placement.gd`.
-- [ ] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
-      discharges while powering something. Carryable, so it reaches things no cable can.
-- [ ] Charge indicator: a row of small emissive bars on the cube. Same trick as
-      `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar, or every
-      battery in the ship shows the same charge.
+- [x] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
+      discharges while powering something. Carryable, so it reaches things no cable can. Phase 5:
+      `scripts/game/battery_cube.gd` + `scenes/props/battery_cube.tscn`; flow read off the cable
+      graph (far end source → charge, sink → drain). Needed `CableSocket.set_source` +
+      `Cable3D.refresh_power`. Verified by `tests/smoke_cable_battery.gd`.
+- [x] Charge indicator: a row of small emissive bars on the cube. Same trick as
+      `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar. Phase 5:
+      built at runtime on the top face; lit count = round(charge_fraction × bars). Screenshot-verified.
 - [ ] **Make it earn its place in the countdown design.** A rope simulation is a lot of code
       for set dressing. The obvious fit: a repair somewhere with no wall socket in reach, so
       the choice becomes *run a cable the long way* or *charge the cube and carry it* — a

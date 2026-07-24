@@ -31,6 +31,9 @@ var occupied_by: Node3D = null
 var powered := false
 
 var _preview: MeshInstance3D = null
+## Last external feed state (see set_fed), tracked so set_source can recompute powered from BOTH
+## the source flag and the feed without losing one when the other changes.
+var _fed := false
 
 
 func _ready() -> void:
@@ -43,10 +46,26 @@ func _ready() -> void:
 	_build_visuals()
 
 
-## External power feed (Phase 4 propagation calls this). A source stays
+## External power feed (the cable propagation calls this). A source stays
 ## powered regardless of the feed.
 func set_fed(fed: bool) -> void:
-	var now := is_power_source or fed
+	_fed = fed
+	var now := is_power_source or _fed
+	if now == powered:
+		return
+	powered = now
+	power_changed.emit(powered)
+
+
+## Turn this socket into or out of a live power SOURCE at runtime — for a dynamic source like a
+## battery whose port stops sourcing when it runs flat. Recomputes powered from the source flag
+## plus any external feed and announces a change, like set_fed. (A statically-authored wall source
+## just leaves is_power_source true and never calls this.)
+func set_source(on: bool) -> void:
+	if is_power_source == on:
+		return
+	is_power_source = on
+	var now := is_power_source or _fed
 	if now == powered:
 		return
 	powered = now

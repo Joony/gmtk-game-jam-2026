@@ -194,6 +194,42 @@ Two issues from playing the build:
 All five cable/interaction smoke tests still pass; re-captured screenshots confirm the flush socket
 and the plug model on both ends.
 
+## Phase 5 — The battery cube ✅
+
+[scripts/game/battery_cube.gd](../../scripts/game/battery_cube.gd) +
+[scenes/props/battery_cube.tscn](../../scenes/props/battery_cube.tscn). A carryable ~0.4 m cube
+(an `Interactable` PICKUP on a `RigidBody3D`, same laundered-`self` pattern as `CablePlug`) with a
+`CableSocket` **port** on its +Z face — the cube is that socket's `mount_body()`, so a taut cable
+drags the cube by its port.
+
+**Power model.** The port is a `CableSocket` whose `is_power_source` the cube drives from its
+charge (a source while `charge > 0`, dead when flat). A single socket can't be both *fed* and
+*sourcing*, so which way energy flows is read off the **cable graph**, not the port's own feed —
+the cube looks at the far end of the plugged cable:
+
+- far end is an external powered **source** (a wall socket) → **charging** (`+charge_rate`),
+- far end is anything else (a device **sink** it's feeding) → **draining** (`−drain_rate`),
+- nothing plugged, or flat with only a sink → **idle**.
+
+When the charge crosses zero the port's source flag flips and the cable **re-propagates power**, so
+a device dies the instant the cube runs flat. This needed two small addon additions:
+`CableSocket.set_source(on)` (toggle a source at runtime; tracks `_fed` so `powered` stays correct)
+and `Cable3D.refresh_power()` (public re-propagation hook).
+
+**Charge bars.** A row of `bar_count` (5) small emissive bars built on the top face at runtime,
+each with its **own** `StandardMaterial3D` — the `RepairPoint` status-light trick, or every cube in
+the ship would show the same charge. Lit count = `round(charge_fraction × bars)`.
+
+One cube is placed in the engine room near the wall cable.
+
+### Verified — [tests/smoke_cable_battery.gd](../../tests/smoke_cable_battery.gd)
+
+**BATTERY TEST PASS**: wiring real cables into the port, the cube charges from a live wall source
+(and its port becomes a source), holds charge unplugged, powers a sink when charged, drains under
+load, and at empty stops sourcing so the sink loses power; `charge_fraction` reads 0 empty / 1
+full. Screenshot confirms 3/5 bars lit green at 60% with the port ring on the face. All prior
+cable/interaction smoke tests still pass.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

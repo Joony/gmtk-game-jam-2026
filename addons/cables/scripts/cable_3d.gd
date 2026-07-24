@@ -446,6 +446,12 @@ func set_endpoint_socket(plug: Node3D, socket: CableSocket) -> void:
 	_recompute_power()
 
 
+## Re-run the one-hop power propagation. Public hook for a dynamic source (a battery whose port
+## stops sourcing when it runs flat) to push its new state through to the far socket.
+func refresh_power() -> void:
+	_recompute_power()
+
+
 func _recompute_power() -> void:
 	var source_a := socket_a != null and socket_a.is_power_source
 	var source_b := socket_b != null and socket_b.is_power_source
