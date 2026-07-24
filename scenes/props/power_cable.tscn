@@ -1,0 +1,65 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" uid="uid://bvbhh3yj2jjod" path="res://addons/cables/scripts/cable_3d.gd" id="1_cable"]
+[ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="Script" uid="uid://bp803jqilruil" path="res://scripts/game/cable_plug.gd" id="3_plug"]
+[ext_resource type="PackedScene" uid="uid://dkair2f4bvk4g" path="res://3D-Models/CD_Plug_v1.blend" id="4_model"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="5_receptacle"]
+
+; A power cable: one end (FixedPlug) is bolted permanently into a wall SOURCE socket, the other
+; (FreePlug) hangs loose for the player to carry and plug into a sink. Mount the root with the
+; SourceSocket's +Z pointing into the room (its -Z, the plug nose direction, goes into the wall).
+;
+; Plug visual is CD_Plug_v1 scaled to ~0.19 m (its prongs point down -Z, the nose convention, so
+; it needs no rotation). The model ships a nested StaticBody3D collider (the .blend `-col` mesh);
+; its layers are zeroed like the crate's so the RigidBody's own box below is the only collider.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.42, 0.18, 0.42)
+
+[node name="PowerCable" type="Node3D"]
+
+[node name="SourceSocket" type="Node3D" parent="."]
+script = ExtResource("2_socket")
+is_power_source = true
+receptacle_scene = ExtResource("5_receptacle")
+
+[node name="FixedPlug" type="RigidBody3D" parent="."]
+continuous_cd = true
+script = ExtResource("3_plug")
+fixed = true
+fixed_socket_path = NodePath("../SourceSocket")
+
+[node name="Model" parent="FixedPlug" instance=ExtResource("4_model")]
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+
+[node name="StaticBody3D" parent="FixedPlug/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FixedPlug"]
+shape = SubResource("BoxShape3D_plug")
+
+; Hangs down and OUT into the room (+Z is the room side, per the socket convention) so it and the
+; slack rope settle in open space, never inside the mounting wall.
+[node name="FreePlug" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0.5)
+continuous_cd = true
+script = ExtResource("3_plug")
+
+[node name="Model" parent="FreePlug" instance=ExtResource("4_model")]
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+
+[node name="StaticBody3D" parent="FreePlug/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FreePlug"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="Cable" type="Node3D" parent="."]
+script = ExtResource("1_cable")
+plug_a_path = NodePath("../FixedPlug")
+plug_b_path = NodePath("../FreePlug")
+rest_length = 4.0
+segment_length = 0.12

@@ -22,6 +22,11 @@
 [ext_resource type="PackedScene" path="res://scenes/props/computer.tscn" id="22_computer"]
 [ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
 [ext_resource type="PackedScene" uid="uid://d3rvhjh1qhy4e" path="res://3D-Models/CD_CryoStation_v1.blend" id="24_station"]
+[ext_resource type="PackedScene" path="res://scenes/props/power_cable.tscn" id="25_cable"]
+[ext_resource type="PackedScene" path="res://scenes/props/battery_cube.tscn" id="26_battery"]
+[ext_resource type="PackedScene" path="res://scenes/props/wall_socket.tscn" id="27_wallsocket"]
+[ext_resource type="PackedScene" path="res://scenes/props/loose_cable.tscn" id="28_loose"]
+[ext_resource type="PackedScene" path="res://scenes/props/powered_device.tscn" id="29_device"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -105,6 +110,40 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
+
+; Power cable on the engine room's FORWARD wall (z=-22, room is z>-22 so +Z faces into the room —
+; identity basis, no rotation needed). Set to the starboard side (x=3), clear of the forward
+; window (x -2.5..2.5) and the MainDrive (x=-3.5). One end bolted to a source socket, the free
+; end for the player to run to a device. Placement screenshot-verified.
+[node name="PowerCable" parent="." instance=ExtResource("25_cable")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.91)
+
+; Portable battery — charge it from a wall cable, carry it to a device with no socket in reach.
+[node name="BatteryCube" parent="." instance=ExtResource("26_battery")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.25, -19)
+
+; Engine-room wall sockets on the forward wall (z=-22, +Z into the room = identity). A live SOURCE
+; outlet plus two inlets the loose cable can be run to. Clear of the window (x -2.5..2.5) and the
+; MainDrive (x=-3.5).
+[node name="WallSocketSource" parent="." instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.3, -21.91)
+is_power_source = true
+
+[node name="WallSocketA" parent="." instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 1.3, -21.91)
+
+[node name="WallSocketB" parent="." instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7, 1.3, -21.91)
+
+; A loose extension cable on the floor near the outlet, for the player to run to a socket.
+[node name="LooseCable" parent="." instance=ExtResource("28_loose")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0.3, -20)
+
+; AUX POWER: a system fixable ONLY by a power feed, set at the aft-port corner ~11 m from the wall
+; outlet — no socket in reach, so it forces the choice: run a long cable, or charge the battery and
+; carry it here. Phase 6, the cables' reason to exist.
+[node name="PoweredDevice" parent="." instance=ExtResource("29_device")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -14)
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)

@@ -2,6 +2,10 @@
 
 Overview of implemented features. Each entry links to a detailed per-feature log in `features/`.
 
+> **Hit a weird Godot behaviour?** [`debugging-gotchas.md`](debugging-gotchas.md) collects the
+> non-obvious traps this project ran into (row-major `.tscn` bases, the one-frame origin
+> flash, silent audio/particle no-ops, headless-test pitfalls) with the workaround for each.
+
 | Date | Feature | Status | Details |
 |------|---------|--------|---------|
 | 2026-07-22 | Project structure (folders, `pause` input action, main scene) | Done, verified | [project-structure.md](features/project-structure.md) |
@@ -27,3 +31,21 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-23 | Space exterior: backdrop shell, station, nebula band (branch `space-exterior`) | Done, verified | [space-exterior.md](features/space-exterior.md) |
 | 2026-07-23 | Countdown loop (step 12): oxygen, distance, stasis pod, malfunctions, repairs, end states | Done, verified | [countdown-loop.md](features/countdown-loop.md) |
 | 2026-07-23 | Ship fittings: million-mile/day units, fixed-width readouts, cryo pod ring, vent pipe, nav console | Done, verified | [ship-fittings.md](features/ship-fittings.md) |
+| 2026-07-24 | Cables (step 14d, Phase 1): verlet rope ported from Doortal, portals stripped (1868→1280 lines) | Phase 1 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 2): CableSocket copied unchanged, full API verified; proximity-release confirmed | Phase 2 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 3): CablePlug rebased onto Interactable+Carry — grab/seat/re-grab/breakaway via the real input path | Phase 3 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 4): fixed (bolted-in) plugs, power_cable.tscn, engine-room placement, player in cable_ignore | Phase 4 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fixes: moved the cable off the wall (forward wall), overstretch now drops from hand / pops from wall with an elastic recoil | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d polish: socket flush to wall, CD_Plug_v1 model, breakaway threshold 1.6→1.2 | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 5): battery cube — charges from a source, drains into a sink, per-instance charge bars | Phase 5 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: plug scaled ~2.3× with collision box matched — model no longer clips walls, rope endpoint stays clear | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fixes: plug-into-battery via look+E (held-aware interaction); cable now exits straight out the plug's back | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: a plug seated in a carried battery follows at render rate (no longer lags the cube) | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d: merged main's prop models; socket receptacle now uses CD_Socket_v1.1 via a receptacle_scene export | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest: fixed wall-socket orientation/placement, plug seats OUTSIDE the socket (standoff), battery uses the socket model | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d (pre-Phase 6): wall sockets (look+E plug-in, source/sink) + a loose two-ended cable, placed in the engine room | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 6): AUX POWER device — power-only malfunction fixed by feeding its inlet; the cables earn their place | Phase 6 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: floor guard — a plug seated in a dynamic mount clones its collider onto the mount so a pulled cable can't tip the battery and push the plug through the floor | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: dragging a loose-ended cable no longer drops the held plug (breakaway gated on an anchored far end) and a free end tows inextensibly instead of rubber-banding | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d playtest fix: a snagged cable releases again — dropped the too-absolute breakaway gate; the tow keeps a followable end taut, so breakaway now fires only as a release valve when the cable genuinely can't follow | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Doors 14d: a sliding door no longer closes on a cable running through it — stays open while a cable's polyline crosses its opening (rope found via the "cables" group), closes once clear; opening stays player-only | Done, verified | [sliding-doors.md](features/sliding-doors.md) |

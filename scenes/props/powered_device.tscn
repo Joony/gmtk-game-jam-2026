@@ -1,0 +1,55 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" uid="uid://cthperjuhxwxd" path="res://scripts/game/malfunction.gd" id="1_malfunction"]
+[ext_resource type="PackedScene" path="res://scenes/props/wall_socket.tscn" id="2_inlet"]
+[ext_resource type="Script" path="res://scripts/game/socket_power_repair.gd" id="3_repair"]
+
+; A ship system whose ONLY fix is a power feed — no patch panel. It breaks like any malfunction
+; (RunState finds it via the "malfunctions" group), but the only way back is to plug a live cable
+; into its inlet: run one the long way from a wall outlet, or charge the battery and carry it here.
+; The console has an inlet socket on its +Z face and a status light (red broken / green fixed).
+; Place it well away from any source outlet — that "no socket in reach" is the whole point.
+
+[sub_resource type="BoxMesh" id="BoxMesh_console"]
+size = Vector3(0.5, 0.9, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_console"]
+albedo_color = Color(0.2, 0.21, 0.24, 1)
+metallic = 0.5
+roughness = 0.5
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_console"]
+size = Vector3(0.5, 0.9, 0.4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_light"]
+size = Vector3(0.12, 0.12, 0.04)
+
+[node name="PoweredDevice" type="Node3D"]
+script = ExtResource("1_malfunction")
+system_name = "AUX POWER"
+fault_text = "power bus offline — restore a feed"
+speed_penalty = 0.2
+fire_at_distance = 45.0
+
+[node name="Console" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Console"]
+mesh = SubResource("BoxMesh_console")
+surface_material_override/0 = SubResource("StandardMaterial3D_console")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Console"]
+shape = SubResource("BoxShape3D_console")
+
+[node name="Inlet" parent="." instance=ExtResource("2_inlet")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0.2)
+
+[node name="StatusLight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.82, 0.21)
+mesh = SubResource("BoxMesh_light")
+
+[node name="Repair" type="Node" parent="."]
+script = ExtResource("3_repair")
+socket_path = NodePath("../Inlet/Port")
+malfunction_path = NodePath("..")
+status_light_path = NodePath("../StatusLight")

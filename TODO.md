@@ -689,25 +689,40 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
 | `scripts/CablePlug.gd` | — | Extends Doortal's `PickableObject`; must be rebased |
 | `scripts/PortalPowerAdapter.gd` | — | Not needed, but it is the reference for how a socket powers a thing |
 
-- [ ] **Strip the portal handling.** `cable_3d.gd` is 87 KB and the portal logic is woven
-      through it (`_link`, `_portals`, `carry_did_teleport`, `on_teleport`, the void guard).
-      Budget real time for this; it is the single biggest port in the project and unlike the
-      room builder it cannot be taken in pieces.
-- [ ] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Our carry
-      is Doortal's, so the physics side should line up; it is the pickup base class that differs.
-- [ ] `CableSocket` already has what is needed: `is_power_source`, `powered`,
-      `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()`
-- [ ] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels
-- [ ] Some cables start permanently plugged in at one end — one plug seated and non-removable,
-      so the player only ever handles the free end
-- [ ] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
-      discharges while powering something. Carryable, so it reaches things no cable can.
-- [ ] Charge indicator: a row of small emissive bars on the cube. Same trick as
-      `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar, or every
-      battery in the ship shows the same charge.
-- [ ] **Make it earn its place in the countdown design.** A rope simulation is a lot of code
-      for set dressing. The obvious fit: a repair somewhere with no wall socket in reach, so
-      the choice becomes *run a cable the long way* or *charge the cube and carry it* — a
-      third answer to "is this fix worth the air?", paid in walking rather than in parts.
-- [ ] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
-      gains charge on a live socket, loses it under load, and reads empty at zero
+- [x] **Strip the portal handling.** Done (Phase 1) — `cable_3d.gd` rewritten portal-free,
+      1868→1280 lines: `side[]` collapsed to identity, `CablePortalLink`/`_link`/`_portals`
+      layer and the two-real-room renderer removed, single tube. Verified by
+      `tests/smoke_cable_sim.gd` (settle, overstretch, power). See
+      [docs/features/cables-and-battery.md](docs/features/cables-and-battery.md).
+- [x] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Phase 3:
+      `scripts/game/cable_plug.gd` — held-state from Carry's `on_pickup`/`on_drop`, seat-on-drop,
+      re-grab-to-unseat, `force_unseat` for breakaway. Verified end-to-end through the real input
+      path by `tests/smoke_cable_plug.gd` (24 checks); no regression on `smoke_interaction.gd`.
+      (Watch the `self as RigidBody3D` cross-branch cast trap — see docs/debugging-gotchas.md.)
+- [x] `CableSocket` already has what is needed: `is_power_source`, `powered`,
+      `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()` — Phase 2:
+      copied unchanged, full API verified by `tests/smoke_cable_socket.gd` (25 checks). Seating
+      confirmed to stay on the **proximity-release** model.
+- [x] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels — Phase 4:
+      `scenes/props/power_cable.tscn` hand-placed on the engine-room forward wall, socket flush,
+      `CD_Plug_v1.blend` plug model, breakaway lowered to 1.2× (screenshot-verified).
+- [x] Some cables start permanently plugged in at one end — one plug seated and non-removable,
+      so the player only ever handles the free end. Phase 4: `CablePlug.fixed` +
+      `fixed_socket_path`; unbreakable + non-grabbable. Verified by `tests/smoke_cable_placement.gd`.
+- [x] **Battery cube** (new, not in Doortal): charges while plugged into a live wall socket,
+      discharges while powering something. Carryable, so it reaches things no cable can. Phase 5:
+      `scripts/game/battery_cube.gd` + `scenes/props/battery_cube.tscn`; flow read off the cable
+      graph (far end source → charge, sink → drain). Needed `CableSocket.set_source` +
+      `Cable3D.refresh_power`. Verified by `tests/smoke_cable_battery.gd`.
+- [x] Charge indicator: a row of small emissive bars on the cube. Same trick as
+      `RepairPoint`'s status light — a **per-instance** `StandardMaterial3D` per bar. Phase 5:
+      built at runtime on the top face; lit count = round(charge_fraction × bars). Screenshot-verified.
+- [x] **Make it earn its place in the countdown design.** Phase 6: the `AUX POWER` device
+      (`scenes/props/powered_device.tscn`) — a power-ONLY malfunction with no patch panel, ~11 m
+      from the outlet, fixed only by feeding its inlet. `scripts/game/socket_power_repair.gd`
+      bridges inlet power → permanent repair (+ red/green status light). Pre-Phase-6 also added
+      `WallSocket` (look+E wall sockets, source/sink) and a loose two-ended cable. The full loop
+      (charge battery at the outlet → carry → cable into the device → light goes green) is assembled.
+- [x] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
+      gains charge on a live socket, loses it under load, and reads empty at zero — covered by
+      `smoke_cable_battery.gd`, `smoke_wall_socket.gd`, `smoke_powered_device.gd`.

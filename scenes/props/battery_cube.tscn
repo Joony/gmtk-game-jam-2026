@@ -1,0 +1,38 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/battery_cube.gd" id="1_battery"]
+[ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="3_receptacle"]
+
+; A carryable ~0.4 m power cube. Charge bars are built at runtime on the top face (each its own
+; material). The Port socket is on the +Z face (+Z faces out, so a plug seats nose-first into it);
+; the cube is the socket's mount_body, so a taut cable drags the cube by its port.
+
+[sub_resource type="BoxMesh" id="BoxMesh_cube"]
+size = Vector3(0.4, 0.4, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cube"]
+albedo_color = Color(0.16, 0.18, 0.22, 1)
+metallic = 0.5
+roughness = 0.45
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cube"]
+size = Vector3(0.4, 0.4, 0.4)
+
+[node name="BatteryCube" type="RigidBody3D"]
+continuous_cd = true
+script = ExtResource("1_battery")
+interaction_type = 0
+interaction_text = "Pick up battery"
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_cube")
+surface_material_override/0 = SubResource("StandardMaterial3D_cube")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_cube")
+
+[node name="Port" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.2)
+script = ExtResource("2_socket")
+receptacle_scene = ExtResource("3_receptacle")
