@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://diw8nw2qh5l5x" path="res://3D-Models/CD_Socket_v1.1.blend" id="1_model"]
+
+; Visual wrapper for a CableSocket's receptacle: CD_Socket_v1.1 scaled down and rotated so its
+; faceplate faces +Z (the room side; the model's plate is thin along Y, so a +90° X rotation turns
+; that face to +Z). The model's nested -col StaticBody has its layers zeroed — the socket is purely
+; visual, and a seated plug overlaps it by design. Assigned to CableSocket.receptacle_scene.
+
+[node name="SocketReceptacle" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_model")]
+transform = Transform3D(0.06, 0, 0, 0, 0, 0.06, 0, -0.06, 0, 0, -0.13, 0.1)
+
+[node name="StaticBody3D" parent="Model/Socket" index="0"]
+collision_layer = 0
+collision_mask = 0

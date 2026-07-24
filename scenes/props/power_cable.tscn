@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" uid="uid://bvbhh3yj2jjod" path="res://addons/cables/scripts/cable_3d.gd" id="1_cable"]
 [ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
 [ext_resource type="Script" uid="uid://bp803jqilruil" path="res://scripts/game/cable_plug.gd" id="3_plug"]
 [ext_resource type="PackedScene" uid="uid://dkair2f4bvk4g" path="res://3D-Models/CD_Plug_v1.blend" id="4_model"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="5_receptacle"]
 
 ; A power cable: one end (FixedPlug) is bolted permanently into a wall SOURCE socket, the other
 ; (FreePlug) hangs loose for the player to carry and plug into a sink. Mount the root with the
@@ -21,6 +22,7 @@ size = Vector3(0.42, 0.18, 0.42)
 [node name="SourceSocket" type="Node3D" parent="."]
 script = ExtResource("2_socket")
 is_power_source = true
+receptacle_scene = ExtResource("5_receptacle")
 
 [node name="FixedPlug" type="RigidBody3D" parent="."]
 continuous_cd = true

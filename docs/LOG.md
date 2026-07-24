@@ -41,3 +41,4 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-24 | Cables 14d playtest fix: plug scaled ~2.3× with collision box matched — model no longer clips walls, rope endpoint stays clear | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables 14d playtest fixes: plug-into-battery via look+E (held-aware interaction); cable now exits straight out the plug's back | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
 | 2026-07-24 | Cables 14d playtest fix: a plug seated in a carried battery follows at render rate (no longer lags the cube) | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables 14d: merged main's prop models; socket receptacle now uses CD_Socket_v1.1 via a receptacle_scene export | Done, verified | [cables-and-battery.md](features/cables-and-battery.md) |

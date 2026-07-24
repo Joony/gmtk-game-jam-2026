@@ -24,6 +24,10 @@ signal power_changed(is_powered: bool)
 @export var snap_radius := 0.35
 ## A source is always powered and (Phase 4) feeds whatever plugs into it.
 @export var is_power_source := false
+## Optional visual for the receptacle: a scene instanced (at identity, facing +Z) in place of the
+## runtime torus ring. Lets the game drop in a socket MODEL without coupling the addon to any asset;
+## null keeps the built-in ring. The snap-preview highlight is always the ring.
+@export var receptacle_scene: PackedScene = null
 
 ## The seated plug, or null while the socket is free.
 var occupied_by: Node3D = null
@@ -127,19 +131,25 @@ func _build_visuals() -> void:
 	# A torus lies in the local XZ plane (hole along Y); rotate it to face ±Z.
 	var facing := Basis(Vector3.RIGHT, PI / 2.0)
 
-	var ring := MeshInstance3D.new()
-	ring.name = "Receptacle"
-	var ring_mesh := TorusMesh.new()
-	ring_mesh.inner_radius = 0.05
-	ring_mesh.outer_radius = 0.09
-	ring.mesh = ring_mesh
-	var ring_mat := StandardMaterial3D.new()
-	ring_mat.albedo_color = Color(0.12, 0.12, 0.14)
-	ring_mat.metallic = 0.6
-	ring_mat.roughness = 0.4
-	ring.material_override = ring_mat
-	ring.transform = Transform3D(facing, Vector3.ZERO)
-	add_child(ring)
+	# The receptacle is either the injected model (authored to face +Z) or the built-in torus ring.
+	if receptacle_scene != null:
+		var model := receptacle_scene.instantiate()
+		model.name = "Receptacle"
+		add_child(model)
+	else:
+		var ring := MeshInstance3D.new()
+		ring.name = "Receptacle"
+		var ring_mesh := TorusMesh.new()
+		ring_mesh.inner_radius = 0.05
+		ring_mesh.outer_radius = 0.09
+		ring.mesh = ring_mesh
+		var ring_mat := StandardMaterial3D.new()
+		ring_mat.albedo_color = Color(0.12, 0.12, 0.14)
+		ring_mat.metallic = 0.6
+		ring_mat.roughness = 0.4
+		ring.material_override = ring_mat
+		ring.transform = Transform3D(facing, Vector3.ZERO)
+		add_child(ring)
 
 	_preview = MeshInstance3D.new()
 	_preview.name = "SnapPreview"

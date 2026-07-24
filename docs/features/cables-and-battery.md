@@ -297,6 +297,23 @@ dropped to 5 Hz (so ~12 render frames pass per tick) the plug stays within 0.05 
 port; mutation-tested — moving the follow back to `_physics_process` drifts it 1.84 m and the check
 fails.
 
+### Socket model integrated (`CD_Socket_v1.1`)
+
+Merged `origin/main` (new prop models) and swapped the runtime torus receptacle for the socket
+model. To keep the addon asset-agnostic, `CableSocket` gained an optional
+`@export var receptacle_scene: PackedScene` — when set, `_build_visuals` instances it in place of
+the torus (the snap-preview highlight stays the torus ring either way; null keeps the old look).
+The model is wrapped in [scenes/props/socket_receptacle.tscn](../../scenes/props/socket_receptacle.tscn),
+which scales `CD_Socket_v1.1.blend` down (~0.06), rotates it +90° about X so its plate (thin along
+Y) faces +Z into the room, and zeroes the nested `-col` StaticBody (the socket is purely visual; a
+seated plug overlaps it by design). It's assigned to the wall `SourceSocket` in
+[power_cable.tscn](../../scenes/props/power_cable.tscn).
+
+Note: the source socket is covered by its bolted plug, so the faceplate mainly frames the plug for
+now — the model's exact front-facing/centering is worth a tuning pass once **Phase 6** adds empty
+sink sockets on devices, where it's fully visible. All cable/interaction smoke tests still pass with
+the export change.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
