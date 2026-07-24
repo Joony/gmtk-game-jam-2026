@@ -177,6 +177,21 @@ Opening a scene in the editor and saving it — even with no deliberate change �
 - **Generalises:** any UI a *transient* mode hides is at risk if another mode restores it
   unconditionally. Prefer one derived predicate over N scattered `visible =` writes.
 
+### A hand-built mesh is invisible from one side if the winding is wrong
+
+- **Symptom:** one of the two door panels rendered as a dark hole while the other looked right,
+  after the panels moved from `BoxMesh` to a generated `ArrayMesh`.
+- **Cause:** the panel's cross-section is MIRRORED for the panel on the other side of the
+  doorway, which reverses the outline's direction and therefore every triangle's winding. The
+  explicit `set_normal()` was still correct — normals do not drive culling, winding does — so
+  the face was backface-culled and what showed through was the unlit inside of the far face.
+- **Fix:** derive the winding from the face normal instead of trusting call-site order. Godot
+  treats **clockwise as front-facing**, so a correctly wound triangle's geometric normal
+  `(b - a).cross(c - a)` points AWAY from the face normal; when the dot product is positive,
+  swap two vertices. See `SlidingDoor._add_tri()`.
+- **Spotting it:** a face that is invisible from outside but present from inside is always
+  winding, never normals or materials.
+
 ---
 
 ## CPUParticles3D
@@ -262,6 +277,18 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
   `quit(1)`), so a stalled coroutine fails within 90 s instead of hanging. Ad-hoc probe
   scripts hit this constantly — if a probe "produces no output", it errored mid-coroutine;
   run it non-headless and read the `SCRIPT ERROR` line.
+
+### A GDScript lambda captures locals BY VALUE
+
+- **Symptom:** a test connected a lambda to a signal, set a captured local to `true` inside it,
+  and the flag outside read `false` forever — even though a `print()` in the same lambda proved
+  it ran.
+- **Cause:** GDScript lambdas capture by value, not by reference. The assignment updates the
+  lambda's own copy; the enclosing scope never sees it.
+- **Fix:** make it a member variable (or box it in an Array/Dictionary, which are reference
+  types). See `tests/smoke_pod_audio.gd`.
+- **Cost of missing it:** it looks exactly like the signal not firing, so the hunt starts in
+  entirely the wrong place.
 
 ### `RenderingServer.frame_post_draw` never fires under `--headless`
 

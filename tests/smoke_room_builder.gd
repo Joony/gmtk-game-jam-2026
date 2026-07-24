@@ -285,7 +285,9 @@ func _run() -> void:
 	# Panels must be strictly thinner than the walls. An open panel slides INSIDE the
 	# wall, so equal thickness makes the faces coplanar and they z-fight.
 	var panel_mesh: MeshInstance3D = door.get_node("Panel_0/Mesh")
-	var panel_size: Vector3 = (panel_mesh.mesh as BoxMesh).size
+	# Read the bounds, not a BoxMesh's size: the panel is a hand-built ArrayMesh now that its
+	# inner vertical edges are chamfered (SlidingDoor._build_panel_mesh).
+	var panel_size: Vector3 = panel_mesh.mesh.get_aabb().size
 	var panel_depth: float = minf(panel_size.x, panel_size.z)
 	_check(
 		"door panels are thinner than the walls (%.3f vs %.3f) so they can't z-fight"
