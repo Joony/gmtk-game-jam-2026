@@ -19,8 +19,12 @@ roughness = 0.45
 [sub_resource type="BoxShape3D" id="BoxShape3D_cube"]
 size = Vector3(0.4, 0.4, 0.4)
 
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not
+; inherit this body's velocity while standing on it.
 [node name="BatteryCube" type="RigidBody3D"]
 continuous_cd = true
+collision_layer = 2
+collision_mask = 3
 script = ExtResource("1_battery")
 interaction_type = 0
 interaction_text = "Pick up battery"

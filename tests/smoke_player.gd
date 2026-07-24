@@ -74,6 +74,11 @@ func _run() -> void:
 			rig.physics_interpolation_mode == Node.PHYSICS_INTERPOLATION_MODE_OFF
 		)
 		_check("player collision_layer is 1", p.collision_layer == 1)
+		# The crate-launch fix: player collides with props (layer 2) but does NOT treat them as
+		# moving platforms, so it never inherits a jostled crate's velocity. See smoke_crate_jump.
+		_check("player collides with props (mask has layer 2)", (p.collision_mask & 2) != 0)
+		_check("player still collides with world (mask has layer 1)", (p.collision_mask & 1) != 0)
+		_check("player excludes props from moving platforms", (p.platform_floor_layers & 2) == 0)
 		var shape: CollisionShape3D = p.get_node("CollisionShape3D")
 		_check("collision shape is a capsule", shape.shape is CapsuleShape3D)
 		p.free()

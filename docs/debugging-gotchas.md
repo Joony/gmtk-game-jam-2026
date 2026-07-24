@@ -105,6 +105,20 @@ Opening a scene in the editor and saving it — even with no deliberate change �
   so the `RigidBody`'s own shape is the only collider. See also the editor-drops-overrides
   note above — this override is the one that keeps getting lost.
 
+### Jumping on a crate launches the player across the room
+
+- **Symptom:** landing on a small crate flings the player at high speed instead of standing
+  on it.
+- **Cause:** `CharacterBody3D.move_and_slide()` inherits the velocity of any floor body whose
+  layer is in `platform_floor_layers` (all layers by default), treating it as a moving
+  platform. A light `RigidBody3D` crate *springs* when the capsule lands on it, and the
+  player inherited that jitter velocity — a launch.
+- **Fix:** put pushable props on their own physics layer (2 here) and keep the player's
+  `platform_floor_layers` to layer 1 alone. The player still collides with props (mask 3) so
+  it stands on and shoves them, but never inherits their velocity. Guarded behaviourally by
+  `tests/smoke_crate_jump.gd` (mutation-tested: reverting the exclusion drifts the player 13m
+  off the world) and by config assertions in `tests/smoke_player.gd`.
+
 ---
 
 ## Audio

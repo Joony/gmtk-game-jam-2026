@@ -13,9 +13,16 @@ height = 1.8
 radius = 0.4
 height = 1.8
 
+; Physics layers: 1 = world/static + player, 2 = pushable props (crates, battery, parts).
+; The player collides with both (mask 3) so it can stand on and shove props, but
+; platform_floor_layers is kept to layer 1 alone: a CharacterBody inherits the velocity of
+; any floor body counted as a moving platform, and a light RigidBody crate springs when you
+; land on it — inheriting that jitter launched the player. Excluding layer 2 from the
+; platform set keeps the crate solid to stand on without propagating its velocity.
 [node name="Player" type="CharacterBody3D" groups=["cable_ignore", "player"]]
 collision_layer = 1
-collision_mask = 1
+collision_mask = 3
+platform_floor_layers = 1
 script = ExtResource("1_player")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
