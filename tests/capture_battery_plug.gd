@@ -20,7 +20,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	var cam := Camera3D.new(); root.add_child(cam)
-	cam.global_position = Vector3(0.55, 0.35, 0.75); cam.look_at(Vector3(0, 0, 0.15), Vector3.UP); cam.make_current()
+	cam.global_position = Vector3(0.85, 0.12, 0.5); cam.look_at(Vector3(0, 0.0, 0.2), Vector3.UP); cam.make_current()
 	for i in 4: await process_frame
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(out_path)
