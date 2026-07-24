@@ -381,6 +381,7 @@ class _Runner:
 		var controller := suite.root.get_node_or_null("/root/Audio")
 		var pod_open: AudioStream = controller._sounds.get(&"pod_open")
 		var pod_close: AudioStream = controller._sounds.get(&"pod_close")
+		var plug: AudioStream = controller._sounds.get(&"plug")
 		suite.check(pod_open != null and pod_close != null, "both pod door sounds exist")
 		suite.check(pod_open != controller._sounds.get(&"door_open")
 				and pod_close != controller._sounds.get(&"door_close"),
@@ -407,8 +408,14 @@ class _Runner:
 		await suite.process_frame
 		suite.check(not _heard(pod_close), "posing a door instantly makes no sound")
 
+		# Opening leads with the cork pop and brings its own sound in a beat later
+		# (Game.POD_POP_LEAD), so the door sound is NOT there on the next frame — it has to be
+		# waited out. See Game._on_pod_door_moved for why the two cannot be played together.
 		pod.set_door_open(true)
 		await suite.process_frame
+		suite.check(_heard(plug), "opening the pod leads with the cork pop")
+		suite.check(not _heard(pod_open), "the door sound does not land on top of the pop")
+		await suite.create_timer(game.POD_POP_LEAD + 0.05).timeout
 		suite.check(_heard(pod_open), "opening the pod plays its own sound")
 
 		pod.set_door_open(false)

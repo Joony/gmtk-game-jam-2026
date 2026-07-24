@@ -1,14 +1,16 @@
 extends SceneTree
-# Regression test for the pod's two one-shots: a small CLICK on climbing in, and a POP the
-# instant the door starts to swing open on waking.
+# Regression test for the pod's two one-shots: a small CLICK on climbing in, and the cork POP
+# the instant the door starts to swing open on waking.
 #
 # The pop used to fire from StasisPod.entered — the moment the player climbs in — which is a
 # full second before the door moves, so getting in sounded like a bare pop, a long gap, and
-# then the door closing. It belongs to the door OPENING, where it reads as the seal breaking.
+# then the door closing. It belongs to the start of the door OPENING, as the seal lets go.
 #
-# The pop must also be MIXED ABOVE the door sound it plays over: pod_open reaches ~0.84
-# amplitude within 10 ms and holds ~0.75 for 300 ms, so a pop at the same level is masked and
-# no transient is audible at all — which is exactly how it failed the first time.
+# The pop must also LEAD the door sound rather than play under it. pod_open is at ~0.84
+# amplitude within 10 ms and holds ~0.75 for 300 ms, and the cork's 150 Hz seat sits inside
+# the servo's 188-262 Hz range, so playing them together masks the pop however loud it is
+# mixed — that is exactly how this failed the first time round. So the ordering below is the
+# point of the test, not an incidental detail.
 #
 # This watches the positional voices for the plug stream rather than trusting the wiring, so
 # it fails if the sound is reconnected to the wrong event OR silently stops being played. Run:
@@ -75,22 +77,32 @@ func _run() -> void:
 	# Moving the clunk must not have taken the door's own sound with it.
 	_check("the door still closes audibly", close_during_entry)
 
-	# --- Waking. The door swings open, and the pop rides it.
+	# --- Waking. The pop fires first, and the door sound comes in AFTER it.
+	var plug_frame := -1
+	var open_frame := -1
+	var frame := 0
 	game._run.exit_stasis()
-	for _i in 20:
+	for _i in 400:
 		await process_frame
-		if _open_seen and _is_playing(audio, &"plug"):
-			plug_with_open = true
+		frame += 1
+		if plug_frame < 0 and _is_playing(audio, &"plug"):
+			plug_frame = frame
+		if open_frame < 0 and _is_playing(audio, &"pod_open"):
+			open_frame = frame
+		if plug_frame >= 0 and open_frame >= 0:
 			break
 	_check("the door opened on waking", _open_seen)
-	# Loud enough to cut through the door sound it lands on top of, or it may as well not play.
+	_check("the pop plays when the door starts opening", plug_frame >= 0)
+	_check("the door's own sound still plays", open_frame >= 0)
+	# The ordering IS the fix: same frame means they are mixed together and the pop vanishes.
 	_check(
-		"the pop is mixed above the door sound (%.1f dB vs -2.0)" % game.POD_POP_DB,
-		game.POD_POP_DB > -2.0
+		"the pop leads the door sound (pop f%d, door f%d)" % [plug_frame, open_frame],
+		plug_frame >= 0 and open_frame > plug_frame
 	)
-	# 20 frames is a third of a second: "right at the start of opening", not somewhere in the
-	# middle of the 0.9 s swing.
-	_check("the pop plays at the start of the door opening", plug_with_open)
+	_check(
+		"the lead is a real gap, not a rounding artefact (%.3fs)" % game.POD_POP_LEAD,
+		game.POD_POP_LEAD >= 0.05
+	)
 
 	if _failures.is_empty():
 		print("POD AUDIO TEST PASS")
