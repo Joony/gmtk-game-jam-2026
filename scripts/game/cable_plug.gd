@@ -62,6 +62,10 @@ func _ready() -> void:
 	super()  # Interactable._ready: register in the interactables group
 	# A cable plug is definitionally a pickup.
 	interaction_type = InteractionType.PICKUP
+	# Tick AFTER Carry (priority 10): when this plug is seated in a socket on a CARRIED body (the
+	# battery), Carry moves that body each render frame, and we must re-read the socket and re-author
+	# this plug in the SAME frame — otherwise the plug renders a step behind the battery.
+	process_priority = 20
 	# This script's static base is Interactable (a Node3D); the node it is attached to is a
 	# RigidBody3D. Those are sibling branches, so `self as RigidBody3D` is a compile error — the
 	# cast is laundered through Node (a common ancestor), which the compiler accepts and which
@@ -129,12 +133,14 @@ func is_seated() -> bool:
 
 func _process(_delta: float) -> void:
 	_update_snap_candidate()
+	# Track the socket at RENDER rate (see process_priority), matching how Carry authors the body it
+	# is mounted on, so a plug seated in a carried battery never lags a frame behind it.
+	_follow_seated_socket()
 
 
 func _physics_process(delta: float) -> void:
 	if _reseat_cooldown > 0.0:
 		_reseat_cooldown = maxf(0.0, _reseat_cooldown - delta)
-	_follow_seated_socket()
 
 
 # Carry hook (grab() calls this AFTER it has frozen the body kinematic for the carry). Re-grabbing
@@ -221,6 +227,10 @@ func force_unseat(recoil: Vector3) -> void:
 	if cable != null:
 		cable.set_endpoint_socket(self, null)
 	_body.freeze = false
+	# Was OFF while seated (render-rate authoring) — restore normal interpolation now it is a free
+	# dynamic body again.
+	_body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	_body.reset_physics_interpolation()
 	_body.sleeping = false
 	_body.apply_central_impulse(recoil)
 	_reseat_cooldown = RESEAT_COOLDOWN
@@ -232,8 +242,8 @@ func force_unseat(recoil: Vector3) -> void:
 # way; a bigger offset floated the attach point out to the side, reading as disconnected).
 # cable_exit_dir() lines the first rope segment up with the plug's axis so a held/seated plug's
 # cable still comes straight out the back.
-const CABLE_BACK_OFFSET := 0.08
-
+const CABLE_BACK_Z_OFFSET := 0.00
+const CABLE_BACK_Y_OFFSET := 0.09
 
 # The transform whose +Z is the plug's back: the socket while seated (so the pin tracks a moving
 # mount ahead of the body's tick lag), else the body itself. Carry authors the whole body each
@@ -244,7 +254,7 @@ func _attach_transform() -> Transform3D:
 
 # The cable's PHYSICS pin: the back-gland world position.
 func cable_pin() -> Vector3:
-	return _attach_transform() * Vector3(0.0, 0.0, CABLE_BACK_OFFSET)
+	return _attach_transform() * Vector3(0.0, CABLE_BACK_Y_OFFSET, CABLE_BACK_Z_OFFSET)
 
 
 # The cable's RENDER pin — same gland (see _attach_transform).
@@ -268,6 +278,9 @@ func cable_exit_dir() -> Vector3:
 func _seat(socket: CableSocket) -> void:
 	_body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	_body.freeze = true
+	# Author at render rate like Carry (see _follow_seated_socket): interpolation OFF so the plug
+	# tracks a carried socket exactly instead of lagging a physics step behind.
+	_body.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_seated_socket = socket
 	var mount := socket.mount_body()
 	if mount != null:
@@ -295,14 +308,18 @@ func _author_seated_body(xform: Transform3D) -> void:
 	_last_snap_xform = xform
 
 
-# A socket can be mounted on a moving body (e.g. a socket on a carried cube): while seated,
-# re-author the frozen body whenever the snap transform moves.
+# A socket can be mounted on a moving body (a carried battery): while seated, re-author the frozen
+# body onto the snap transform whenever it moves. Runs in _process (render rate) and sets
+# global_transform directly — the same way Carry drives a held item — so the plug stays glued to a
+# carried socket with no interpolation lag. (The initial seat still uses the server-set teleport in
+# _author_seated_body; this is only the per-frame follow of small deltas.)
 func _follow_seated_socket() -> void:
 	if not is_seated():
 		return
 	var xform := _seated_socket.snap_transform()
 	if not xform.is_equal_approx(_last_snap_xform):
-		_author_seated_body(xform)
+		_body.global_transform = xform
+		_last_snap_xform = xform
 
 
 # While held, light the nearest acceptable socket whose snap_radius contains the plug's rendered

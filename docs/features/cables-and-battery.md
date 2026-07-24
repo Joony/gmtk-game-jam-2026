@@ -279,6 +279,24 @@ first pass at 0.16 m read as *disconnected* because a floor-resting plug can poi
 so the gland floated out past the plug's side. Small keeps it inside the body at any orientation;
 the exit-pin still supplies the straight-out-the-back look when held or seated.
 
+### Playtest fix — seated plug lagging a carried battery
+
+Carrying the battery with a cable plugged in and looking around, the plug trailed a frame behind the
+cube. Cause: `Carry` authors the held battery every **render** frame (`_process`, interpolation off),
+but the seated plug followed its socket only in **`_physics_process`** (60 Hz, interpolation on) — so
+between physics ticks the plug rendered at its old spot while the battery moved on.
+
+Fix: the seated plug now mirrors Carry. On seat it sets `physics_interpolation_mode = OFF`, and it
+follows the socket in **`_process`** at `process_priority = 20` (after Carry's 10, so it re-reads the
+port *after* Carry has moved the battery that same frame), authoring `global_transform` directly like
+Carry does. `force_unseat` restores interpolation when the plug becomes a free body again. The initial
+seat still uses the server-set teleport; this is only the per-frame follow of small deltas.
+
+Verified by [tests/smoke_battery_carry.gd](../../tests/smoke_battery_carry.gd): with the physics rate
+dropped to 5 Hz (so ~12 render frames pass per tick) the plug stays within 0.05 m of the carried
+port; mutation-tested — moving the follow back to `_physics_process` drifts it 1.84 m and the check
+fails.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
