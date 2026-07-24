@@ -89,7 +89,17 @@ func _run() -> void:
 	cs.shape = b
 	plug.add_child(cs)
 	_game.add_child(plug)
-	await _physics_frames(2)
+	# Attach a real cable to the plug (other end a fixed anchor) so this matches the live scenario:
+	# a cable plugged into the battery, not a bare plug.
+	var anchor := Node3D.new()
+	_game.add_child(anchor)
+	anchor.global_position = Vector3(-3, 1, -17)
+	var cable := Cable3D.new()
+	cable.rest_length = 8.0
+	cable.plug_a_path = plug.get_path()
+	cable.anchor_b_path = anchor.get_path()
+	_game.add_child(cable)
+	await _physics_frames(3)
 	var cplug := (plug as Node) as CablePlug
 	_check("the plug seated into the carried battery's port", cplug.plug_into(bport))
 	await _frames(4)
@@ -105,7 +115,7 @@ func _run() -> void:
 		await process_frame
 		# The plug seats a standoff OUT along the port's +Z, so compare against that pose, not the
 		# port origin — any gap beyond it is lag.
-		var expected := bport.global_transform.translated_local(Vector3(0.0, 0.0, CablePlug.SEAT_STANDOFF)).origin
+		var expected := bport.global_transform.translated_local(Vector3(0.0, -CablePlug.SEAT_MODEL_Y, CablePlug.SEAT_STANDOFF)).origin
 		worst = maxf(worst, (plug as Node3D).global_position.distance_to(expected))
 	Engine.physics_ticks_per_second = 60
 

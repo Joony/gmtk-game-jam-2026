@@ -336,6 +336,21 @@ the export change.
 All 8 cable/interaction smoke tests pass; screenshots confirm the wall socket on the wall facing the
 room and a plug sitting on the outside of the battery.
 
+### Plug-in-socket alignment & carried-plug follow (playtest)
+
+- **Plug rode too high in the socket.** The `CD_Plug` model is authored ~0.08 m above the plug body
+  origin (its Model node centres the base on the collision box), so a seated plug's *visual* sat
+  above the receptacle even though the body was aligned. Added `CablePlug.SEAT_MODEL_Y` (0.08) and
+  drop the seated body by it in `_seated_body_xform()`, so the plug reads centred on the socket
+  (seat-only; the held/floor pose keeps the authored offset).
+- **Seated-plug follow made unconditional.** The render-rate follow already tracks a carried
+  socket, but its `is_equal_approx` guard could skip a small per-frame delta from a slow turn,
+  leaving the plug a step behind — it now authors every render frame (cheap). Verified by
+  `smoke_battery_carry`, now with a **real cable attached** and physics dropped to 5 Hz: the plug
+  stays within 0.05 m of the (standoff-adjusted) port pose. So the plug BODY provably tracks; any
+  residual "lag" when whipping a carried battery around is the physics rope tube swinging behind its
+  endpoint, which is inherent to a simulated cable.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,

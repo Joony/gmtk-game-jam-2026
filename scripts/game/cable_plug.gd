@@ -29,6 +29,11 @@ const RESEAT_COOLDOWN := 0.75
 # receptacle while its body stays OUTSIDE the socket/mount — otherwise a plug seated in the
 # battery's face socket buried itself in the cube. (A wall plug just sits proud of the wall.)
 const SEAT_STANDOFF := 0.18
+# The CD_Plug model is authored ~0.08 m ABOVE the body origin (its Model node centres the base on
+# the collision box). Drop the seated body by that so the plug reads as centred on the receptacle
+# instead of riding high above it. (Only affects seating; the held/floor pose keeps the model
+# offset.)
+const SEAT_MODEL_Y := 0.08
 # Group every CableSocket registers in (see cable_socket.gd).
 const SOCKET_GROUP := &"cable_sockets"
 
@@ -320,16 +325,15 @@ func _author_seated_body(xform: Transform3D) -> void:
 # Where the seated body sits: the socket transform pushed out along its +Z by SEAT_STANDOFF, so
 # the plug stays outside the socket/mount (see SEAT_STANDOFF).
 func _seated_body_xform() -> Transform3D:
-	return _seated_socket.snap_transform().translated_local(Vector3(0.0, 0.0, SEAT_STANDOFF))
+	return _seated_socket.snap_transform().translated_local(Vector3(0.0, -SEAT_MODEL_Y, SEAT_STANDOFF))
 
 
 func _follow_seated_socket() -> void:
 	if not is_seated():
 		return
-	var xform := _seated_body_xform()
-	if not xform.is_equal_approx(_last_snap_xform):
-		_body.global_transform = xform
-		_last_snap_xform = xform
+	# Author unconditionally every render frame (cheap): the is_equal_approx guard could skip a
+	# small per-frame delta from a slowly-turning carried socket, leaving the plug a step behind.
+	_body.global_transform = _seated_body_xform()
 
 
 # While held, light the nearest acceptable socket whose snap_radius contains the plug's rendered
