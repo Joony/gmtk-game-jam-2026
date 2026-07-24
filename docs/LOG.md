@@ -27,3 +27,5 @@ Overview of implemented features. Each entry links to a detailed per-feature log
 | 2026-07-23 | Space exterior: backdrop shell, station, nebula band (branch `space-exterior`) | Done, verified | [space-exterior.md](features/space-exterior.md) |
 | 2026-07-23 | Countdown loop (step 12): oxygen, distance, stasis pod, malfunctions, repairs, end states | Done, verified | [countdown-loop.md](features/countdown-loop.md) |
 | 2026-07-23 | Ship fittings: million-mile/day units, fixed-width readouts, cryo pod ring, vent pipe, nav console | Done, verified | [ship-fittings.md](features/ship-fittings.md) |
+| 2026-07-24 | Cables (step 14d, Phase 1): verlet rope ported from Doortal, portals stripped (1868→1280 lines) | Phase 1 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |
+| 2026-07-24 | Cables (step 14d, Phase 2): CableSocket copied unchanged, full API verified; proximity-release confirmed | Phase 2 done, verified | [cables-and-battery.md](features/cables-and-battery.md) |

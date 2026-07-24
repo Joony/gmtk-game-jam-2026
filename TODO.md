@@ -689,14 +689,17 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
 | `scripts/CablePlug.gd` | — | Extends Doortal's `PickableObject`; must be rebased |
 | `scripts/PortalPowerAdapter.gd` | — | Not needed, but it is the reference for how a socket powers a thing |
 
-- [ ] **Strip the portal handling.** `cable_3d.gd` is 87 KB and the portal logic is woven
-      through it (`_link`, `_portals`, `carry_did_teleport`, `on_teleport`, the void guard).
-      Budget real time for this; it is the single biggest port in the project and unlike the
-      room builder it cannot be taken in pieces.
+- [x] **Strip the portal handling.** Done (Phase 1) — `cable_3d.gd` rewritten portal-free,
+      1868→1280 lines: `side[]` collapsed to identity, `CablePortalLink`/`_link`/`_portals`
+      layer and the two-real-room renderer removed, single tube. Verified by
+      `tests/smoke_cable_sim.gd` (settle, overstretch, power). See
+      [docs/features/cables-and-battery.md](docs/features/cables-and-battery.md).
 - [ ] **Rebase `CablePlug`** off `PickableObject` onto our `Interactable` + `Carry`. Our carry
       is Doortal's, so the physics side should line up; it is the pickup base class that differs.
-- [ ] `CableSocket` already has what is needed: `is_power_source`, `powered`,
-      `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()`
+- [x] `CableSocket` already has what is needed: `is_power_source`, `powered`,
+      `plugged` / `unplugged` / `power_changed`, `snap_radius`, `seat()` / `unseat()` — Phase 2:
+      copied unchanged, full API verified by `tests/smoke_cable_socket.gd` (25 checks). Seating
+      confirmed to stay on the **proximity-release** model.
 - [ ] Wall sockets placed by `RoomBuilder`, or hand-placed like the repair panels
 - [ ] Some cables start permanently plugged in at one end — one plug seated and non-removable,
       so the player only ever handles the free end
