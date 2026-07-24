@@ -72,8 +72,10 @@ class _Runner:
 		print("== smoke_audio ==")
 		_test_buses()
 		_test_generated()
+		_test_music_tracks()
 		_test_repair_routes_sound_different()
 		await _test_wiring()
+		await _test_low_oxygen_music()
 		await _test_positional()
 		await _test_alarm_lifetime()
 		await _test_pod_door()
@@ -149,6 +151,71 @@ class _Runner:
 		var last := klaxon.data.decode_s16((count - 1) * 2)
 		suite.check(absi(first - last) < 400,
 			"and its loop seam is continuous (|first-last| = %d of 32768)" % absi(first - last))
+
+
+	func _test_music_tracks() -> void:
+		print("[the four music tracks exist and loop]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		# Every music STATE except NONE must resolve to a real, looping stream. A track that
+		# does not loop stops dead partway through a run; one that is missing plays silence.
+		for state in [controller.Music.NORMAL, controller.Music.PANIC, controller.Music.STASIS,
+				controller.Music.LOW_OXYGEN]:
+			var path: String = controller.MUSIC_PATHS.get(state, "")
+			suite.check(ResourceLoader.exists(path), "music for state %d exists (%s)" % [state, path])
+			var stream: AudioStream = controller._load_music(state)
+			suite.check(stream != null, "and loads")
+			if stream is AudioStreamOggVorbis:
+				suite.check((stream as AudioStreamOggVorbis).loop,
+					"and is set to loop (%s)" % path.get_file())
+			elif stream is AudioStreamWAV:
+				suite.check((stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_FORWARD,
+					"and is set to loop (%s)" % path.get_file())
+
+
+	## The whole point of the new track: low air owns the music, above even a critical fault.
+	func _test_low_oxygen_music() -> void:
+		print("[music follows oxygen — crash_landing when low, and it wins]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var game: Node3D = load("res://scenes/game.tscn").instantiate()
+		suite.root.add_child(game)
+		suite.current_scene = game
+		await suite.process_frame
+		game.start_game()
+		await suite.process_frame
+		var run: RunState = game.get_node("Run")
+
+		suite.check(controller.music_state == controller.Music.NORMAL,
+			"full air, nothing broken -> NORMAL (lost_in_space)")
+
+		# Drop below the air warning.
+		run.oxygen_remaining = run.oxygen_warning * 0.5
+		run.oxygen_changed.emit(run.oxygen_remaining, run.oxygen_total)
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.LOW_OXYGEN,
+			"low air -> LOW_OXYGEN (crash_landing)")
+
+		# A critical fault while the air is low: low air still wins.
+		var drive: Malfunction = game.get_node("MainDrive")
+		drive.break_now()
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.LOW_OXYGEN,
+			"low air outranks a critical fault")
+
+		# Recover the air above the warning while the fault stands: now the fault shows.
+		run.oxygen_remaining = run.oxygen_total
+		run.oxygen_changed.emit(run.oxygen_remaining, run.oxygen_total)
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.PANIC,
+			"air recovered, fault remains -> PANIC (red_alert)")
+
+		# Stasis outranks everything, air and fault alike.
+		run.enter_stasis()
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.STASIS,
+			"in the pod -> STASIS (klaatu), whatever else is going on")
+		run.exit_stasis()
+
+		game.free()
 
 
 	func _test_repair_routes_sound_different() -> void:
@@ -257,17 +324,11 @@ class _Runner:
 		suite.check(controller._alarm_player.stream_paused,
 			"pausing silences the klaxon")
 		suite.check(controller._paused, "and the controller knows it is paused")
-		# NOT asserted on the music players: Godot refuses to store `stream_paused` on a
-		# player with no stream, and the three music tracks do not exist yet. Verified
-		# directly — a player WITH a stream keeps the flag, one without silently drops it.
-		# The music goes through the same set_paused() loop, so it will pause once the
-		# tracks land; there is simply nothing to observe until then.
-		var paused_voices := 0
-		for voice in controller._voices:
-			if voice.stream != null and voice.stream_paused:
-				paused_voices += 1
-		suite.check(paused_voices > 0 or controller._paused,
-			"and every voice that has something to play is paused (%d)" % paused_voices)
+		# The music tracks exist now, so the active music player has a stream and DOES pause.
+		# (Godot silently refuses to store stream_paused on a player with NO stream — that was
+		# the old caveat, back when the tracks were missing.)
+		suite.check(controller._music_active.stream_paused,
+			"and the music pauses too")
 
 		# Breathing must not keep firing behind the pause menu. The controller runs while the
 		# tree is paused (so menu clicks are audible), so it has to opt out itself.

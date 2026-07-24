@@ -14,16 +14,19 @@ extends Node
 # low-oxygen breathing change its own rate, and what stops a sound played from four places
 # drifting into four slightly different volumes.
 
-enum Music { NONE, NORMAL, PANIC, STASIS }
+enum Music { NONE, NORMAL, PANIC, STASIS, LOW_OXYGEN }
 
 const MUSIC_BUS := &"Music"
 const SFX_BUS := &"SFX"
 
-## Real files, and the only part of the audio that is not generated.
+## Real files, and the only part of the audio that is not generated. Delivered as .wav but
+## transcoded to Ogg Vorbis (see tools + the .wav masters alongside): 115 MB of WAV would
+## have sunk the web export, and Vorbis loops with a single `loop` flag.
 const MUSIC_PATHS := {
-	Music.NORMAL: "res://assets/audio/music_normal.ogg",
-	Music.PANIC: "res://assets/audio/music_panic.ogg",
-	Music.STASIS: "res://assets/audio/music_stasis.ogg",
+	Music.NORMAL: "res://assets/audio/lost_in_space.ogg",
+	Music.PANIC: "res://assets/audio/red_alert.ogg",
+	Music.STASIS: "res://assets/audio/klaatu_barada_nikto.ogg",
+	Music.LOW_OXYGEN: "res://assets/audio/crash_landing.ogg",
 }
 
 ## How long a crossfade takes.
@@ -322,6 +325,11 @@ func play_music(state: Music) -> void:
 
 func stop_music() -> void:
 	music_state = Music.NONE
+	_music_pending = Music.NONE
+	# A fresh run is a hard reset, not a de-escalation, so clear the dwell timer: otherwise
+	# the FIRST track of the next run (NORMAL) would be dwell-gated and the run would open on
+	# 2.5s of silence if the previous run had just changed the music.
+	_music_since_change = 999.0
 	if _music_tween != null and _music_tween.is_valid():
 		_music_tween.kill()
 	_music_a.stop()
@@ -331,11 +339,23 @@ func stop_music() -> void:
 func _load_music(state: Music) -> AudioStream:
 	var path: String = MUSIC_PATHS.get(state, "")
 	if path == "" or not ResourceLoader.exists(path):
-		# Not an error. The tracks are composed last, and the game has to be playable and
-		# testable long before they land.
-		_warn_once(path, "music track not present yet: %s" % path)
+		# Not an error. A track can be absent (or a new one added later) and the game must
+		# still run — a missing state simply plays silence.
+		_warn_once(path, "music track not present: %s" % path)
 		return null
-	return load(path) as AudioStream
+	var stream := load(path) as AudioStream
+	# Music must loop, and the tracks are not authored with loop metadata. Set it here so it
+	# does not depend on each file's import settings being right. Vorbis has a plain flag;
+	# a WAV master would need sample-accurate loop points, which is a second reason to ship
+	# the .ogg.
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = wav.data.size() / (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1)
+	return stream
 
 
 func _warn_once(key: Variant, message: String) -> void:

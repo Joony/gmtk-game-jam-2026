@@ -141,16 +141,17 @@ func _wire_audio() -> void:
 		Audio.pod_door(opening, _pod.global_position))
 
 
-## Music AND klaxon follow the ship's state: stasis wins over everything, then any CRITICAL
-## fault, then normal. Driven off signals that already existed rather than polled — and both
-## from the same function, so the alarm and the score can never disagree about the situation.
+## Music AND klaxon follow the ship's state, both from the same function so the alarm and the
+## score can never disagree. Music priority, highest first:
+##   STASIS      — sealed in the pod (klaatu_barada_nikto)
+##   LOW_OXYGEN  — out of the pod and below the air warning (crash_landing): the death timer
+##                 is the tensest state, so it wins even over a critical fault
+##   PANIC       — a critical fault is active (red_alert)
+##   NORMAL      — walking the ship, nothing wrong (lost_in_space)
+## Called from stasis/systems signals AND from the oxygen handler, so crossing the air
+## threshold switches the track. play_music() is idempotent, so re-calling is free.
 func _update_ship_audio() -> void:
 	if _run.finished:
-		return
-	if _run.in_stasis:
-		# Sealed in the pod. An alarm loud enough to wake you has already done its job.
-		Audio.set_alarm(false)
-		Audio.play_music(Audio.Music.STASIS)
 		return
 
 	var critical := false
@@ -158,8 +159,22 @@ func _update_ship_audio() -> void:
 		if malfunction.is_critical():
 			critical = true
 			break
-	Audio.set_alarm(critical)
-	Audio.play_music(Audio.Music.PANIC if critical else Audio.Music.NORMAL)
+	# The klaxon is about critical faults only, and never sounds inside the sealed pod.
+	Audio.set_alarm(critical and not _run.in_stasis)
+
+	if _run.in_stasis:
+		Audio.play_music(Audio.Music.STASIS)
+	elif _is_low_oxygen():
+		Audio.play_music(Audio.Music.LOW_OXYGEN)
+	elif critical:
+		Audio.play_music(Audio.Music.PANIC)
+	else:
+		Audio.play_music(Audio.Music.NORMAL)
+
+
+func _is_low_oxygen() -> bool:
+	return not _run.in_stasis and _run.oxygen_warning > 0.0 \
+		and _run.oxygen_remaining <= _run.oxygen_warning
 
 
 ## Breathing starts at the same threshold the HUD's vignette does, so the two escalate
@@ -168,8 +183,10 @@ func _on_oxygen_for_audio(remaining: float, _total: float) -> void:
 	var warn: float = _run.oxygen_warning
 	if warn <= 0.0 or remaining > warn or _run.in_stasis:
 		Audio.set_breathing(0.0)
-		return
-	Audio.set_breathing(1.0 - remaining / warn)
+	else:
+		Audio.set_breathing(1.0 - remaining / warn)
+	# Crossing the air threshold (either way) swaps the music to/from crash_landing.
+	_update_ship_audio()
 
 
 func start_game() -> void:

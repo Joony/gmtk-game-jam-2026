@@ -583,8 +583,12 @@ them to disk with `tests/forge_sounds.gd` to listen.
       UID that git merges cleanly and Godot papers over at load time. Mutation-tested against
       both real failures.
 
-- [ ] **The three music tracks.** Everything else is done and waiting; drop the `.ogg`s into
-      `assets/audio/` (see the README there) and they start working with no code change.
+- [x] **Music tracks — done.** FOUR states now: `lost_in_space` (normal), `red_alert`
+      (critical fault), `klaatu_barada_nikto` (stasis), and `crash_landing` (low oxygen — a
+      new state that outranks even a critical fault, since the air timer is the death clock).
+      Delivered as `.wav` (115 MB total) but **transcoded to Ogg Vorbis** (~7 MB) — WAV that
+      big would sink the web export, and Vorbis loops with one flag. The `.wav` masters are
+      still in `assets/audio/`; **safe to `git rm` if nobody needs them as editing masters.**
 - [ ] The vent pipe's hiss should be a positional loop — the one sound you ought to hear
       before you can see it. Needs a looping 3D voice rather than the one-shot pool.
 - [ ] Nothing plays on arrival or on suffocation — both end screens are silent
