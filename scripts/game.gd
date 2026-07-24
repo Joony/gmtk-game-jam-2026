@@ -68,10 +68,10 @@ func _ready() -> void:
 	# Pausing the SceneTree does NOT pause audio in Godot — streams carry on regardless — so
 	# the klaxon and the music kept going over the pause menu until this was explicit.
 	_pause_menu.paused.connect(func() -> void:
-		_reticle.visible = false
+		_refresh_reticle()
 		Audio.set_paused(true))
 	_pause_menu.resumed.connect(func() -> void:
-		_reticle.visible = true
+		_refresh_reticle()
 		Audio.set_paused(false))
 
 	_pod.interacted_with.connect(_on_pod_used)
@@ -193,7 +193,7 @@ func start_game() -> void:
 	if is_started:
 		return
 	is_started = true
-	_reticle.visible = true
+	_refresh_reticle()
 	_hud.visible = true
 	_player.process_mode = Node.PROCESS_MODE_INHERIT
 	_pause_menu.enabled = true
@@ -247,7 +247,7 @@ func _open_nav_screen() -> void:
 
 	_set_player_active(false)
 	_player.velocity = Vector3.ZERO
-	_reticle.visible = false
+	_refresh_reticle()
 
 	var view := _computer.view_transform()
 	await _glide_player(view.origin, view.basis.get_euler().y, 0.0, NAV_MOVE_TIME)
@@ -267,7 +267,7 @@ func _close_nav_screen() -> void:
 	await _glide_player(_nav_return_position, _nav_return_yaw, _nav_return_pitch, NAV_MOVE_TIME)
 	_nav_phase = NavPhase.AWAY
 	_camera.input_enabled = true
-	_reticle.visible = true
+	_refresh_reticle()
 	_set_player_active(true)
 
 
@@ -294,7 +294,7 @@ func _enter_pod() -> void:
 	_pod_phase = PodPhase.ENTERING
 	_set_player_active(false)
 	_player.velocity = Vector3.ZERO
-	_reticle.visible = false
+	_refresh_reticle()
 	_pod.set_occupied(true)
 	_pod.set_door_open(true)
 
@@ -327,8 +327,8 @@ func _exit_pod() -> void:
 func _finish_exit() -> void:
 	_pod.set_occupied(false)
 	_pod_phase = PodPhase.OUT
+	_refresh_reticle()
 	if not _run.finished:
-		_reticle.visible = true
 		_set_player_active(true)
 	_camera.input_enabled = true
 
@@ -375,10 +375,30 @@ func _set_player_active(active: bool) -> void:
 	_carry.set_process(active)
 
 
+## The reticle is shown ONLY when the player is actually free to aim at something, and every
+## caller re-derives it from state rather than setting `visible` directly. It used to be
+## assigned true/false at each transition, and the pause/resume pair did it unconditionally —
+## so unpausing inside the stasis pod (or at the nav console) put the dot and its interaction
+## prompt back on screen over a view the player has no control of. Deriving it means a resume
+## can only ever restore what the current state actually allows.
+func _reticle_should_show() -> bool:
+	return (
+		is_started
+		and not _run.finished
+		and not _pause_menu.is_paused
+		and _pod_phase == PodPhase.OUT
+		and _nav_phase == NavPhase.AWAY
+	)
+
+
+func _refresh_reticle() -> void:
+	_reticle.visible = _reticle_should_show()
+
+
 func _on_run_ended(won: bool, summary: Dictionary) -> void:
 	if _nav_phase == NavPhase.READING:
 		_nav_screen.close()
-	_reticle.visible = false
+	_refresh_reticle()
 	_hud.visible = false
 	_pause_menu.enabled = false
 	_player.process_mode = Node.PROCESS_MODE_DISABLED

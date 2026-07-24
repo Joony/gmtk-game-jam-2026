@@ -158,6 +158,27 @@ Opening a scene in the editor and saving it — even with no deliberate change �
 
 ---
 
+## UI state
+
+### Unpausing restores UI that something else had deliberately hidden
+
+- **Symptom:** the reticle (aim dot + interaction prompt) reappeared after unpausing while
+  sealed in the stasis pod — and, by the same defect, while leaning in to read the nav console.
+- **Cause:** visibility was **assigned** at each transition, so the resume handler's
+  `_reticle.visible = true` was writing an assumption ("we were playing before the pause")
+  rather than a fact. It silently overrode the `visible = false` that `_enter_pod()` and
+  `_open_nav_screen()` had set. Every pair of setters like this is a race between whoever
+  wrote last; the pause handler happened to be last.
+- **Fix:** **derive, don't assign.** `Game._reticle_should_show()` computes visibility from
+  state (`is_started`, `_run.finished`, `is_paused`, `_pod_phase`, `_nav_phase`) and every
+  former assignment site now calls `_refresh_reticle()`. A resume can then only restore what
+  the current state actually allows. Guarded by `tests/smoke_reticle_pause.gd`, which pauses
+  and unpauses in normal play, in the pod, and at the nav console.
+- **Generalises:** any UI a *transient* mode hides is at risk if another mode restores it
+  unconditionally. Prefer one derived predicate over N scattered `visible =` writes.
+
+---
+
 ## CPUParticles3D
 
 Three separate silent no-ops, all hit while building the vent-pipe steam:
