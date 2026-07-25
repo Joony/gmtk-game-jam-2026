@@ -154,8 +154,10 @@ func _run() -> void:
 		await physics_frame
 	print("  (opened %d doors)" % doors)
 
-	var spawn: Marker3D = game.get_node("PlayerSpawn")
-	var reach := _reachable_from(spawn.global_position)
+	# Where the run actually puts you on your feet: the pod sets you down in front of its door
+	# on waking. There is no PlayerSpawn marker any more — the game starts you asleep inside.
+	var start_pod: StasisPod = game.get_node("StasisPod")
+	var reach := _reachable_from(start_pod.exit_transform().origin)
 	_check("the spawn point itself is standable (%d cells reachable)" % reach.size(), reach.size() > 50)
 
 	# Everywhere the game sends you.

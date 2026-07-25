@@ -7,6 +7,7 @@ extends SceneTree
 # Run: godot --headless --path . -s tests/smoke_plug_wall.gd
 
 const GAME_SCENE := "res://scenes/game.tscn"
+const Opening := preload("res://tests/opening.gd")
 const PLUG_SCRIPT := "res://scripts/game/cable_plug.gd"
 const PLUG_BOX := Vector3(0.42, 0.18, 0.42)  # keep in sync with scenes/props/power_cable.tscn
 
@@ -52,6 +53,9 @@ func _run() -> void:
 	current_scene = _game
 	await process_frame
 	_game.start_game()
+	# The run opens with the player asleep in the stasis pod; everything below needs them
+	# on their feet and back under their own control. See tests/opening.gd.
+	await Opening.wake(self, _game)
 
 	_cam = _game.get_node("Player/CameraRig/Camera3D")
 	_carry = _game.get_node("Player/Carry")

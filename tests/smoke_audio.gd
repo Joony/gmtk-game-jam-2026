@@ -1,4 +1,6 @@
 extends SceneTree
+
+const Opening := preload("res://tests/opening.gd")
 # Audio: the generated effects, the bus layout, and — the part that actually breaks — that
 # the game's events reach the controller at all.
 #
@@ -181,6 +183,9 @@ class _Runner:
 		suite.current_scene = game
 		await suite.process_frame
 		game.start_game()
+		# The run opens with a cold open — silent, no HUD — until the ship wakes the player,
+		# so every music assertion below has to be made from the other side of that.
+		await Opening.wake(suite, game)
 		await suite.process_frame
 		var run: RunState = game.get_node("Run")
 
@@ -241,6 +246,8 @@ class _Runner:
 		suite.current_scene = game
 		await suite.process_frame
 		game.start_game()
+		# Same as above: no music at all until the opening stasis lets go.
+		await Opening.wake(suite, game)
 		await suite.process_frame
 
 		var run: RunState = game.get_node("Run")

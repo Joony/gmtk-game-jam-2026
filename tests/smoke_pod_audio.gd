@@ -16,6 +16,8 @@ extends SceneTree
 # it fails if the sound is reconnected to the wrong event OR silently stops being played. Run:
 #   godot --headless --path . -s tests/smoke_pod_audio.gd
 
+const Opening := preload("res://tests/opening.gd")
+
 var _failures: Array[String] = []
 # A member, not a local: a GDScript lambda captures locals BY VALUE, so a signal handler
 # assigning to a captured local updates only its own copy and the test reads false forever.
@@ -50,13 +52,19 @@ func _run() -> void:
 	var audio = root.get_node("Audio")
 	_check("the plug sound exists", audio._sounds.has(&"plug"))
 
+	# The run now OPENS with the player asleep in the pod, so get them out before testing the
+	# way in. That opening wake is a pod cycle in its own right and would otherwise land its
+	# pop in the middle of the entry assertions below. It has its own suite:
+	# smoke_opening_stasis.
+	_check("the opening stasis lets go", await Opening.wake(self, game))
+
 	var plug_with_open := false
 	game._pod.door_moved.connect(func(opening: bool) -> void:
 		if opening:
 			_open_seen = true)
 
-	# --- Climbing in. The door is already open (every player pod starts that way), so the
-	# only pod-door sound here is the close; the clunk must NOT appear.
+	# --- Climbing in. The door is standing open from the wake above, so the only pod-door
+	# sound here is the close; the clunk must NOT appear.
 	var plug_during_entry := false
 	var click_during_entry := false
 	var close_during_entry := false

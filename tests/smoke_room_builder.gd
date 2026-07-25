@@ -1,4 +1,6 @@
 extends SceneTree
+
+const Opening := preload("res://tests/opening.gd")
 # Step 9: procedural room builder.
 # Run: godot --headless --path . -s tests/smoke_room_builder.gd
 
@@ -359,6 +361,9 @@ func _run() -> void:
 	current_scene = ship_scene
 	await process_frame
 	ship_scene.start_game()
+	# The run opens with the player asleep in the pod, held off the floor by the pod's own
+	# view marker; the standing check below only means anything once they are out of it.
+	await Opening.wake(self, ship_scene)
 	var ship: Node3D = ship_scene.get_node("Ship")
 	_check("ship built rooms", ship.rooms.size() >= 3)
 	_check("ship built doorways", ship.doorways.size() >= 2)

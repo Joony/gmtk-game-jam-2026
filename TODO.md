@@ -502,6 +502,27 @@ look out of.
       gives the transpose, i.e. the opposite rotation. This buried three repair panels inside
       walls. `tests/smoke_navigation.gd` now guards it.
 
+## 12g. ✅ Opening stasis — done ([log](docs/features/opening-stasis.md))
+
+Playtest: *"the player should start inside the cryo pod like they're in stasis. After a quick
+pause they should be brought out of stasis and the game begins."*
+
+- [x] The run opens with the player sealed in the pod, not stood in front of it
+      (`Game._pose_in_pod()`). `PlayerSpawn` deleted — nothing read it any more.
+- [x] The ship wakes them after `OPENING_STASIS_TIME` (1.6s) through the pod's **ordinary** wake
+      — cork pop, door swing, ride out — with no branch for the first one. `[E]` skips it.
+- [x] **Cold open:** no HUD, no "IN STASIS · [E] WAKE" panel, no music until that wake. Both
+      routes out (the timer and the player's `[E]`) funnel through `_on_stasis_changed()`, which
+      is the only place that catches both.
+- [x] **"01" stencilled inside the door** in Abolition, semi-transparent, at eye height
+      (1.6m — *not* `PodView`'s 0.95m), parented to `Model/Door` so it swings away with the panel.
+- [ ] The pod shell is single-sided, so from inside there is no door rendered behind the "01" —
+      it reads as floating rather than printed. Fix is `cull_mode` on the door mesh; not done,
+      because it changes how the pod itself looks.
+- [x] Tested: `smoke_opening_stasis.gd`, `smoke_pod_label.gd`, `capture_pod_label.gd` (3 renders).
+      Nine mutations killed. Eleven suites that assumed the player starts on their feet now share
+      `tests/opening.gd`.
+
 ## 13. Polish / remaining
 
 ### Audio

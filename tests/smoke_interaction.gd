@@ -3,6 +3,7 @@ extends SceneTree
 # Run: godot --headless --path . -s tests/smoke_interaction.gd
 
 const GAME_SCENE := "res://scenes/game.tscn"
+const Opening := preload("res://tests/opening.gd")
 
 var _failures: Array[String] = []
 var _game: Node3D
@@ -51,6 +52,9 @@ func _run() -> void:
 	current_scene = _game
 	await process_frame
 	_game.start_game()
+	# The run opens with the player asleep in the stasis pod; everything below needs them
+	# on their feet and back under their own control. See tests/opening.gd.
+	await Opening.wake(self, _game)
 
 	_player = _game.get_node("Player")
 	_cam = _game.get_node("Player/CameraRig/Camera3D")

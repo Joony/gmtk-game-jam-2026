@@ -8,11 +8,14 @@ extends Node3D
 # This node also owns the two things that have to happen to the PLAYER when the run state
 # changes — being put in the pod, and being taken out of the world at the end — because
 # RunState deliberately knows nothing about the player, the camera or the cursor.
+#
+# There is no PlayerSpawn marker any more: the run opens with the player sealed inside the
+# stasis pod, so the pod's own PodView/PodExit markers are the only start positions there are.
+# See _pose_in_pod().
 
 signal started
 
 @onready var _player: CharacterBody3D = $Player
-@onready var _spawn: Marker3D = $PlayerSpawn
 @onready var _pause_menu: CanvasLayer = $PauseMenu
 @onready var _reticle: CanvasLayer = $Reticle
 @onready var _interactor: Interactor = $Player/Interactor
@@ -43,12 +46,21 @@ const POD_POP_DB := 0.0
 const POD_POP_LEAD := 0.32
 ## Leaning in to the nav console is a shorter move over a shorter distance.
 const NAV_MOVE_TIME := 0.55
+## How long the player lies sealed in the pod before the ship wakes them, at the very start of
+## the run. Long enough to register the shell around you and the stasis readout spinning up,
+## short enough that it is a beat rather than a wait. [E] skips it like any other stasis.
+const OPENING_STASIS_TIME := 1.6
 
 ## Same reasoning as PodPhase: the approach has to reject a second interact press, and the
 ## run can end while the player is stood reading.
 enum NavPhase { AWAY, APPROACHING, READING, LEAVING }
 
 var is_started: bool = false
+
+## True from load until the ship wakes the player for the first time. The cold open runs
+## silent and bare — no music, no HUD, no "IN STASIS" panel — so the first thing the player
+## gets is the pod's seal letting go. See _pose_in_pod() and _on_stasis_changed().
+var _in_opening_stasis: bool = true
 
 var _pod_phase: PodPhase = PodPhase.OUT
 var _nav_phase: NavPhase = NavPhase.AWAY
@@ -58,14 +70,6 @@ var _nav_return_pitch: float = 0.0
 
 
 func _ready() -> void:
-	_player.global_transform = _spawn.global_transform
-	# Without this the camera renders ONE frame at the world origin (down at floor level in
-	# the middle of the ship) before snapping to the spawn: the camera reads the anchor's
-	# INTERPOLATED transform, which on the very first frame lerps from identity to the spawn.
-	# Resetting the interpolation makes frame zero use the spawn directly. It used to be
-	# masked by the START prompt covering that frame; auto-starting exposed it.
-	_player.reset_physics_interpolation()
-	_camera.snap_to_body()
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
 	_readout.bind(_motion)
@@ -82,10 +86,17 @@ func _ready() -> void:
 
 	_pod.interacted_with.connect(_on_pod_used)
 	_run.stasis_changed.connect(_on_stasis_changed)
-	# Every pod starts sealed; the player's swings open so it reads as the one to use.
+	# Every pod starts sealed, the player's included — they are asleep inside it. It used to
+	# swing open so it read as the one to use, back when the run began with the player stood
+	# outside looking at it.
 	for pod in get_tree().get_nodes_in_group(&"interactables"):
 		if pod is StasisPod:
-			(pod as StasisPod).set_door_open((pod as StasisPod).is_player_pod, true)
+			(pod as StasisPod).set_door_open(false, true)
+	# Before _wire_audio(), and that ordering is load-bearing: posing the player in the pod
+	# marks it occupied, and the `entered` signal that fires from it is wired below to the
+	# click of climbing in. Connect first and frame zero opens with a sound for an action the
+	# player never took.
+	_pose_in_pod()
 	_wire_audio()
 	_computer.bind(_run)
 	_computer.opened.connect(_open_nav_screen)
@@ -100,6 +111,9 @@ func _ready() -> void:
 	# intro played to the end there was none, so Godot defers the capture to the player's
 	# first click, which is the graceful fallback rather than a wall.
 	start_game()
+	# After start_game(), because RunState.enter_stasis() refuses to do anything until the
+	# run is actually running.
+	_wake_from_opening_stasis()
 
 
 ## Every sound the run makes, in one place. Game already holds references to all of these
@@ -183,6 +197,14 @@ func _on_pod_door_moved(opening: bool) -> void:
 func _update_ship_audio() -> void:
 	if _run.finished:
 		return
+	# The cold open plays in silence. Guarded here rather than at the call sites because three
+	# separate signals (stasis, systems, oxygen) reach this function while the player is still
+	# asleep, and any one of them getting through would start the stasis track under it.
+	# Explicitly NONE rather than an early return: whatever the menu or the intro left playing
+	# has to be faded out, not inherited.
+	if _in_opening_stasis:
+		Audio.play_music(Audio.Music.NONE)
+		return
 
 	var critical := false
 	for malfunction in _run.malfunctions():
@@ -224,7 +246,10 @@ func start_game() -> void:
 		return
 	is_started = true
 	_refresh_reticle()
-	_hud.visible = true
+	# The HUD waits for the player to wake. Nothing on it is readable from inside a sealed pod
+	# and the one panel that IS — "IN STASIS · [E] WAKE" — is the wrong first impression: the
+	# game telling you about a mechanic before it has shown you a single thing.
+	_hud.visible = not _in_opening_stasis
 	_player.process_mode = Node.PROCESS_MODE_INHERIT
 	_pause_menu.enabled = true
 	# Only now does either countdown begin — neither should run down behind the prompt.
@@ -311,10 +336,70 @@ func _on_pod_used(_interactable: Interactable) -> void:
 
 
 func _on_stasis_changed(in_stasis: bool) -> void:
-	# Only the WAKING half is driven from here. Entering is sequenced by _enter_pod(),
-	# which has to finish moving the player before the clock starts running fast.
+	# The first wake is also the end of the cold open, and this is the only place that catches
+	# both ways out of it: the timer in _wake_from_opening_stasis() and the player's own [E],
+	# which goes straight to RunState and never touches that function.
+	#
+	# _update_ship_audio() is called here rather than left to the stasis_changed handler
+	# _wire_audio() also connects, which would only do the right thing while this handler
+	# happens to be connected first. play_music() is idempotent, so the second call is free.
+	if not in_stasis and _in_opening_stasis:
+		_in_opening_stasis = false
+		# The HUD hides its own stasis panel from this same signal. Which of the two handlers
+		# runs first does not matter: signal emission is synchronous, so both have run before
+		# anything is drawn and "IN STASIS" cannot flash up as the overlay arrives.
+		_hud.visible = true
+		_update_ship_audio()
+
+	# Only the WAKING half of the pod is driven from here. Entering is sequenced by
+	# _enter_pod(), which has to finish moving the player before the clock starts running fast.
 	if not in_stasis and _pod_phase == PodPhase.IN:
 		_exit_pod()
+
+
+## Pose the player asleep in the pod, sealed, before frame zero is drawn.
+##
+## The run opens mid-voyage — the whole premise is that the ship woke you — so starting the
+## player stood in front of the pod put them one beat past their own story, looking at the
+## thing they were supposed to have just climbed out of. This puts them where the fiction says
+## they already are, and _wake_from_opening_stasis() plays the ordinary wake from there.
+##
+## Nothing here is intro-specific: it is exactly the state _enter_pod() leaves behind once the
+## lid has shut, which is why the exit path needs no special case for the first one.
+func _pose_in_pod() -> void:
+	# The whole transform, not just the origin: snap_to_body() re-derives the camera's yaw from
+	# the body basis, so setting the look direction here instead would simply be discarded.
+	_player.global_transform = _pod.view_transform()
+	# Without this the camera renders ONE frame at the world origin (down at floor level in
+	# the middle of the ship) before snapping into place: it reads the anchor's INTERPOLATED
+	# transform, which on the very first frame lerps from identity. Resetting the interpolation
+	# makes frame zero use the real pose. It used to be masked by the START prompt covering
+	# that frame; auto-starting exposed it.
+	_player.reset_physics_interpolation()
+	_camera.snap_to_body()
+	_camera.input_enabled = false
+	_set_player_active(false)
+	_pod.set_occupied(true)
+	_pod_phase = PodPhase.IN
+
+
+## Bring the player out of that opening stasis after a beat. Deliberately on a timer rather
+## than immediately: the pause is what sells it — the shell around you, the stasis readout
+## winding up, and then the seal letting go. From there it is the same wake every other stasis
+## gets, cork pop and ride out included, with no branch for the first one.
+func _wake_from_opening_stasis() -> void:
+	_run.enter_stasis()
+	# A timer that PAUSES with the tree, unlike the pod's other two. The opening is exactly
+	# when a player is most likely to be sat on the pause menu — still loading, or alt-tabbed
+	# away — and waking them behind it would spend the one beat this exists for on a screen
+	# they are not looking at.
+	await get_tree().create_timer(OPENING_STASIS_TIME, false).timeout
+	# The scene can be torn down inside that gap, and [E] wakes you early — the stasis panel
+	# says so — in which case exit_stasis() is already a no-op. The phase check is what stops
+	# a stale timer ejecting a player who has since climbed back in.
+	if not is_inside_tree() or _pod_phase != PodPhase.IN:
+		return
+	_run.exit_stasis()
 
 
 ## Ride into the pod: freeze the player, fly the view in, shut the door, then start the

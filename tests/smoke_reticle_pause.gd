@@ -9,6 +9,7 @@ extends SceneTree
 #   godot --headless --path . -s tests/smoke_reticle_pause.gd
 
 const GAME_SCENE := "res://scenes/game.tscn"
+const Opening := preload("res://tests/opening.gd")
 
 var _failures: Array[String] = []
 
@@ -39,6 +40,11 @@ func _run() -> void:
 	current_scene = game
 	await process_frame
 	await process_frame
+
+	# The run opens with the player asleep in the pod, which is its own reticle-hidden case —
+	# covered by smoke_opening_stasis. This suite is about pausing, so get to the state it is
+	# actually about first.
+	_check("the opening stasis lets go", await Opening.wake(self, game))
 
 	# --- Baseline: free to walk around, so the reticle is up and a pause cycle restores it.
 	_check("reticle visible during normal play", game._reticle.visible)

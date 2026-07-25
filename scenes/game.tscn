@@ -74,8 +74,8 @@ oxygen_total = 210.0
 [node name="Ship" type="Node3D" parent="." unique_id=1323847786]
 script = ExtResource("8_ship")
 
-[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1774573647]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1, 13.5)
+; No PlayerSpawn marker: the run opens with the player sealed in the stasis pod, so the pod's
+; own PodView (asleep inside) and PodExit (set down on waking) are the start positions.
 
 [node name="CryoStation" parent="." unique_id=341322163 instance=ExtResource("24_station")]
 transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 6.5)
