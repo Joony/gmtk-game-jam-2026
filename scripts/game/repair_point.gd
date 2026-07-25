@@ -4,14 +4,21 @@ extends Interactable
 # The panel you walk to. Child of a Malfunction, which supplies everything it needs to say.
 #
 # ONE node offers BOTH repair routes, which is why the patch-vs-proper choice cost almost
-# no new machinery: Interactable already dispatches on whether your hands are full.
+# no new machinery: Interactable already dispatches on what is in your hands.
 #
-#   empty hands   -> Interactor._activate() -> interact()      -> patch
-#   holding part  -> Interactor            -> use_with_item()  -> proper fix, part consumed
+#   holding hammer -> use_with_item() -> PATCH, hammer kept
+#   holding part   -> use_with_item() -> PROPER fix, part consumed
+#   empty hands    -> interact()      -> nothing, and the prompt says why
 #
 # So the decision is expressed purely by what you chose to bring, with no second key, no
 # radial menu and no new input action. The walk to fetch the part IS the price of the
 # permanent fix, and since walking costs oxygen, the price is paid in the game's currency.
+#
+# THE HAMMER. Patching used to be the empty-handed route, which made it free — the fallback
+# you could always fall back to, from anywhere, having planned nothing. It now takes the
+# hammer out of the janitor's closet, so the bodge costs a trip of its own the first time and
+# a hand for the rest of the run. Unlike a spare it is not consumed: it is a tool, and one
+# hammer serves the whole ship.
 #
 # `interaction_type` must stay USE_ITEM for that dispatch to work — ACTIVATE would send a
 # held part down the drop path instead.
@@ -28,6 +35,9 @@ const COLOR_FIXED := Color(0.24, 0.90, 0.40)
 ## never a reason to choose the patch at all. Making spares fungible and fewer than the
 ## faults turns "which systems are worth a real fix?" into the run's central decision.
 @export var required_part_group: StringName = &"spare_parts"
+## Group a carried item must be in to bodge this shut. One hammer, kept, not consumed —
+## so this is a trip you make once, unlike the per-fault hunt for a spare.
+@export var tool_group: StringName = &"repair_tools"
 ## Optional exact instance name, for a one-off bespoke part. Empty means "any spare".
 @export var required_part: String = ""
 ## Verb shown for the patch route, e.g. "Tape the coupling".
@@ -117,9 +127,10 @@ func _show(paths: Array[NodePath], visible_now: bool) -> void:
 			(node as CPUParticles3D).emitting = visible_now
 
 
-# Broken panels are always actionable: with empty hands you can always patch. The base
-# class would grey the reticle out whenever you were not carrying the right part, which
-# would hide the patch route exactly when the player most needs to know it exists.
+# A broken panel stays lit whatever is in your hands, even though empty hands can no longer
+# repair it. The base class would grey the reticle out unless you were holding the right part,
+# and a dead prompt is how a player concludes a panel is scenery — this is the only place the
+# game ever tells them the hammer exists.
 func can_act_on(_held_item: Node3D = null) -> bool:
 	return is_enabled
 
@@ -127,27 +138,45 @@ func can_act_on(_held_item: Node3D = null) -> bool:
 func get_interaction_text(held_item: Node3D = null) -> String:
 	if malfunction == null or not malfunction.is_active:
 		return "%s: nominal" % _label()
+	if is_tool(held_item):
+		# Say what the bodge LOCKS IN, not just that it is temporary. A critical fault keeps
+		# whatever speed it has already taken, and the player cannot weigh the two routes
+		# against each other without that number in front of them.
+		var kept := ""
+		if malfunction.speed_decay > 0.0:
+			kept = "  (keeps -%d%% drive)" % int(round(malfunction.speed_decay * 100.0))
+		var cost := ""
+		if malfunction.bodge_oxygen_cost > 0.0:
+			cost = "  (costs %ds air)" % int(round(malfunction.bodge_oxygen_cost))
+		return "%s  (temporary)%s%s" % [patch_text, kept, cost]
 	if held_item != null:
 		if can_use_with_item(held_item):
 			return "%s  (permanent)" % fit_text
 		return "Wrong part for %s" % _label()
-	var cost := ""
-	if malfunction.bodge_oxygen_cost > 0.0:
-		cost = "  (costs %ds air)" % int(round(malfunction.bodge_oxygen_cost))
-	return "%s  (temporary)%s" % [patch_text, cost]
+	# Empty-handed is no longer a repair route, so the prompt has to name what is missing.
+	# Silence here would read as a broken panel rather than as a thing you have not fetched.
+	return "%s: need a spare part, or the hammer to bodge it" % _label()
 
 
 func interact() -> void:
-	# Empty-handed press: the patch route.
-	if malfunction == null or not malfunction.is_active:
-		return
-	malfunction.repair(false)
-	interacted_with.emit(self)
+	# Empty hands. Nothing to do — the prompt above explains why.
+	pass
+
+
+## True for the hammer: the thing that bodges rather than fixes.
+func is_tool(item: Node3D) -> bool:
+	return item != null and tool_group != &"" and item.is_in_group(tool_group)
 
 
 func use_with_item(item: Node3D) -> void:
 	_consumed = false
 	if malfunction == null or not malfunction.is_active:
+		return
+	# The hammer bodges and is KEPT. One tool serves the whole ship, so it is never consumed
+	# — losing it to the first panel would strand the player with no patch route at all.
+	if is_tool(item):
+		malfunction.repair(false)
+		used_with_item.emit(self, item)
 		return
 	if not can_use_with_item(item):
 		return
@@ -165,9 +194,13 @@ func consumed_last_item() -> bool:
 	return _consumed
 
 
-## A spare fits if it is a spare. The base class matches on exact instance names, which
-## is still honoured when `required_part` is set for a one-off.
+## A spare fits if it is a spare, and the hammer is always usable here — otherwise the
+## reticle would grey out on a panel you are stood in front of holding the very tool for it.
+## The base class matches on exact instance names, which is still honoured when
+## `required_part` is set for a one-off.
 func can_use_with_item(item: Node3D) -> bool:
+	if is_tool(item):
+		return true
 	if required_part_group != &"" and not item.is_in_group(required_part_group):
 		return false
 	return super(item)

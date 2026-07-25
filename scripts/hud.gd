@@ -28,6 +28,10 @@ const SPEED_WARN := 0.75
 
 var _run: RunState = null
 var _pulse: float = 0.0
+## The system-list rows, paired with the fault each one describes, so a bleeding fault's line
+## can be re-texted in place. Rebuilding the list every frame would mean a queue_free() and a
+## fresh Label per fault per frame for a number that fits in the row already there.
+var _system_lines: Array[Dictionary] = []
 var _oxygen_bar_style: StyleBoxFlat = null
 
 
@@ -59,6 +63,14 @@ func _process(delta: float) -> void:
 		return
 	_pulse += delta
 	_update_air_pressure()
+	# A critical fault bleeds speed continuously, so its line has to be RE-TEXTED every frame,
+	# not rebuilt on systems_changed like the list itself. Watching the number climb while you
+	# decide is the mechanic; a figure that only moved when something broke would tell the
+	# player the loss was a one-off charge, which is exactly what it no longer is.
+	for line in _system_lines:
+		var malfunction: Malfunction = line["malfunction"]
+		if malfunction.is_active and malfunction.speed_decay_per_day > 0.0:
+			(line["label"] as Label).text = _fault_line(malfunction)
 	if _stasis_panel.visible:
 		_update_stasis_rate()
 
@@ -112,25 +124,51 @@ func _on_distance_changed(remaining: float, _total: float) -> void:
 func _rebuild_systems() -> void:
 	for child in _system_list.get_children():
 		child.queue_free()
+	_system_lines.clear()
 	if _run == null:
 		return
 	for malfunction in _run.malfunctions():
 		if malfunction.is_active:
 			_add_system_line(
-				"! %s — %s  (-%d%% drive)" % [
-					malfunction.system_name,
-					malfunction.fault_text,
-					int(round(malfunction.speed_penalty * 100.0)),
-				],
+				malfunction,
+				_fault_line(malfunction),
 				COLOR_CRIT if malfunction.is_critical() else COLOR_WARN
 			)
 		elif malfunction.is_patched:
 			# Naming the patch keeps its eventual failure attributable to the player's
-			# own choice rather than reading as random punishment.
-			_add_system_line("~ %s — running on a patch" % malfunction.system_name, COLOR_WARN)
+			# own choice rather than reading as random punishment — and now the line has to
+			# carry the speed the bodge LOCKED IN too, because that is the part of the
+			# player's own choice that never goes away.
+			var kept := ""
+			if malfunction.speed_decay > 0.0:
+				kept = ", -%d%% drive for good" % int(round(malfunction.speed_decay * 100.0))
+			_add_system_line(
+				malfunction,
+				"~ %s — running on a patch%s" % [malfunction.system_name, kept],
+				COLOR_WARN
+			)
 
 
-func _add_system_line(text: String, color: Color) -> void:
+## One broken system's line. Split out because a bleeding fault re-texts every frame from
+## _process(); a fault and its line must never be able to disagree about the wording.
+func _fault_line(malfunction: Malfunction) -> String:
+	if malfunction.speed_decay_per_day > 0.0:
+		# Where it is NOW and where it is going. Without the ceiling the number is just
+		# alarming; with it, the player can price the walk to fetch a spare against it.
+		return "! %s — %s  (-%d%% drive, falling to -%d%%)" % [
+			malfunction.system_name,
+			malfunction.fault_text,
+			int(round(malfunction.speed_decay * 100.0)),
+			int(round(malfunction.speed_penalty * 100.0)),
+		]
+	return "! %s — %s  (-%d%% drive)" % [
+		malfunction.system_name,
+		malfunction.fault_text,
+		int(round(malfunction.speed_penalty * 100.0)),
+	]
+
+
+func _add_system_line(malfunction: Malfunction, text: String, color: Color) -> void:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_color_override("font_color", color)
@@ -138,6 +176,7 @@ func _add_system_line(text: String, color: Color) -> void:
 	label.add_theme_constant_override("outline_size", 8)
 	label.add_theme_font_size_override("font_size", 30)
 	_system_list.add_child(label)
+	_system_lines.append({"malfunction": malfunction, "label": label})
 
 
 func _on_stasis_changed(in_stasis: bool) -> void:

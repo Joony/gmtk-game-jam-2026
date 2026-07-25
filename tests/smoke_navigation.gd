@@ -169,6 +169,10 @@ func _run() -> void:
 				targets.append({"name": fault.system_name, "at": (child as Node3D).global_position})
 	for node in get_nodes_in_group(&"spare_parts"):
 		targets.append({"name": (node as Node).name, "at": (node as Node3D).global_position})
+	# The hammer is the only patch route there is, and it lives in a 3x4m closet off the
+	# corridor — the smallest room on the ship and the easiest one to accidentally seal.
+	for node in get_nodes_in_group(&"repair_tools"):
+		targets.append({"name": (node as Node).name, "at": (node as Node3D).global_position})
 	var pod := game.get_node_or_null("StasisPod") as StasisPod
 	if pod != null:
 		targets.append({"name": "StasisPod", "at": pod.exit_transform().origin})

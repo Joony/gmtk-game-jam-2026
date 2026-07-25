@@ -47,8 +47,24 @@ func build_ship() -> void:
 		"ceiling_color": Color(0.38, 0.36, 0.34),
 	})
 
+	# Janitor's closet, hung off the starboard side of the corridor. Small, low and dull on
+	# purpose: it is a store cupboard, and the only reason to come here is the hammer on the
+	# floor of it. Putting it ON the corridor rather than at either end means the detour is
+	# short but deliberate — you pass the door on every walk to the engine room, which is
+	# what makes forgetting the hammer a decision rather than an ambush.
+	add_room(Rect2i(2, -11, 3, 4), {
+		"id": "janitor_closet",
+		"height": 2.4,
+		"floor_color": Color(0.22, 0.23, 0.25),
+		"wall_color": Color(0.38, 0.40, 0.43),
+		"ceiling_color": Color(0.32, 0.34, 0.36),
+	})
+
 	add_doorway(Vector2(0.5, -4), Doorway.Axis.X, 1.8)
 	add_doorway(Vector2(0.5, -12), Doorway.Axis.X, 1.8)
+	# The closet's door, in the corridor's starboard wall at x=2. The axis names the direction
+	# the opening SPANS, so a wall running along Z takes a Z-axis doorway.
+	add_doorway(Vector2(2, -9), Doorway.Axis.Z, 1.0)
 
 	# Windows on exterior walls only — an opening onto another room would show stars
 	# through the ship. Sill at 1.0m so they sit at eye level.

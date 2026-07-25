@@ -476,7 +476,19 @@ class _Runner:
 		# Without the override the base class would grey this out with empty hands and
 		# hide the patch route exactly when it matters.
 		suite.check(panel.can_act_on(null), "a broken panel is actionable with empty hands")
-		suite.check("Clamp it" in panel.get_interaction_text(null), "empty hands offers the patch")
+		# Patching takes the hammer now. Empty hands must still get a PROMPT — a panel that
+		# went silent would read as broken rather than as a thing you have not fetched.
+		var hammer := RigidBody3D.new()
+		hammer.name = "Hammer"
+		hammer.add_to_group(&"repair_tools")
+		holder.add_child(hammer)
+		suite.check("hammer" in panel.get_interaction_text(null),
+			"empty hands are told what is missing")
+		suite.check(not ("Clamp it" in panel.get_interaction_text(null)),
+			"empty hands are NOT offered the patch")
+		suite.check("Clamp it" in panel.get_interaction_text(hammer), "the hammer offers the patch")
+		suite.check(panel.can_use_with_item(hammer),
+			"the hammer is usable on a panel that pins an exact spare")
 		suite.check("Fit coupling" in panel.get_interaction_text(part), "the right part offers the proper fix")
 		suite.check("Wrong part" in panel.get_interaction_text(wrong), "the wrong part is refused by name")
 
@@ -506,7 +518,13 @@ class _Runner:
 
 		fault.break_now()
 		panel.interact()
-		suite.check(not fault.is_active and fault.is_patched, "empty-handed interact patches it")
+		suite.check(fault.is_active, "empty-handed interact does nothing at all")
+
+		panel.use_with_item(hammer)
+		suite.check(not fault.is_active and fault.is_patched, "the hammer patches it")
+		# The hammer is a TOOL. Consuming it would leave the player with no patch route for
+		# the rest of the run, which is unrecoverable and never what a bodge should cost.
+		suite.check(not panel.consumed_last_item(), "and the hammer is kept, not consumed")
 
 		holder.free()
 

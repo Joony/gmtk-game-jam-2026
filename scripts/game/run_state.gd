@@ -165,8 +165,10 @@ func _process(delta: float) -> void:
 	distance_remaining = maxf(distance_remaining - cruise_speed_per_day * speed_fraction() * days, 0.0)
 	distance_changed.emit(distance_remaining, total_distance)
 
+	# `days`, not `delta`: a critical fault bleeds speed on the SHIP's clock, so the pod's
+	# time scale carries into it and sleeping through a failing drive costs what it should.
 	for malfunction in _malfunctions:
-		malfunction.advance(distance_remaining)
+		malfunction.advance(distance_remaining, days)
 
 	_update_destination()
 

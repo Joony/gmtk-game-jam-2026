@@ -27,6 +27,7 @@
 [ext_resource type="PackedScene" path="res://scenes/props/wall_socket.tscn" id="27_wallsocket"]
 [ext_resource type="PackedScene" path="res://scenes/props/loose_cable.tscn" id="28_loose"]
 [ext_resource type="PackedScene" path="res://scenes/props/powered_device.tscn" id="29_device"]
+[ext_resource type="PackedScene" path="res://scenes/props/hammer.tscn" id="30_hammer"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -147,6 +148,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0.3, -20)
 [node name="PoweredDevice" parent="." unique_id=193438824 instance=ExtResource("29_device")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -14)
 
+; The ship's hammer, on the floor of the janitor's closet (the 3x4m room off the corridor's
+; starboard side, x 2..5 / z -11..-7 — see scripts/level/ship_layout.gd). It is the ONLY way
+; to bodge a fault shut, so this trip is the price of having a patch route at all. Set against
+; the back wall rather than in the doorway: you have to go in, not just glance in.
+[node name="Hammer" parent="." unique_id=1103477261 instance=ExtResource("30_hammer")]
+; Tipped 90 degrees about X so it LIES on the floor. Left upright it stands balanced on
+; the end of its own handle, which reads as placed rather than put down.
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 3.5, 0.07, -9.6)
+
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
 script = ExtResource("15_malfunction")
@@ -154,6 +164,7 @@ system_name = "MAIN DRIVE"
 fault_text = "injector coupling failed"
 severity = 1
 speed_penalty = 0.45
+speed_decay_per_day = 0.12
 fire_at_distance = 70.0
 bodge_distance = 30.0
 
@@ -182,6 +193,7 @@ script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
 severity = 1
+speed_decay_per_day = 0.1
 fire_at_distance = 33.0
 bodge_distance = 33.0
 bodge_oxygen_cost = 25.0

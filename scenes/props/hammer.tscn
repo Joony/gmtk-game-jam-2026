@@ -1,0 +1,38 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
+[ext_resource type="PackedScene" uid="uid://mdhgxxhb2d62" path="res://3D-Models/CD_Hammer_v1.blend" id="2_model"]
+
+; The ship's hammer. Kept in the janitor's closet off the spine corridor, and the only way to
+; bodge a fault shut — see RepairPoint's `tool_group`. Patching used to be the empty-handed
+; route, which made it free from anywhere with no planning; making it a tool you have to have
+; gone and found puts a price on the bodge without taking the bodge away.
+;
+; NOT consumed, unlike a spare part. One hammer serves the whole run: it is a tool, and a
+; player who lost it to the first panel would have no patch route left at all.
+;
+; The `repair_tools` group is what RepairPoint dispatches on, so a second tool would be a
+; scene with the same group and no code change.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hammer"]
+; Slightly fatter than the head so a dropped hammer does not wedge itself into a corner.
+size = Vector3(0.12, 0.33, 0.12)
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not
+; inherit this body's velocity while standing on it.
+[node name="Hammer" type="RigidBody3D" groups=["repair_tools"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_interactable")
+interaction_type = 0
+interaction_text = "Pick up hammer"
+
+; CD_Hammer_v1 is modelled ~5.75 units tall with its origin at the butt of the handle, so it
+; is scaled to a 0.32m hammer and dropped half its height to sit centred on the body origin —
+; otherwise Carry holds it dangling by the very end of the handle.
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.055, 0, 0, 0, 0.055, 0, 0, 0, 0.055, 0, -0.158, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_hammer")

@@ -523,6 +523,34 @@ pause they should be brought out of stasis and the game begins."*
       Nine mutations killed. Eleven suites that assumed the player starts on their feet now share
       `tests/opening.gd`.
 
+## 12h. ✅ Drive decay + the hammer — done ([log](docs/features/drive-decay-and-hammer.md))
+
+Playtest: *"Critical failures should count-down the drive-speed... A quick patch should only stop
+the count-down for that specific critical issue, and not restore the drive speed to 100%... The
+quick patch shouldn't be free... [the hammer] should be found in the janitor's closet and it
+should be used for the quick patch."*
+
+- [x] A CRITICAL fault RAMPS: `speed_decay` climbs at `speed_decay_per_day` toward
+      `speed_penalty`, which is now the ceiling rather than an instant charge.
+- [x] Per DAY, so the pod's time scale carries into it — sleeping through a failing drive is the
+      worst play, not the cheapest. (Distance would be self-limiting; real seconds would make
+      stasis free.)
+- [x] A patch FREEZES the loss and keeps it. Only a fitted spare clears it. A failed patch
+      resumes the ramp from where it stood.
+- [x] DEGRADING faults unchanged — a flat toll, cleared by either route.
+- [x] **The hammer** (`scenes/props/hammer.tscn`, `CD_Hammer_v1`) is now required to patch, via
+      `RepairPoint.tool_group`. Not consumed: one tool, whole ship. Empty hands get a prompt
+      naming what is missing, which is the only place the game mentions the hammer at all.
+- [x] **Janitor's closet**: 3x4m room off the corridor's starboard side (x 2..5, z -11..-7),
+      1.0m doorway. On the corridor, so you pass it on every walk to the engine room.
+- [x] HUD re-texts a bleeding fault's line every frame ("-12% drive, falling to -45%") and shows
+      what a patch locked in ("-12% drive for good").
+- [x] Re-balanced and re-simulated: patch-only now scrapes in on 10s of air (was comfortable),
+      proper wins by 62s and 92s of air, ignoring still suffocates.
+- [x] Tested: `smoke_drive_decay.gd` (new), plus `smoke_interaction`, `smoke_run_state`,
+      `smoke_navigation`, `capture_closet.gd`. Seven mutations killed.
+- [ ] Dressing: the closet is a bare box. `CD_Locker_v1` would sell it as a store cupboard.
+
 ## 13. Polish / remaining
 
 ### Audio
