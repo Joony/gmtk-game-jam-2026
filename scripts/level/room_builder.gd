@@ -73,8 +73,38 @@ const GROUP_WINDOW_GLASS := &"space_window_glass"
 ## Emissive housings under each fixture, so the lights are visibly the source.
 @export var build_light_panels: bool = true
 
+## Confine each room's lights to that room's own surfaces, using one visual layer per room.
+##
+## WHY. The lights are shadowless on purpose (see _build_light), and a shadowless omni passes
+## straight THROUGH a wall: with `light_range` at 9m and rooms sharing walls, the corridor lit
+## the pod bay's floor from outside it. Turning shadows on is the textbook fix and is exactly
+## what GL Compatibility cannot afford, so instead every room's geometry goes on its own
+## visual layer and every fixture is masked to that layer. A light physically cannot reach
+## another room's floor, at no per-frame cost.
+##
+## Layer 1 stays the general layer — props, the player, anything not built by this class — and
+## every light includes it, so a carried crate is still lit wherever it is taken. Only the
+## room SHELL is masked, which is what the bleed was actually visible on.
+@export var confine_lights_to_rooms: bool = true
+
+## Layer 1 is the shared/prop layer and layer 2 is the EXTERIOR layer, so rooms start at 3.
+## Godot has 20 layers, which leaves 18 rooms.
+##
+## Layer 2 is not free. `ExteriorSun` in game.tscn is a DirectionalLight3D with
+## `light_cull_mask = 2`, and `space_station.tscn` puts its meshes on layer 2 to match — that
+## pairing is what lets the sun light the station outside without leaking into the interior.
+## Handing layer 2 to a room puts that room's shell under a white directional light: the pod
+## bay's floor and the two walls facing the sun stopped turning red in ALERT mode, while the
+## two facing away still did.
+const EXTERIOR_LAYER := 2
+const FIRST_ROOM_LAYER := 3
+const MAX_ROOM_LAYERS := 18
+
 var rooms: Array[Room] = []
 var doorways: Array[Doorway] = []
+
+## room id -> visual layer mask. Empty when confine_lights_to_rooms is off.
+var _room_layers: Dictionary = {}
 
 var _materials: Dictionary = {}
 var _built_root: Node3D = null
@@ -134,6 +164,8 @@ func build() -> Node3D:
 	_built_root.name = "Built"
 	add_child(_built_root)
 
+	_assign_room_layers()
+
 	for room in rooms:
 		_build_floor(room)
 		_build_ceiling(room)
@@ -150,6 +182,29 @@ func build() -> Node3D:
 		if opening.fit_window:
 			_build_window(opening)
 	return _built_root
+
+
+## One visual layer per room. Falls back to no masking (everything on layer 1, every light
+## unmasked) if the ship outgrows the 19 available — a ship that lights wrong is better than
+## one where the twentieth room is invisible to every light it contains.
+func _assign_room_layers() -> void:
+	_room_layers.clear()
+	if not confine_lights_to_rooms:
+		return
+	if rooms.size() > MAX_ROOM_LAYERS:
+		push_warning(
+			"RoomBuilder: %d rooms exceeds the %d available visual layers — per-room light "
+			% [rooms.size(), MAX_ROOM_LAYERS]
+			+ "confinement is off, so lights will bleed through walls."
+		)
+		return
+	for i in rooms.size():
+		_room_layers[rooms[i].id] = 1 << (FIRST_ROOM_LAYER - 1 + i)
+
+
+## The layer mask a room's own shell is drawn on. Layer 1 when confinement is off.
+func room_layer(room_id: String) -> int:
+	return _room_layers.get(room_id, 1)
 
 
 func _build_window(opening: Doorway) -> void:
@@ -223,7 +278,8 @@ func _build_floor(room: Room) -> void:
 		size,
 		Vector3(centre.x, -floor_thickness * 0.5, centre.y),
 		_material("floor_" + room.id, room.floor_color),
-		true
+		true,
+		room_layer(room.id)
 	)
 	body.add_to_group(GROUP_FLOOR)
 
@@ -236,7 +292,8 @@ func _build_ceiling(room: Room) -> void:
 		size,
 		Vector3(centre.x, room.height + ceiling_thickness * 0.5, centre.y),
 		_material("ceiling_" + room.id, room.ceiling_color),
-		true
+		true,
+		room_layer(room.id)
 	)
 	body.add_to_group(GROUP_CEILING)
 
@@ -271,6 +328,12 @@ func _build_light(room: Room) -> void:
 			# Shadowless on purpose: shadows are what make interior lighting read as
 			# dramatic rather than flat, and they are expensive under GL Compatibility.
 			light.shadow_enabled = false
+			# Which room this fixture belongs to, so LightingController can switch a whole
+			# room's lights off when nobody is in it. Metadata rather than parsing it back
+			# out of the node name — names with dots in them get sanitised on load.
+			light.set_meta("room_id", room.id)
+			# Own room's shell, plus layer 1 so props and the player stay lit anywhere.
+			light.light_cull_mask = room_layer(room.id) | 1
 			light.add_to_group(GROUP_LIGHT)
 			_built_root.add_child(light)
 
@@ -286,6 +349,7 @@ func _build_light_panel(room: Room, at: Vector2) -> void:
 	panel.mesh = box
 	panel.position = Vector3(at.x, room.height - 0.05, at.y)
 	panel.material_override = _panel_material()
+	panel.layers = room_layer(room.id)
 	panel.add_to_group(GROUP_LIGHT_PANEL)
 	_built_root.add_child(panel)
 
@@ -372,7 +436,8 @@ func _create_wall_piece(
 		size,
 		Vector3(centre.x, y_bottom + wall_height * 0.5, centre.y) + offset,
 		material,
-		true
+		true,
+		room_layer(room.id)
 	)
 	body.add_to_group(GROUP_WALL)
 	if y_bottom > 0.01:
@@ -423,7 +488,7 @@ static func wall_segments(wall_start: Vector2, wall_end: Vector2, all_doorways: 
 
 # --- helpers ----------------------------------------------------------------
 
-func _make_box(node_name: String, size: Vector3, position: Vector3, material: StandardMaterial3D, collide: bool) -> StaticBody3D:
+func _make_box(node_name: String, size: Vector3, position: Vector3, material: StandardMaterial3D, collide: bool, layers: int = 1) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.position = position
@@ -436,6 +501,8 @@ func _make_box(node_name: String, size: Vector3, position: Vector3, material: St
 	box.size = size
 	mesh.mesh = box
 	mesh.material_override = material
+	# Per-room visual layer, so only this room's fixtures can light it.
+	mesh.layers = layers
 	body.add_child(mesh)
 
 	if collide:

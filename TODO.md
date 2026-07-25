@@ -265,6 +265,22 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Code-first API: `add_room(Rect2i(...), {...})` / `add_doorway(...)` / `build()`
 - [x] **Hand-authored ship** (`scripts/level/ship_layout.gd`): pod bay, corridor, engine room,
       two doorways — replaces the flat sandbox floor in `scenes/game.tscn`
+- [x] **Ship redrawn from a plan image** (branch `ship-layout`,
+      [log](docs/features/ship-layout.md)). 4 rooms → 8 rooms + 5 corridor rects, transcribed
+      one-pixel-per-metre from `room_layout_3.png` (alpha = hull, black = corridor, white =
+      window, grey = door). Bridge, kitchen/mess, bathroom, janitor's closet, life support,
+      cryo bay, engine room, cargo/docking bay. Pod bay and spine corridor unchanged, so every
+      prop in the cryo bay kept its coordinates; the engine room moved port-aft and took its
+      10 props with it via one rigid 90° transform
+  - [x] `smoke_ship_layout.gd` checks the built ship against the DRAWING, not against
+        `ship_layout.gd` — rects, overlaps, doors on shared walls, windows facing hull, the
+        corridor bend left open, full reachability, light confinement. Mutation-tested
+  - [x] Lighting fixed for 93 fixtures under GL Compatibility: per-room culling
+        (`LightingController.bind_occupancy`), `max_lights_per_object` 8 → 32, and one visual
+        layer per room so shadowless omnis stop shining through walls. Floor-luminance spread
+        across camera yaw: 23–44% → 1–5%
+  - [ ] Cargo bay airlock — the drawing has no hull door yet
+  - [ ] Fill the five new rooms with props; they are empty shells right now
 - [x] **Left behind:** `ItemManager.gd`, `Puzzles/`, `items/`, `Models/`, `AudioController`,
       `GameTypes`, and `V1/LevelManager.gd` (~300 of its 453 lines are the 2025 day-loop)
 - [x] Tested: span maths, counts, no duplicate shared walls, doorway passable + lintel solid,

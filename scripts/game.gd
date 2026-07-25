@@ -78,6 +78,9 @@ var _nav_return_pitch: float = 0.0
 func _ready() -> void:
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
+	# Room culling: only the room the player is in (and its near neighbours) stays lit. The
+	# nine-room ship has 93 fixtures, well past what GL Compatibility will draw at once.
+	_lighting.bind_occupancy($Ship, $Player)
 	_readout.bind(_motion)
 	# The cursor is visible while paused, so the reticle would be a second,
 	# misleading pointer.

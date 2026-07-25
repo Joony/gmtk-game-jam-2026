@@ -22,11 +22,16 @@ const FLOOR_Y := 0.95
 
 ## The ship's footprint in grid/world XZ, plus a margin. Must cover the whole ship: the
 ## flood fill cannot leave this box, so a spawn or target outside it reads as unreachable.
-## The 21x21 cryo bay runs x=-10..11, z=-4..17; the engine room reaches z=-24.
-const MIN_X := -12.0
-const MAX_X := 13.0
+## The 21x21 cryo bay runs x=-10..11, z=-4..17; the engine room now sits port-aft at
+## x=-39..-18, the cargo bay starboard at x=19..40, and the bridge reaches z=-22.
+##
+## Widen this whenever the ship grows. A target outside the box does not report "outside the
+## search area" — it reports a large distance, which reads like a sealed room. That is
+## exactly how the layout rewrite first presented itself.
+const MIN_X := -41.0
+const MAX_X := 42.0
 const MIN_Z := -24.0
-const MAX_Z := 18.0
+const MAX_Z := 33.0
 
 var _failures: Array[String] = []
 var _space: PhysicsDirectSpaceState3D

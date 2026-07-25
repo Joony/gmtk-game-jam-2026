@@ -26,6 +26,22 @@ The format is deliberately blunt: **symptom → cause → fix**, plus where it b
   backwards mount.
 - **Bit us in:** the cryo pod wrapper (`cryo_pod.tscn`) and every wall-mounted panel.
 
+### Visual layers are a project-wide namespace with no owner
+
+- **Symptom:** after giving each room its own visual layer, the cryo bay's floor and two of its
+  four walls stopped turning red in ALERT mode. The other two walls were fine, and every other
+  room was fine.
+- **Cause:** layer 2 was already taken. `ExteriorSun` is a `DirectionalLight3D` with
+  `light_cull_mask = 2` and `space_station.tscn` puts its meshes on `layers = 2` — that pairing
+  is what lets the sun light the station outside without leaking indoors. Numbering rooms from
+  layer 2 handed the pod bay's shell to the sun, and a directional light lights the surfaces
+  that FACE it, which is why it hit exactly the floor and two walls.
+- **Fix:** rooms start at layer 3 (`RoomBuilder.FIRST_ROOM_LAYER`). Before claiming a layer,
+  `grep -rn "layers\|cull_mask" --include="*.tscn" --include="*.gd"` — nothing declares
+  ownership, so the only way to know a layer is free is to look. `smoke_ship_layout` now
+  asserts no room sits on `EXTERIOR_LAYER`.
+- **Bit us in:** the ship layout rewrite (`ship-layout.md`).
+
 ### Node names containing dots get sanitised
 
 - **Symptom:** `get_node("WindowGlass_door_-5.0_2.0")` returns null even though the node is

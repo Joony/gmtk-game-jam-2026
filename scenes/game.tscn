@@ -114,48 +114,53 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
 
-; Power cable on the engine room's FORWARD wall (z=-22, room is z>-22 so +Z faces into the room —
-; identity basis, no rotation needed). Set to the starboard side (x=3), clear of the forward
-; window (x -2.5..2.5) and the MainDrive (x=-3.5). One end bolted to a source socket, the free
-; end for the player to run to a device. Placement screenshot-verified.
+; ENGINE ROOM PROPS. The drawing moved the engine room from the bow to port-aft and turned it
+; 90 degrees: it is now entered from the EAST wall (x=-18) and the drive wall is the WEST wall
+; (x=-39), which is the one you face walking in — the same relationship the old forward wall
+; had. Every prop below was carried over by one rigid transform, R_y(90 deg) about the
+; drive-wall centre: (x, z) -> (z - 17, 17.5 - x). Relative spacing is therefore untouched.
+;
+; Power cable on the drive wall (x=-39, room is x>-39 so +X faces into the room). One end
+; bolted to a source socket, the free end for the player to run to a device.
 [node name="PowerCable" parent="." unique_id=1935655553 instance=ExtResource("25_cable")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.91)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 14.5)
 
 ; Portable battery — charge it from a wall cable, carry it to a device with no socket in reach.
 [node name="BatteryCube" parent="." unique_id=2089062277 instance=ExtResource("26_battery")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.25, -19)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -36, 0.25, 16.1)
 
-; Engine-room wall sockets on the forward wall (z=-22, +Z into the room = identity). A live SOURCE
-; outlet plus two inlets the loose cable can be run to. Clear of the window (x -2.5..2.5) and the
-; MainDrive (x=-3.5).
+; Wall sockets on the drive wall. A live SOURCE outlet plus two inlets the loose cable can be
+; run to. The drive wall carries no window, so unlike the old forward wall there is nothing
+; here to dodge.
 [node name="WallSocketSource" parent="." unique_id=1966765763 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.3, -21.91)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 13.0)
 is_power_source = true
 
 [node name="WallSocketA" parent="." unique_id=643797883 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 1.3, -21.91)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 12.0)
 
 [node name="WallSocketB" parent="." unique_id=1277330107 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7, 1.3, -21.91)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 22.2)
 
 ; A loose extension cable on the floor near the outlet, for the player to run to a socket.
 [node name="LooseCable" parent="." unique_id=1348615771 instance=ExtResource("28_loose")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0.3, -20)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -37, 0.3, 13.0)
 
-; AUX POWER: a system fixable ONLY by a power feed, set at the aft-port corner ~11 m from the wall
-; outlet — no socket in reach, so it forces the choice: run a long cable, or charge the battery and
-; carry it here. Phase 6, the cables' reason to exist.
+; AUX POWER: a system fixable ONLY by a power feed, set ~11 m from the wall outlet — no socket
+; in reach, so it forces the choice: run a long cable, or charge the battery and carry it here.
+; Phase 6, the cables' reason to exist. The 21x21 room keeps that distance intact.
 [node name="PoweredDevice" parent="." unique_id=193438824 instance=ExtResource("29_device")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -14)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -31, 0, 20.5)
 
-; The ship's hammer, on the floor of the janitor's closet (the 3x4m room off the corridor's
-; starboard side, x 2..5 / z -11..-7 — see scripts/level/ship_layout.gd). It is the ONLY way
+; The ship's hammer, on the floor of the janitor's closet (the 6x5m room off the spine's
+; starboard side, x 2..8 / z -9..-4 — see scripts/level/ship_layout.gd). It is the ONLY way
 ; to bodge a fault shut, so this trip is the price of having a patch route at all. Set against
-; the back wall rather than in the doorway: you have to go in, not just glance in.
+; the back wall rather than in the doorway: you have to go in, not just glance in. The door is
+; in the WEST wall at z=-6.5, so the back wall is now the east one — hence x=7, not x=3.5.
 [node name="Hammer" parent="." unique_id=1103477261 instance=ExtResource("30_hammer")]
 ; Tipped 90 degrees about X so it LIES on the floor. Left upright it stands balanced on
 ; the end of its own handle, which reads as placed rather than put down.
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 3.5, 0.07, -9.6)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 7, 0.07, -6.5)
 
 ; The fault the run OPENS on. Already broken before the first frame (starts_broken), which is
 ; why the ship is waking the player at all: they are not coming out on schedule, the klaxon is
@@ -163,10 +168,12 @@ transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 3.5, 0.07, -9.6)
 ; the opening teaches the loop (hear it, walk the ship, find the panel, choose a route) without
 ; pricing a first run out of a win.
 ;
-; Engine room PORT wall (x=-6, room is x>-6 so +X faces into it — same basis as NavArray),
-; aft of the port window (z -19..-15) and clear of the forward wall's sockets.
+; Engine room AFT wall (z=28, room is z<28 so -Z faces into it). Under the 90-degree rotation
+; the old port wall becomes this one; the rigid map alone would leave the panel floating at
+; z=23.33, because the room grew from 10m deep to 21m, so it is seated on the real wall at
+; 0.17m clearance — the same clearance it had before. Still one corner round from the drive.
 [node name="DriveRegulator" type="Node3D" parent="." unique_id=1704392233 groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5.83, 1.3, -20.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -37.5, 1.3, 27.83)
 script = ExtResource("15_malfunction")
 system_name = "DRIVE REGULATOR"
 fault_text = "output regulator stuck open"
@@ -182,7 +189,7 @@ patch_text = "Knock the regulator loose"
 fit_text = "Fit a spare regulator"
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.83, 1.3, 21.0)
 script = ExtResource("15_malfunction")
 system_name = "MAIN DRIVE"
 fault_text = "injector coupling failed"
@@ -213,8 +220,10 @@ repair_oxygen_bonus = 30.0
 patch_text = "Bleed the scrubber"
 fit_text = "Fit a spare cartridge"
 
+; Engine room FORE wall (z=7, room is z>7 so +Z faces into it). The old starboard wall under
+; the same 90-degree rotation, seated on the real wall for the same reason as DriveRegulator.
 [node name="CoolantLoop" type="Node3D" parent="." unique_id=999796197 groups=["malfunctions"]]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 0, -17)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 0, 7.17)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
