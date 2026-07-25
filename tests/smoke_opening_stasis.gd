@@ -83,7 +83,7 @@ func _run() -> void:
 	_check("the run is running", run.running)
 	_check("the run is in stasis", run.in_stasis)
 
-	# --- The cold open: silent and bare ------------------------------------
+	# --- The cold open: bare, and silent but for the alarm ------------------
 	# No HUD, and specifically no "IN STASIS · [E] WAKE" panel — the game explaining a mechanic
 	# before it has shown the player anything. Both are asserted: hiding the panel alone would
 	# still leave the air and distance gauges up over a pod interior.
@@ -104,17 +104,34 @@ func _run() -> void:
 		"nothing is actually playing during the cold open",
 		not (audio._music_a.playing or audio._music_b.playing)
 	)
-	_check("the klaxon is silent during the cold open", not audio._alarm_player.playing)
+	# The klaxon is the ONE exception to the cold open, and the reason there is one at all: the
+	# ship starts with a critical fault already broken (DriveRegulator.starts_broken), and the
+	# alarm coming through the sealed shell is how the player learns they are being WOKEN
+	# rather than arriving. Every other stasis seals the pod — see smoke_voice.
+	_check("the klaxon sounds through the shell during the cold open", audio._alarm_player.playing)
+	_check("and the pod is deliberately not sealed for it", not audio._sealed)
+	var opening_faults := 0
+	for node in game.get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+		var fault := node as Malfunction
+		if fault != null and fault.is_critical():
+			opening_faults += 1
+	_check("the run opens on a critical fault (%d)" % opening_faults, opening_faults >= 1)
 
 	# --- The ship wakes you ------------------------------------------------
 	# Generous: OPENING_STASIS_TIME, then the door, then the ride out. If this ever times out
 	# the player is sealed in a pod they cannot leave.
 	var woke := false
+	# Sampled every frame of the ride out, not just at the end: the greeting is seconds long,
+	# so checking only after the exit cannot tell whether it started here or three seconds ago
+	# under the cork pop. That is exactly the regression this guards.
+	var greeted_early := false
 	for _i in 900:
 		await process_frame
 		if game._pod_phase == game.PodPhase.OUT:
 			woke = true
 			break
+		if audio._voice_player.stream == audio._voices_by_name[&"intro"]:
+			greeted_early = true
 	_check("the ship wakes the player by itself", woke)
 	if not woke:
 		_report()
@@ -158,6 +175,26 @@ func _run() -> void:
 	)
 	# The pod stays usable — the opening must not have consumed the loop's anchor.
 	_check("the pod can be entered again", pod.can_act_on())
+
+	# --- The greeting lands once you are STOOD in the room ------------------
+	# Played at the wake it would go under the cork pop and the door servo, which is the one
+	# stretch of the opening guaranteed to be noisy. So it waits for _finish_exit().
+	_check("the computer greets you once you are out",
+		audio._voice_player.stream == audio._voices_by_name[&"intro"])
+	_check("and not a moment earlier, under the pop and the door", not greeted_early)
+	_check("and only once — the latch is spent", not game._intro_line_pending)
+
+	# --- ...and from here the pod is soundproof -----------------------------
+	# The klaxon through the shell is the OPENING's alone. Climb back in and the pod does what
+	# a sealed pod does: the ship goes quiet until you are out of it again.
+	game._on_pod_used(null)
+	for _i in 900:
+		await process_frame
+		if game._run.in_stasis and game._pod_phase == game.PodPhase.IN:
+			break
+	_check("the player got back into the pod", game._run.in_stasis)
+	_check("a later stasis seals the pod", audio._sealed)
+	_check("and the klaxon does not sound through it", not audio._alarm_player.playing)
 
 	_report()
 

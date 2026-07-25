@@ -58,6 +58,12 @@ const GROUP_MALFUNCTION := &"malfunctions"
 
 ## Distance remaining (million miles) at which this first breaks. 0 = never fires alone.
 @export var fire_at_distance: float = 0.0
+## Already broken when the run begins — it happened while the player was still asleep, which
+## is why the ship is waking them. RunState breaks these BEFORE it connects its own signals,
+## so there is no alarm event: no hull impact for a knock that landed hours ago, no computer
+## talking over the cold open, and no _on_broke waking a player the opening has not finished
+## putting to sleep yet. See RunState.start().
+@export var starts_broken: bool = false
 
 ## How far a patch holds before it gives out, in millions of miles. Measured in DISTANCE,
 ## not seconds, so that time spent in stasis burns through it too — otherwise patching then

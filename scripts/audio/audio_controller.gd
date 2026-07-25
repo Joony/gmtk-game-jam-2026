@@ -14,6 +14,12 @@ extends Node
 # low-oxygen breathing change its own rate, and what stops a sound played from four places
 # drifting into four slightly different volumes.
 
+## What the computer is saying RIGHT NOW, as text, or "" when it is not speaking. Driven off
+## the voice player's own playback position, so a caption cannot drift from the audio however
+## long the line runs or however the queue reorders it. The Subtitles autoload draws it; this
+## signal is the only thing anything else needs to know about captions.
+signal subtitle_changed(text: String)
+
 enum Music { NONE, NORMAL, PANIC, STASIS, LOW_OXYGEN }
 
 const MUSIC_BUS := &"Music"
@@ -81,6 +87,12 @@ const VOICE_LINES := {
 	&"thingamajig": "res://assets/audio/voiceover/CD_Thingamajig.mp3",
 }
 
+## Captions sit beside the audio, one per line, same basename: CD_Intro.mp3 -> CD_Intro.srt.
+## They are plain SubRip files so the text and its timings can be fixed without touching code
+## — see SubtitleTrack. NOTE: .srt is not a Godot resource, so it only reaches an exported
+## build through `include_filter` in export_presets.cfg. smoke_subtitles.gd guards that.
+const SUBTITLE_EXT := ".srt"
+
 ## Beyond this the computer would be describing a situation that has already moved on. The
 ## OLDEST queued line is dropped, never the newest: when three things break at once the one
 ## worth hearing is the one that just happened.
@@ -110,6 +122,7 @@ var _sounds: Dictionary = {}
 
 var _alarm_player: AudioStreamPlayer
 var _paused: bool = false
+var _sealed: bool = false
 
 # The computer's voice gets ONE player and a queue. Two lines at once is not two alerts, it is
 # neither — a synthesised voice over itself is unintelligible, and the moment it matters most
@@ -119,6 +132,12 @@ var _voice_player: AudioStreamPlayer
 var _voice_queue: Array[StringName] = []
 var _voice_gap: float = 0.0
 var _voices_by_name: Dictionary = {}
+
+## The caption currently on screen, and the line it belongs to. Read-only from outside — set
+## it by playing a line. See _update_subtitle().
+var subtitle: String = ""
+var _speaking_line: StringName = &""
+var _subtitles_by_name: Dictionary = {}
 
 var _breath_intensity: float = 0.0
 var _breath_timer: float = 0.0
@@ -212,6 +231,16 @@ func _load_voice_lines() -> void:
 			_warn_once(path, "voice line missing: %s" % path)
 			continue
 		_voices_by_name[line] = load(path)
+		# Captions live beside the audio under the same basename, so adding a line and adding
+		# its subtitles are the same gesture — drop CD_Whatever.mp3 and CD_Whatever.srt into
+		# the folder and both halves are wired. A line with no .srt still plays; it just has
+		# nothing to show, which is the right failure for a take that arrived before its text.
+		var srt := path.get_basename() + SUBTITLE_EXT
+		var track := SubtitleTrack.load_srt(srt)
+		if track == null or track.cues.is_empty():
+			_warn_once(srt, "no subtitles for voice line '%s' (%s)" % [line, srt])
+			continue
+		_subtitles_by_name[line] = track
 
 
 # --- effects ----------------------------------------------------------------------------
@@ -312,7 +341,31 @@ func is_speaking() -> bool:
 func _speak(line: StringName) -> void:
 	_voice_player.stream = _voices_by_name[line]
 	_voice_gap = VOICE_GAP
+	_speaking_line = line
 	_voice_player.play()
+	# Immediately, not on the next _process tick: the first caption belongs to the frame the
+	# line starts on. A frame of speech with no text under it is exactly the frame a player
+	# reading rather than listening cannot afford to miss.
+	_update_subtitle()
+
+
+## Put the caption for wherever the line has got to on screen.
+##
+## Read off the PLAYER'S OWN POSITION rather than accumulated from delta. The voice can be
+## paused, interrupted, started from a queue and stopped by the run ending; a caption clock
+## kept alongside it would have to be corrected on every one of those paths, and would be
+## silently wrong on the one that got missed. The stream always knows where it is.
+func _update_subtitle() -> void:
+	var text := ""
+	# `_sealed` mutes the Voice bus for a player asleep in the pod. Captioning a line they
+	# cannot hear would hand them information the sealed shell is there to withhold.
+	if _voice_player.playing and not _sealed and _subtitles_by_name.has(_speaking_line):
+		var track: SubtitleTrack = _subtitles_by_name[_speaking_line]
+		text = track.text_at(_voice_player.get_playback_position())
+	if text == subtitle:
+		return
+	subtitle = text
+	subtitle_changed.emit(text)
 
 
 ## Pull the next line off the queue once the current one has finished and its gap has passed.
@@ -359,6 +412,28 @@ func set_breathing(intensity: float) -> void:
 		_breath_timer = 0.0
 
 
+## The pod is a sealed shell: while the player is asleep in it, the ship's sounds do not reach
+## them. Mutes the effects and the computer's voice, and deliberately NOT the music — the stasis
+## track is scored FOR the pod rather than heard through its wall.
+##
+## A bus mute rather than a per-player one, because "sealed" has to cover sounds nobody thought
+## about: a fault's hull impact, a door somewhere, anything added later. The pod does not get to
+## be selectively soundproof.
+##
+## The opening is the exception, and Game owns it: the run starts with the drive already broken,
+## and the klaxon coming through the shell is the whole of the cold open. See
+## Game._update_ship_audio().
+func set_sealed(sealed: bool) -> void:
+	if _sealed == sealed:
+		return
+	_sealed = sealed
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(SFX_BUS), sealed)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(VOICE_BUS), sealed)
+	# On this frame rather than the next: sealing the pod mutes a line mid-word, and a caption
+	# still reading it out is the shell failing to be a shell.
+	_update_subtitle()
+
+
 ## Silence everything, without forgetting what was playing. Godot keeps streams running when
 ## the SceneTree pauses — pausing the tree does not pause audio — so this has to be explicit.
 func set_paused(paused: bool) -> void:
@@ -373,6 +448,9 @@ func set_paused(paused: bool) -> void:
 func stop_all() -> void:
 	stop_music()
 	set_alarm(false)
+	# A bus mute outlives the scene that set it: leaving the game mid-stasis would otherwise
+	# carry a silenced SFX bus out to the main menu.
+	set_sealed(false)
 	# Queued lines outlive the player leaving the scene otherwise: the computer would carry
 	# on announcing a run that has ended, over the main menu.
 	_voice_queue.clear()
@@ -380,6 +458,10 @@ func stop_all() -> void:
 	set_paused(false)
 	for player in _all_players():
 		player.stop()
+	# After the stop, so it reads a silent player and clears. Left to _process this would
+	# survive one more frame — and stop_all() is called from _exit_tree(), where there is no
+	# next frame and the caption would be the last thing standing on the main menu.
+	_update_subtitle()
 
 
 func _all_players() -> Array[Node]:
@@ -395,6 +477,7 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	_advance_voice(delta)
+	_update_subtitle()
 	_music_since_change += delta
 	# Only ever a queued calm-down; escalations never queue.
 	if _music_pending != Music.NONE and _music_since_change >= MIN_DWELL:

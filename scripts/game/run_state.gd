@@ -126,6 +126,13 @@ func start() -> void:
 		if malfunction == null:
 			continue
 		_malfunctions.append(malfunction)
+		# BEFORE the connects, and that ordering is the whole of `starts_broken`. Hooked up
+		# first, break_now() would fire `alarm` on frame zero — a hull impact for a fault that
+		# happened while the player was asleep, and the computer announcing it over a cold
+		# open built to be silent — and _on_broke would call exit_stasis(), cutting the
+		# opening beat short before it had begun. The fault is simply already true.
+		if malfunction.starts_broken:
+			malfunction.break_now(false)
 		malfunction.broke.connect(_on_broke)
 		malfunction.repaired.connect(_on_repaired)
 
@@ -142,6 +149,9 @@ func start() -> void:
 	distance_changed.emit(distance_remaining, total_distance)
 	oxygen_changed.emit(oxygen_remaining, oxygen_total)
 	systems_changed.emit()
+	# A fault that starts broken never went through _on_broke, so the ship-wide red alert has
+	# to be brought up here or the run would open with a critical fault and white lighting.
+	_update_alert()
 
 
 func _process(delta: float) -> void:

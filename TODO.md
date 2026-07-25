@@ -379,6 +379,8 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
       the dust-lane layer to two octaves, or bake the band to a small cubemap at startup.
 - [ ] Windows are only valid on **exterior** walls — the builder doesn't check; the layout must
 - [ ] No frame mesh (the wall's sill/lintel/jambs frame it) and no light spill into the room
+- [ ] The glazing is invisible — collision only, no mesh. A faint Fresnel sheen is specced as
+      **step 16**; opening trim geometry is part of step 15.
 - [ ] Optional polish from the original plan not done: passing debris, a distant planet
 
 ## 12. ✅ Countdown mechanic — done ([log](docs/features/countdown-loop.md))
@@ -509,6 +511,14 @@ pause they should be brought out of stasis and the game begins."*
 
 - [x] The run opens with the player sealed in the pod, not stood in front of it
       (`Game._pose_in_pod()`). `PlayerSpawn` deleted — nothing read it any more.
+- [x] **The ship is already broken:** `DRIVE REGULATOR`, critical, 10% with a slow 0.03/day
+      bleed, on the engine room's port wall. `Malfunction.starts_broken`, applied by
+      `RunState.start()` BEFORE it connects its signals — otherwise frame zero fires an alarm
+      event and `_on_broke` wakes the player out of the opening beat.
+- [x] Its klaxon carries into the pod. That is the ONE stasis that is not soundproof; every
+      other one calls `Audio.set_sealed(true)` (mutes SFX + Voice, not music).
+- [x] `CD_Intro` plays at `_finish_exit()`, once the player is stood in the room — at the wake
+      it lands under the cork pop and the door servo.
 - [x] The ship wakes them after `OPENING_STASIS_TIME` (1.6s) through the pod's **ordinary** wake
       — cork pop, door swing, ride out — with no branch for the first one. `[E]` skips it.
 - [x] **Cold open:** no HUD, no "IN STASIS · [E] WAKE" panel, no music until that wake. Both
@@ -794,3 +804,373 @@ The biggest of the four by a wide margin — treat it as its own step, not a pol
 - [x] Test: a cable plugged source-to-sink powers the sink and unplugging kills it; the battery
       gains charge on a live socket, loses it under load, and reads empty at zero — covered by
       `smoke_cable_battery.gd`, `smoke_wall_socket.gd`, `smoke_powered_device.gd`.
+
+## 15. Ship surfaces — procedural sci-fi panelling
+
+Playtest: *"the walls/floor/ceiling look flat — can they look like a spaceship?"*
+
+Right now every interior surface is one `BoxMesh` wearing a `StandardMaterial3D` with nothing but
+an albedo colour and `roughness = 0.95` (`RoomBuilder._material()`,
+`scripts/level/room_builder.gd:453`). Under the shadowless omni grid (step 9's flat lighting) a
+flat colour has **no** internal detail and no shading gradient, so a 21m wall reads as a grey
+plane. The fix is a material, not geometry: the boxes stay exactly as they are.
+
+**Droppable.** This is dressing. `use_paneling = false` restores today's look in one flag, and
+nothing else in the game reads these materials.
+
+### What the reference images settle
+
+Nine references reviewed (2026-07-25): seven photographs of real data-centre interiors, plus two
+stock CG renders and one clean-sci-fi corridor render. The images themselves are not in the repo, so
+the conclusions are recorded here rather than by reference.
+
+**The headline is not a texture.** Every reference inverts our value structure: a near-white shell
+(walls *and* ceiling), a light or mid-grey deck, and the only dark mass in the room is *equipment* —
+racks, cabinets, cable bundles. Ours is the opposite: mid-grey walls at 0.42–0.50 over darker floors
+at 0.22–0.28 (`ship_layout.gd`). That is a large part of why the interiors read as a grey box rather
+than a room full of machinery, and it also fixes the readability risk noted below — repair panels,
+cables, pods and the battery become dark objects against a bright shell instead of mid-grey on
+mid-grey.
+
+- [ ] **Do this first, before any shader work.** Raise wall and ceiling base colours toward
+      0.72–0.82, keep the deck mid-grey, and reserve dark values for props. It is four numbers in
+      `ship_layout.gd` and it answers the question "how much of *flat* was actually a value problem?"
+      for free. Capture the baseline shots, change the four values, capture again.
+
+What the references contradict in the plan below — amend as noted, don't build both:
+
+- [ ] **Walls carry almost no small detail.** Large flat panels (~1.2m wide, full height), one
+      horizontal joint around 2m, a plain skirting band at the bottom, thin dark seams, and nothing
+      else. No rivets anywhere on a wall in any photograph. Rivets move to the engine room only.
+- [ ] **Seams are shadow lines, not bevels** — 5–10mm, low contrast, no bright lip. The lit-lip
+      treatment belongs to the *other* look in the set (the sci-fi render: wide chamfers, inset
+      panels, coffered ceiling). **Pick one and commit**; blending flat-panel seams with chamfered
+      insets reads as neither.
+- [ ] **The panel grid is calmer than specced.** Fewer, larger cells; drop the sub-divided-panel
+      variation, or keep it rare enough to read as an access hatch rather than as pattern.
+- [ ] **Room identity comes from equipment and accent colour, not wall hue** — every reference is the
+      same white shell, differentiated by what is bolted to it. Reconsider the per-room wall palette
+      (a decision, not a given: the current palette is deliberate and does aid navigation).
+
+What to take wholesale:
+
+- [ ] **The floor is the cheapest win in the whole feature.** 600mm tiles, fine grout line, subtle
+      speckle in the tile face — visible in most of the photographs and near-free given the noise the
+      shader needs anyway.
+- [ ] **Soft darkening where wall meets floor and meets ceiling.** Present in every photograph, and
+      the single strongest "real room" cue that shadowless lighting throws away. The builder knows
+      each room's `Rect2i` and height, so pass the room bounds as uniforms and fake the junction
+      gradient directly — no SSAO, no shadows, no cost.
+- [ ] **Safety yellow / orange, on services and hazards only, never on architecture.** The most
+      characterful element in the set and the cheapest to adopt, because the game is already full of
+      the right objects: cables, wall sockets, the battery cube, the AUX POWER device, the vent pipe.
+
+Out of reach, so nobody chases it:
+
+- [ ] The two stock CG renders get most of their look from **mirror-gloss floors reflecting the
+      racks**. GL Compatibility has no SSR and no reflection probes — not available, at any effort.
+
+**The tone caveat, which matters more than any of the above.** These are spotless, functioning,
+well-maintained rooms. This game is *The Martian*: a failing ship, improvised fixes, a janitor's
+closet with a hammer lying on the floor. Take the brightness and the panel discipline; do **not**
+take the cleanliness. Bright shell for readability, with wear and grime concentrated at floor level,
+in the corners, and around the repair panels — where the story is.
+
+### Approach: one procedural shader, world-space projected
+
+`assets/shaders/ship_surface.gdshader`, shared by every wall, floor and ceiling; per-surface
+`ShaderMaterial` instances differing only in uniforms (one compiled program, which matters under
+Compatibility).
+
+Why procedural rather than texture assets:
+
+- **The boxes are arbitrary sizes.** `BoxMesh` UVs are 0..1 per face, so one tiled texture would
+  stretch differently in the 21x21 cryo bay, the 3m corridor and the 3x4m closet. Projecting from
+  **world position** instead makes panel scale identical everywhere *and* makes seams line up
+  across adjacent surfaces — a wall's panel grid continues onto the floor.
+- **Nothing in the web build.** Same reasoning as `SoundForge` for audio and `starfield.gdshader`
+  for the sky: no files, no licences, no megabytes on top of the 38 MB wasm.
+- **Per-room identity survives.** `Room.floor_color` / `wall_color` / `ceiling_color` feed a
+  `base_color` uniform, so the existing room-by-room palette (`ship_layout.gd`) still does its job
+  — the panelling sits on top of it rather than replacing it.
+
+### Continuity across split wall pieces — the load-bearing requirement
+
+A wall with an opening in it is **not one box**. `wall_segments()` splits the wall line at the
+opening bounds and `_create_wall_piece()` emits each piece separately, so a window is surrounded by
+four independent `StaticBody3D`s — the full-height piece to its left, the sill below, the lintel
+above, the full-height piece to its right (`room_builder.gd:336-344`). The ship has seven openings,
+so this is the normal case, not an edge case. If the material doesn't agree across those pieces the
+wall reads as patchwork and the whole feature is worse than the flat colour it replaced.
+
+World-space projection is what makes this work, *provided* nothing ever shifts the grid phase per
+node. Concretely:
+
+- [ ] **Grid phase comes from the world origin and nothing else** — `floor(world_coords / cell)`.
+      No per-node UV, no per-piece offset, no `MODEL_MATRIX` in the panel maths. Two pieces of the
+      same wall then sample the same cells and the seam between them is invisible.
+- [ ] **`seed` feeds the per-cell hash only, never the phase**, and is **per room**, not per node —
+      four pieces of one wall must share it, or one wall grows four different panel patterns. (The
+      cell id is already world-anchored, so hashing `cell_id + seed` is safe; adding `seed` to the
+      coordinates is not.)
+- [ ] **Rows anchor to the deck (`y = 0`)**, so the sill piece, the lintel and the pieces either
+      side line up vertically, and rooms of different heights (2.4 / 2.6 / 4.0 / 9.3m) still agree
+      at eye level. The top row gets clipped by the ceiling — that is what a real bulkhead looks
+      like, leave it.
+- [ ] **`panel_size` is per role, fixed ship-wide** — never per room. Two adjacent rooms each build
+      their own half-thickness skin, so differing cell sizes would misalign at every doorway you
+      can see through.
+- [ ] **Pick the cell size from the dimensions the layout already uses.** Openings are 1.0 / 1.8 /
+      3.0 / 4.0 / 5.0 / 9.0m wide at positions like x = 0.5, 2, ±10, 11 (`ship_layout.gd`). A 1.0m
+      cell (with a 0.5m sub-grid) puts most opening edges **on** a seam, which reads as deliberate
+      framing; 1.2m puts almost none of them there. Costs nothing but choosing the number.
+
+**The reveals are the part projection cannot fix.** Each wall piece is a full box, so the faces
+looking *into* the opening — the two vertical jambs, the underside of the lintel, the top of a
+window sill — face along the wall line, not out of it. Triplanar axis selection projects those onto
+a different plane, and they are only `wall_thickness * 0.5` = 7.5cm deep, so each gets a random
+7.5cm slice of a 1m panel grid. You stand and look straight at them every time you walk through a
+door.
+
+- [ ] Pass the piece's **outward axis** as a uniform (the builder already knows: `_create_wall_piece`
+      computes `runs_along_x` and receives `inward`). Any face whose normal isn't on that axis is a
+      reveal, and gets flat trim colour with no grid, no rivets. This is the only way the shader can
+      tell a jamb from a wall — normal direction alone can't, since a floor and a lintel underside
+      both point along Y.
+- [ ] **Frame every opening with trim geometry.** Even with perfect continuity the grid is *cut* at
+      an arbitrary place — half a rivet at the jamb, a seam 3cm from the door edge. `RoomBuilder`
+      already knows every opening's bounds, so emit thin jamb / lintel / sill trim boxes in a flat
+      trim material (~4 boxes per opening, 7 openings). This hides the cut, gives the openings a
+      fitted look, and covers the junction where two rooms' differently-coloured skins meet inside
+      a shared doorway.
+- [ ] Rejected alternative: pass the openings to the shader as a uniform array and draw the border
+      per fragment. Compatibility can do it, but it costs a per-fragment loop over every opening on
+      the ship for a result no better than four trim boxes.
+
+**Anything that moves must project from model space, not world space.** `SlidingDoor` tweens each
+panel's `position` (`sliding_door.gd:353`), so a world-projected pattern would swim across the door
+as it opens — the single most obvious way this could look broken. Doors are a follow-up below, but
+whoever picks them up needs this written down.
+
+### The two constraints that shape the shader
+
+1. **GL Compatibility, no reflections.** There is no reflection probe or sky, so metallic /
+   low-roughness surfaces fall back to hard specular off the omnis — the exact bug already
+   recorded for the doors (`room_builder.gd:52-57`, bright streaks sliding across the panels).
+   So: **detail lives in albedo**, plus faked AO and a lit lip. Do not reach for metallic.
+2. **Shadowless lighting.** The lighting supplies no depth cues at all, so the shader has to
+   supply its own — a seam has to be *drawn* dark with a bright edge, not lit dark.
+
+### Shader features, cheapest first
+
+- [ ] **Axis-projected coordinates.** Pick the projection plane from the world normal (triplanar
+      selection, no blend needed — the boxes are axis-aligned), giving 2D coordinates in metres.
+- [ ] **Panel grid.** A thin, low-contrast recessed shadow line with a soft gradient either side —
+      **not** a bevel with a bright lip, per the reference review above. Large calm cells.
+- [ ] **Junction darkening from room bounds.** Pass the room's rect and height as uniforms and darken
+      toward the wall/floor and wall/ceiling joins. This is the reference feature with the best
+      ratio of "reads as a real room" to cost, and it is the one thing the flat lighting cannot
+      supply for itself.
+- [ ] **Per-panel hash variation.** Slight brightness/tint jitter per cell, plus occasional
+      darker "different alloy" panels. Sub-divided panels only if rare enough to read as an access
+      hatch rather than as pattern.
+- [ ] **Rivets — engine room only.** No reference photograph has them on a wall. Keep them for the
+      one room that is supposed to look like machinery.
+- [ ] **Grunge.** 2–3 octave value noise into albedo and roughness. Lift `hash13` / `value_noise`
+      / `fbm` out of `starfield.gdshader` into `assets/shaders/noise.gdshaderinc` and `#include`
+      it from both, rather than copy-pasting them.
+- [ ] **Role variants** (`surface_role` uniform: wall / floor / ceiling), because the same grid on
+      all three is what would make it read as wallpaper:
+      - floor — **600mm tiles with a fine grout line and speckle in the tile face**, straight off
+        the references; the cheapest convincing surface in the feature
+      - ceiling — a tile grid to match, since the references' lights sit flush *in* one (see the
+        ceiling-services item below, which is the real fix)
+      - wall — large panels ~1.2m wide and full height, one horizontal joint at ~2m, a plain
+        skirting band at the bottom. Calm; the interest is meant to be the equipment.
+- [ ] **`seed` uniform per room**, so the engine room's hash pattern isn't the cryo bay's — hash
+      input only, never a coordinate offset, and shared by every piece of that room (see the
+      continuity requirement above).
+- [ ] **Trim treatment for reveal faces**, selected by the piece's outward-axis uniform.
+- [ ] **Distance LOD** — fade rivets and fine grunge out past ~12m and skip their maths. See the
+      perf risk below; this is the mitigation, so build it in rather than bolting it on.
+- [ ] Anti-alias the seams by widening the smoothstep with camera distance
+      (`length(world_position - CAMERA_POSITION_WORLD)`) rather than `fwidth` — derivative-free,
+      predictable, and it doubles as the LOD input.
+
+### Builder integration
+
+- [ ] `RoomBuilder._material(key, color)` → `_material(key, color, role)`, returning a
+      `ShaderMaterial` when panelling is on
+- [ ] New exports: `use_paneling: bool = true`, `panel_size`, `seam_width`, `detail_strength`
+- [ ] Doors keep their `StandardMaterial3D` — the chamfer seam is drawn with vertex colour
+      (`room_builder.gd:208`) and that trick would have to be ported into the shader. A separate
+      follow-up, not part of this.
+
+### Known breakage to fix in the same change
+
+- [ ] **`tests/smoke_room_builder.gd:123` casts `material_override` to `StandardMaterial3D`** and
+      compares `albedo_color` to prove each room's walls wear their own colour. A `ShaderMaterial`
+      makes that cast `null`. Add a static `RoomBuilder.surface_base_color(mesh) -> Color` that
+      reads `albedo_color` *or* `get_shader_parameter("base_color")`, and switch the test to it —
+      the assertion is still worth keeping, it just needs a material-agnostic reader.
+- [ ] `smoke_lighting.gd:108` reads the light-panel material, which stays `StandardMaterial3D` —
+      unaffected, but check it, because it is the same shape of cast.
+- [ ] `LightingController` only touches lights and emissive panels, so ALERT still works. Confirm
+      by eye that red light on panelled grey doesn't turn to mud.
+
+### Risks
+
+- **Fill-rate on the web build.** Unlike the nebula (whose unprofiled cost is already flagged in
+  step 11), interior surfaces cover the whole screen every frame of the game. ~6 noise evaluations
+  per pixel is the thing most likely to hurt the itch.io build. Budget for measuring it, and the
+  distance LOD above is the first knob.
+- **Panel scale in small rooms.** A 2m grid in a 3m-wide corridor and a 3x4m closet will look
+  wrong before it looks right. Cell sizes are per *role*, not per room — resist per-room tuning,
+  or the seams stop lining up between adjacent rooms, which is the whole point of world-space.
+- **The openings are where this feature visibly succeeds or fails.** Seven of them, all at eye
+  level, all made of four separate boxes. Judge the result standing in a doorway and standing at
+  the 9m aft window, not looking at a blank wall.
+- **Over-detailing.** The repair panels, status lights and cables have to stay readable against
+  the walls. If the panelling competes with them it has gone too far; grunge strength down, not
+  props up.
+
+### Verification
+
+- [ ] `tests/capture_surfaces.gd` (new dev utility, run **without** `--headless`): six shots —
+      cryo-bay wall from mid-room, bay floor looking down, bay ceiling with the fixtures in frame,
+      down the corridor (all three surfaces close to), an engine-room corner, and the closet.
+      Capture **before** the change as a baseline, then after, and actually look at both.
+- [ ] **Plus four alignment shots, which are the ones that matter**: square-on to the 9m aft window
+      (sill, lintel and both flanking pieces in one frame), square-on to the corridor doorway,
+      *inside* a doorway looking at the jamb and lintel underside, and a door caught mid-slide
+      (proves the panel isn't swimming). A mismatch across split pieces is invisible in a
+      blank-wall shot and obvious in these.
+- [ ] **Headless check of the continuity rule, not the pixels.** For every piece in a room's wall
+      group, assert the grid-defining uniforms are byte-identical (`panel_size`, `seed`, anchor) —
+      that is the invariant, and it can go red without anyone having to look at a PNG. Mutation
+      test it by seeding per node instead of per room.
+- [ ] **Assert openings land on the grid**: every opening edge in `ship_layout.gd` within a few cm
+      of a panel seam for the chosen cell size. Cheap, and it goes red the moment someone adds a
+      window at an off-grid position — which is exactly when the framing would silently degrade.
+- [ ] Extend `smoke_room_builder.gd`: the shader resource loads (a compile error is otherwise
+      silent at runtime — `smoke_space_windows.gd` has the pattern), and every node in the wall /
+      floor / ceiling groups carries its own room's base colour via the new reader.
+- [ ] Mutation test: give two rooms identical colours and confirm the per-room check goes red.
+- [ ] Measure FPS in the cryo bay before and after (the debug readout is already there), and
+      re-check the web export — step 13's "re-run the web export" item covers the build, but this
+      is the change most likely to move the frame time.
+- [ ] Log it as `docs/features/ship-surfaces.md`, referenced from `docs/LOG.md`.
+
+### 15b. Ceiling services — the biggest gap, and not a material
+
+The reference review made this plain: **every** photograph puts its visual interest overhead, either
+as a suspended tile grid with light fixtures recessed *flush into it*, or as an open service ceiling
+of cable trays, ducts and conduit runs. Ours is a flat plane with 0.9 × 0.06 emissive boxes sitting
+*proud* of it (`room_builder.gd:281`). No shader can fix that; it wants geometry. Separate chunk of
+work from the panelling, and plausibly higher value per hour than the walls.
+
+- [ ] **Recess the light panels** into a ceiling grid instead of hanging them below it — the single
+      change most responsible for the reference ceilings looking built rather than painted.
+- [ ] **Tray and conduit runs** as thin boxes along the ceiling, in safety yellow, with occasional
+      drop-downs to wall level. The builder already walks each room's rect, so a run down the middle
+      of the ceiling and one along each long wall is a loop, not a set of hand placements.
+- [ ] This also gives the corridor something to do: the references' corridors are almost entirely
+      ceiling, and ours is 2.6m high with a bare one.
+- [ ] Watch the pod bay — 9.3m to the ceiling, so services up there are barely visible and are
+      pure cost. Run them at a lower height, or skip that room.
+
+### Follow-ups (out of scope here)
+
+- [ ] Doors and hand-placed props (repair panels, the nav console box, the closet) still wear flat
+      colours — once the walls have panelling, those become the flat-looking things
+- [ ] **Adopt the safety-yellow/orange accent on the existing service props** — cables, wall
+      sockets, battery cube, AUX POWER device, vent pipe. Cheap, characterful, and it is where the
+      references get most of their personality. Keep it off the architecture.
+- [ ] Emissive strip lighting along the corridor wall/floor junction, which the shader could draw
+      for free but which wants a real light to match
+- [ ] Hazard stripes / stencilled room numbers as a uniform, off by default — wayfinding, and it
+      would pair with step 10's "local alert" follow-up
+
+## 16. Window glass — make it read as glass
+
+Playtest: *"can the glass in the windows be slightly visible, maybe a little sheen?"*
+
+**There is no glass mesh today.** `_build_window()` emits a `StaticBody3D` with a `CollisionShape3D`
+and nothing else (`room_builder.gd:167-182`) — the glazing exists purely so a thrown crate can't
+leave the ship, and it is completely invisible. So this is additive: nothing to change, only a pane
+to add. Small enough to do in an hour, and independent of step 15.
+
+### Approach: a thin pane with a Fresnel sheen
+
+`assets/shaders/window_glass.gdshader`, one shared `ShaderMaterial` across all six windows (the
+starfield shell already sets that precedent, and `smoke_space_windows.gd` asserts sharing for it).
+
+- [ ] `MeshInstance3D` child of the existing glass body — a `QuadMesh` sized to the opening's span
+      and height, which `_build_window` already computes. `QuadMesh` faces +Z, so an `Axis.X`
+      opening needs no rotation and an `Axis.Z` one rotates 90° about Y.
+- [ ] `render_mode cull_disabled` so the pane reads from either side — the same reason the starfield
+      material does it, and the station outside means windows do get seen from the far side.
+- [ ] **Fresnel-driven visibility is the entire effect.** `pow(1.0 - abs(dot(NORMAL, VIEW)), p)`,
+      from ~0.02 looking straight through to ~0.3 at a grazing angle. That is what glass actually
+      does, and it is self-limiting: the view out is never obscured when you are looking *out*, only
+      when you are walking past. Everything below is seasoning on top of this one term.
+- [ ] **Use `abs()` on that dot product.** With `cull_disabled` the back face keeps its front-facing
+      normal, so an unsigned Fresnel inverts on one side — bright head-on, invisible at a grazing
+      angle, i.e. exactly wrong and only visible from one side of the ship.
+- [ ] **Keep the material shaded and fairly smooth, and let the ceiling omnis do the sheen.** A real
+      specular highlight that slides across the pane as the player walks is the effect being asked
+      for, and it costs nothing — the light grid is already there. It also turns red in ALERT for
+      free, since `LightingController` drives those fixtures.
+      - This is the mirror image of the walls' constraint (`room_builder.gd:52-57`): hard specular
+        off an omni looks wrong on a painted bulkhead and is exactly right on glass. Worth a comment
+        in the shader saying so, or someone will "fix" it later.
+- [ ] Faint dust and smudges from low-frequency noise, strongest toward the pane's edges (a border
+      mask on the quad's clean 0..1 UVs), so the glass looks fitted into its frame and grubby in the
+      corners rather than uniformly hazy. Reuse `noise.gdshaderinc` if step 15 has landed; otherwise
+      lift the same three functions out of `starfield.gdshader`.
+- [ ] A few sparse, thin scratches that catch the highlight. Cheap, and it is what stops the pane
+      reading as a clean CG plane.
+- [ ] Local/UV coordinates, not world position — the panes are quads with usable UVs, so none of
+      step 15's world-projection machinery is needed here.
+
+### The one thing that must not regress
+
+The windows are the *point*: the starfield, the nebula, the station, and the destination growing
+brighter as distance counts down (`destination_brightness`, step 11). A pane that milks the view
+breaks the best thing in the game.
+
+- [ ] **Start additive (`render_mode blend_add`), not alpha blend.** Additive can only ever *add*
+      light, so the stars and the destination can never be dimmed, however wrong the tuning gets.
+      The cost is that grime reads as pale dust rather than dark dirt — which is how dust on a lit
+      pane against a black sky actually looks, so it is arguably the right choice anyway.
+- [ ] If a dark tint turns out to be wanted, that means switching to alpha blend, and then the
+      brightness check below stops being a formality and becomes the thing holding the feature
+      honest.
+- [ ] Transparent surfaces don't write depth, so the pane can't occlude anything — fine here, but it
+      does mean sorting is per-object. The engine room has both a window and the coolant vapour;
+      check that pair specifically, and reach for `render_priority` only if it actually breaks.
+
+### Verification
+
+- [ ] `tests/capture_windows.gd`: the 9m aft window **head-on** (the shot that proves the view is
+      still clear), the same window at a grazing angle (the shot that proves the sheen exists at
+      all), one framed so a ceiling fixture reflects in it, and one in ALERT so the red sheen is
+      confirmed rather than assumed.
+- [ ] **Measure the brightness, don't just look.** Sample the PNG through the pane with the sheen at
+      zero and at its tuned value; the starfield's mean brightness through the glass must not drop.
+      `docs/testing.md`'s rule applies — this is a number, so make it one.
+- [ ] Headless, extending `smoke_space_windows.gd` (it already counts glazing per window): every
+      glass body carries exactly one `MeshInstance3D`, the shader resource loads, and **all panes
+      share one material instance** — a per-pane duplicate is invisible in a screenshot and is the
+      same class of bug the starfield sharing assertion exists to catch.
+- [ ] Mutation: push the sheen to full and confirm the head-on shot goes milky. If it doesn't, the
+      shot is framed wrong and proves nothing.
+- [ ] Update the `_build_window` comment: it currently says "No pane", meaning no *starfield* pane.
+      Once there is glazing geometry that sentence reads as a contradiction.
+
+### Cheaper fallback, if the shader turns into a time sink
+
+A `StandardMaterial3D` with `transparency = ALPHA`, a very low albedo alpha and roughness ~0.1 gets
+the omni highlight and a faint tint with no shader work at all — perhaps fifteen minutes. What it
+cannot do is the Fresnel, so the glass is equally visible head-on as at an angle, which reads as a
+dirty perspex sheet rather than glass. Acceptable as a submission-day compromise; not the target.

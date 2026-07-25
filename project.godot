@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 SceneManager="*res://scripts/scene_manager.gd"
 Audio="*res://scripts/audio/audio_controller.gd"
+Subtitles="*res://ui/subtitles.tscn"
 
 [display]
 

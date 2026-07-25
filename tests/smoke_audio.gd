@@ -197,6 +197,42 @@ class _Runner:
 					"and is set to loop (%s)" % path.get_file())
 
 
+	## Empty the positional pool before a block measures it.
+	##
+	## The pool is eight voices, round-robin, and a voice keeps its `stream` after it stops —
+	## so a sound left over from an earlier block is still findable, and which slot a new sound
+	## lands in depends on how many played before it. Two assertions here were reading stale
+	## voices: one found an older ratchet later in the pool than the one it had just triggered,
+	## and one heard a pod door from a previous block's wake. Neither had anything to do with
+	## the code under test, and both only appeared once the number of startup sounds changed.
+	func _clear_positional() -> void:
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		for player in controller._voices_3d:
+			player.stop()
+			player.stream = null
+
+
+	## The run now OPENS with a critical fault already broken (DriveRegulator.starts_broken) —
+	## deliberately, because the klaxon coming through the pod is what wakes the player. Every
+	## block that is about something OTHER than the opening has to clear it first, or it is
+	## asking what an undamaged ship sounds like while the ship is on fire.
+	func _make_ship_healthy(game: Node3D) -> void:
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var run: RunState = game.get_node("Run")
+		for node in game.get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+			var fault := node as Malfunction
+			if fault != null and fault.is_active:
+				fault.repair(true, run.distance_remaining)
+		# Setting the scene up makes noise of its own: a ratchet at every panel, still holding
+		# positional voices when a later block counts them, and a de-escalation to NORMAL that
+		# MIN_DWELL defers by 2.5s. Both are real behaviour with their own assertions elsewhere.
+		# Cleared rather than waited out, so this stays scaffolding.
+		for player in controller._voices_3d:
+			player.stop()
+		controller._music_since_change = 999.0
+		game._update_ship_audio()
+
+
 	## The whole point of the new track: low air owns the music, above even a critical fault.
 	func _test_low_oxygen_music() -> void:
 		print("[music follows oxygen — crash_landing when low, and it wins]")
@@ -209,6 +245,7 @@ class _Runner:
 		# The run opens with a cold open — silent, no HUD — until the ship wakes the player,
 		# so every music assertion below has to be made from the other side of that.
 		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
 		await suite.process_frame
 		var run: RunState = game.get_node("Run")
 
@@ -271,6 +308,7 @@ class _Runner:
 		game.start_game()
 		# Same as above: no music at all until the opening stasis lets go.
 		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
 		await suite.process_frame
 
 		var run: RunState = game.get_node("Run")
@@ -328,6 +366,11 @@ class _Runner:
 		suite.current_scene = game
 		await suite.process_frame
 		game.start_game()
+		# The cold open is the one stretch where the klaxon is SUPPOSED to be sounding, over a
+		# fault that is already broken. This block is about what silences the alarm afterwards,
+		# so get out of the pod and clear the ship first.
+		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
 		await suite.process_frame
 
 		var run: RunState = game.get_node("Run")
@@ -433,6 +476,7 @@ class _Runner:
 		await suite.process_frame
 
 		var pod: StasisPod = game.get_node("StasisPod")
+		_clear_positional()
 		# Posing the pods at startup must be silent, or the game opens with five door noises.
 		pod.set_door_open(false, true)
 		await suite.process_frame
@@ -527,6 +571,7 @@ class _Runner:
 		suite.check(closed, "closing it plays the different door_close sound")
 
 		# A repair is the other thing that must be locatable.
+		_clear_positional()
 		var drive: Malfunction = game.get_node("MainDrive")
 		drive.break_now()
 		drive.repair(true, 50.0)

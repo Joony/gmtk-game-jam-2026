@@ -16,7 +16,7 @@ you ride out under the pod's ordinary wake sequence.
 1. **Frame zero.** [`Game._pose_in_pod()`](../../scripts/game.gd) puts the player's body on the
    pod's `PodView` marker, seals the door instantly, marks the pod occupied and sets
    `PodPhase.IN`. Player physics and camera input are off; the reticle derives itself away.
-2. **The cold open.** No HUD, no music. See below.
+2. **The cold open.** No HUD, no music — just the klaxon of the fault that woke you.
 3. **`OPENING_STASIS_TIME` (1.6s) later**, `_wake_from_opening_stasis()` calls
    `RunState.exit_stasis()`, which is exactly what pressing `[E]` does.
 4. **The ordinary wake.** `_on_stasis_changed(false)` → `_exit_pod()` → cork pop, door swings,
@@ -26,7 +26,45 @@ Step 4 is deliberately **not** special-cased for the opening. The pod already kn
 someone up; the intro just uses it, so the cork pop and the ride out cannot drift apart from the
 ones you get mid-run.
 
-## The cold open (silent and bare)
+## The ship is already broken (2026-07-25)
+
+Playtest note: *"When the game loads there should already be a critical engine malfunction (not a
+serious one, maybe 10%), even though you're in the cryo pod you should be able to hear the
+klaxon (during the rest of the game you shouldn't be able to hear sounds in the cryo pod). When
+the player exits the cryo pod play the CD_Intro vo file."*
+
+That turns the opening from "you wake up on schedule" into "something woke you", which is what
+the premise always claimed. Three parts:
+
+**`DRIVE REGULATOR`** — a new fault on the engine room's port wall, critical, `speed_penalty`
+0.10 with a slow 0.03/day bleed. The cheapest critical on the ship on purpose: the opening has to
+teach the whole loop (hear it, walk the ship, find the panel, choose a route) without pricing a
+first run out of a win.
+
+It is broken by `Malfunction.starts_broken`, which `RunState.start()` applies **before** it
+connects its own signals. Ordering is the whole feature. Hooked up first, `break_now()` would
+fire `alarm` on frame zero — a hull impact for a knock that landed hours ago, and the computer
+announcing it over a cold open built to be silent — and `_on_broke` would call `exit_stasis()`,
+cutting the opening beat short before it had begun. The fault is simply already true. (`start()`
+calls `_update_alert()` at the end for the same reason: a fault that never went through
+`_on_broke` would leave the ship critical under white lighting.)
+
+**The klaxon comes through the shell**, and it is the only thing that does. `_update_ship_audio()`
+leaves the pod unsealed and sets the alarm during the opening; every other stasis calls
+`Audio.set_sealed(true)`.
+
+**`Audio.set_sealed()`** mutes the SFX and Voice buses — a bus mute rather than a per-player one,
+because "sealed" has to cover sounds nobody thought about (a fault's hull impact, a door
+somewhere, anything added later). The pod does not get to be selectively soundproof. Music is
+deliberately exempt: the stasis track is scored *for* the pod rather than heard through its wall.
+`stop_all()` unseals, or a bus mute would follow the player out to the main menu.
+
+**The greeting waits for `_finish_exit()`.** Played at the wake it lands under the cork pop and
+the door servo — the one stretch of the opening guaranteed to be noisy. `_intro_line_pending` is
+a latch rather than a call at the wake, because `[E]` and the timer both end that stasis and only
+`_finish_exit()` knows when the ride out is over.
+
+## The cold open (bare, and silent but for the alarm)
 
 Playtest note: *"the 'IN STASIS' info box shouldn't be there and the music shouldn't be playing.
 Until you're out of stasis, then the game should work as normal."*
@@ -41,9 +79,9 @@ Until you're out of stasis, then the game should work as normal."*
   and any one of them getting through would start the stasis track. It sets `Music.NONE`
   explicitly rather than returning early, so whatever the menu or the intro left playing is faded
   out instead of inherited.
-- **Klaxon** — already off: `set_alarm(critical and not _run.in_stasis)`.
+- **Klaxon** — the exception, and the reason the cold open exists at all. See above.
 
-Both come in from `_on_stasis_changed()`, which is the only place that catches **both** ways out
+The HUD and the music come in from `_on_stasis_changed()`, which is the only place that catches **both** ways out
 of the opening — the timer, and the player's own `[E]`, which goes straight to `RunState` and
 never touches `_wake_from_opening_stasis()`. That was the first version's bug: clearing the flag
 in the wake function meant an early `[E]` left the HUD hidden for the rest of the run.
@@ -94,8 +132,14 @@ which is where the run actually puts you on your feet.
 | [capture_pod_label.gd](../../tests/capture_pod_label.gd) | look-at-it counterpart — three renders from the player's own camera |
 | [opening.gd](../../tests/opening.gd) | shared helper; see below |
 
-**Mutation-tested.** Removing the pose, removing the wake, showing the HUD from load, and dropping
-the music guard all fail `smoke_opening_stasis`. Parenting the label to the pod, aiming it at
+**Mutation-tested.** Removing the pose, removing the wake, showing the HUD from load, dropping
+the music guard, starting the ship undamaged, silencing the klaxon in the cold open, not sealing
+a later stasis, applying `starts_broken` after the signal connects, and greeting the player at
+the wake instead of at the exit — all fail `smoke_opening_stasis`.
+
+That last one only died after the assertion was strengthened. The greeting is seconds long, so
+checking the voice player *after* the exit cannot tell whether the line started there or three
+seconds earlier under the cork pop; the test now samples every frame of the ride out. Parenting the label to the pod, aiming it at
 `PodView`, making it opaque, pushing it through the shell, and labelling every pod all fail
 `smoke_pod_label`.
 

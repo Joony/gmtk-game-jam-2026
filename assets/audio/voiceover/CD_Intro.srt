@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:01,620
+Finally, you're awake.
+
+2
+00:00:01,620 --> 00:00:04,080
+All right, listen here, janitor —
+
+3
+00:00:04,080 --> 00:00:06,840
+you're aboard the model XR-321,
+
+4
+00:00:06,840 --> 00:00:09,060
+and that's the last clone of you we's got,
+
+5
+00:00:09,060 --> 00:00:10,560
+so don't die
+
+6
+00:00:10,560 --> 00:00:12,720
+while you're running around fixing the ship's problems now.
+
+7
+00:00:12,780 --> 00:00:15,600
+It's been a bit flaky, you know?
+
+8
+00:00:15,840 --> 00:00:18,760
+Okay, get to it.

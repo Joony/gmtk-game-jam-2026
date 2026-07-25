@@ -63,6 +63,10 @@ var is_started: bool = false
 var _in_opening_stasis: bool = true
 ## Latch for the computer's low-air call, so it happens once. See _on_oxygen_for_audio().
 var _warned_low_air: bool = false
+## Set when the opening stasis ends, spent when the player is out of the pod and back in
+## control. A latch rather than a call at the wake, because [E] and the timer both end that
+## stasis and only _finish_exit() knows when the ride out is over.
+var _intro_line_pending: bool = false
 
 var _pod_phase: PodPhase = PodPhase.OUT
 var _nav_phase: NavPhase = NavPhase.AWAY
@@ -205,20 +209,32 @@ func _on_pod_door_moved(opening: bool) -> void:
 func _update_ship_audio() -> void:
 	if _run.finished:
 		return
-	# The cold open plays in silence. Guarded here rather than at the call sites because three
-	# separate signals (stasis, systems, oxygen) reach this function while the player is still
-	# asleep, and any one of them getting through would start the stasis track under it.
-	# Explicitly NONE rather than an early return: whatever the menu or the intro left playing
-	# has to be faded out, not inherited.
-	if _in_opening_stasis:
-		Audio.play_music(Audio.Music.NONE)
-		return
-
 	var critical := false
 	for malfunction in _run.malfunctions():
 		if malfunction.is_critical():
 			critical = true
 			break
+
+	# The cold open plays in silence — except for the klaxon, which is the whole point of it.
+	# The run starts with the drive already broken, and the alarm coming through the shell is
+	# how the player learns that before they can see anything: they are not waking up on
+	# schedule, they are being woken. So the pod is deliberately left UNSEALED here, the one
+	# time in the run it ever is.
+	#
+	# Guarded here rather than at the call sites because three separate signals (stasis,
+	# systems, oxygen) reach this function while the player is still asleep, and any one of
+	# them getting through would start the stasis track under the alarm. Explicitly NONE
+	# rather than an early return: whatever the menu or the intro left playing has to be
+	# faded out, not inherited.
+	if _in_opening_stasis:
+		Audio.play_music(Audio.Music.NONE)
+		Audio.set_sealed(false)
+		Audio.set_alarm(critical)
+		return
+
+	# Every other stasis, the shell does its job: the pod is sealed and nothing from the ship
+	# reaches the player until they are out of it.
+	Audio.set_sealed(_run.in_stasis)
 	# The klaxon is about critical faults only, and never sounds inside the sealed pod.
 	Audio.set_alarm(critical and not _run.in_stasis)
 
@@ -365,10 +381,10 @@ func _on_stasis_changed(in_stasis: bool) -> void:
 		# anything is drawn and "IN STASIS" cannot flash up as the overlay arrives.
 		_hud.visible = true
 		_update_ship_audio()
-		# The computer greets you on the way out of the pod. This is the first thing the
-		# player hears after the cork pop, and the only line that is about the run rather
-		# than about something being wrong with it.
-		Audio.say(&"intro")
+		# The greeting waits until the player is actually STOOD in the room — see
+		# _finish_exit(). Played here it would land under the cork pop and the door servo,
+		# which is the one stretch of the run guaranteed to be noisy.
+		_intro_line_pending = true
 
 	# Only the WAKING half of the pod is driven from here. Entering is sequenced by
 	# _enter_pod(), which has to finish moving the player before the clock starts running fast.
@@ -465,6 +481,11 @@ func _finish_exit() -> void:
 	if not _run.finished:
 		_set_player_active(true)
 	_camera.input_enabled = true
+	# The computer greets you once you are on your feet, over the klaxon that woke you. Not
+	# on a run that ended in the pod — there is nothing to welcome anyone to.
+	if _intro_line_pending and not _run.finished:
+		_intro_line_pending = false
+		Audio.say(&"intro")
 
 
 ## Move the player smoothly to a transform, aiming the camera as it goes.

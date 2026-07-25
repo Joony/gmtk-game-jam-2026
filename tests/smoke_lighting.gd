@@ -69,9 +69,22 @@ func _run() -> void:
 			== LightingController.MODES[LightingController.Mode.ALERT].keys()
 	)
 
-	# --- Starts normal -------------------------------------------------------
+	# --- The run OPENS on the red alert --------------------------------------
+	# The ship starts with a critical fault already broken (DriveRegulator.starts_broken), so
+	# the alert lighting is up before the player is out of the pod — it is half of why they
+	# are being woken. This used to assert NORMAL here, back when the run began undamaged.
 	await _frames(30)
-	_check("starts in NORMAL", lighting.mode == LightingController.Mode.NORMAL)
+	_check("the run opens in ALERT", lighting.mode == LightingController.Mode.ALERT)
+
+	# Clear it, and the ship goes back to white. Everything below is about the controller
+	# itself, which needs a neutral baseline to measure against.
+	var run: RunState = game.get_node("Run")
+	for node in get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+		var fault := node as Malfunction
+		if fault != null and fault.is_active:
+			fault.repair(true, run.distance_remaining)
+	await _frames(60)
+	_check("clearing it returns to NORMAL", lighting.mode == LightingController.Mode.NORMAL)
 	var normal_color := _average_light_color()
 	var normal_energy := _average_energy()
 	_check(
