@@ -43,6 +43,11 @@ const SOCKET_GROUP := &"cable_sockets"
 @export var fixed: bool = false
 @export var fixed_socket_path: NodePath
 
+# What the reticle says over a plug SEATED in a socket, as opposed to `interaction_text`, which
+# covers one lying on the floor. Two verbs because it is genuinely two actions — the same press
+# either picks the end up or pulls it out of whatever it is in.
+@export var unplug_text: String = "Unplug cable"
+
 # Back-reference to the cable whose rope ends at this plug (set by Cable3D at its ready via the
 # duck-typed `"cable" in node` probe — so the plug must expose this property by this name).
 var cable: Cable3D = null
@@ -80,6 +85,11 @@ func _ready() -> void:
 	super()  # Interactable._ready: register in the interactables group
 	# A cable plug is definitionally a pickup.
 	interaction_type = InteractionType.PICKUP
+	# None of the plug nodes in any cable scene set this, so the prompt over a plug used to be
+	# a bare "[E]" — the reticle offering a key with nothing after it. Defaulted rather than
+	# forced, so a scene can still name a particular cable.
+	if interaction_text == "":
+		interaction_text = "Pick up cable"
 	# Tick AFTER Carry (priority 10): when this plug is seated in a socket on a CARRIED body (the
 	# battery), Carry moves that body each render frame, and we must re-read the socket and re-author
 	# this plug in the SAME frame — otherwise the plug renders a step behind the battery.
@@ -147,6 +157,17 @@ func plug_into(socket: CableSocket) -> bool:
 
 func is_seated() -> bool:
 	return _seated_socket != null and is_instance_valid(_seated_socket)
+
+
+## The same press does two different things to a plug depending on where it is, so it has to
+## say which. Pressing E on a seated plug does not "pick it up" from the player's point of
+## view — it pulls the cable out of the battery, and the socket comes free — even though
+## underneath it is the ordinary grab (on_pickup unseats first).
+func get_interaction_text(held_item: Node3D = null) -> String:
+	# One pair of hands: let the base class say "Hands full" rather than repeating it here.
+	if held_item != null:
+		return super(held_item)
+	return unplug_text if is_seated() else interaction_text
 
 
 func _process(_delta: float) -> void:

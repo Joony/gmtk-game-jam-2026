@@ -135,6 +135,12 @@ func _run() -> void:
 	(plug_free as RigidBody3D).linear_velocity = Vector3.ZERO
 	_place_in_front(plug_free, 1.0)
 	await _physics_frames(3)
+	# The loose end names its action too — the same blank `interaction_text` left this one a
+	# bare "[E]" as well, not just the seated case.
+	_check(
+		"a loose plug says what E does (got '%s')" % _interactor.get_prompt(),
+		"Pick up cable" in _interactor.get_prompt()
+	)
 	_press("interact")
 	await _frames(2)
 	_check("carrying the free plug", _carry.is_holding())
@@ -183,8 +189,16 @@ func _run() -> void:
 			% (_interactor.current.name if _interactor.current != null else "<none>"),
 		_interactor.current == plug_free
 	)
+	# The prompt has to NAME the action. Every plug node in every cable scene left
+	# `interaction_text` blank, so the reticle over one read as a bare "[E]" — a key offered
+	# with nothing after it. And "pick up" would be the wrong verb here anyway: from the
+	# player's side this pulls the cable out of the battery.
 	_check(
-		"and the prompt is about the plug (got '%s')" % _interactor.get_prompt(),
+		"the prompt says what pressing E does (got '%s')" % _interactor.get_prompt(),
+		"Unplug cable" in _interactor.get_prompt()
+	)
+	_check(
+		"and it is not about the cube (got '%s')" % _interactor.get_prompt(),
 		not ("Pick up battery" in _interactor.get_prompt())
 	)
 	_press("interact")

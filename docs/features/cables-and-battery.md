@@ -520,6 +520,23 @@ by `smoke_battery_interact.gd`, which plugs in and then pulls back out through t
 `Interactor` and a real interact press. Both mutations die; dropping the meta reproduces the
 original `'[E] Pick up battery'` verbatim.
 
+## Playtest fix (2026-07-25): a plug's prompt was a bare "[E]"
+
+No plug node in any cable scene ever set `interaction_text`, so `Interactable`'s default of `""`
+reached the reticle and it drew a key with nothing after it — on the floor as well as in a socket,
+though only the seated case got reported (it is the one you stare at).
+
+`CablePlug` now defaults `interaction_text` to `"Pick up cable"` in `_ready()` (defaulted, not
+forced, so a scene can still name a particular cable) and overrides `get_interaction_text()` to
+return the new `unplug_text` export while seated. Two verbs because it is genuinely two actions:
+underneath, pulling a cable out of the battery is the ordinary grab — `on_pickup()` unseats first —
+but "pick up" is not what the player is doing. Holding something still defers to the base class's
+"Hands full".
+
+Both states are asserted in `smoke_battery_interact.gd`. Mutation-tested: dropping the default
+reproduces the reported `'[E] '` verbatim, and collapsing the two verbs gives
+`'[E] Pick up cable'` over a plugged-in battery.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
