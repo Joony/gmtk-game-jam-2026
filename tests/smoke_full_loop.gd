@@ -1,4 +1,6 @@
 extends SceneTree
+
+const Opening := preload("res://tests/opening.gd")
 # Step 6: walk the entire game loop TWICE in one run and prove nothing leaks.
 # The flow is now: Main Menu -> Start -> Intro (video) -> (skip) -> Game -> Esc ->
 # Quit to Menu. Each round exercises the intro route directly AND the menu's Start button.
@@ -104,6 +106,9 @@ func _play_a_bit(tag: String) -> void:
 	_check("%s: tree is not paused on entry" % tag, not paused)
 	# The game auto-starts on load now — there is no START prompt to wait behind.
 	_check("%s: game started itself on load" % tag, game.is_started)
+	# The run opens with the player asleep in the pod. Waking is part of what this loop is
+	# checking still works after a round trip through the menu, so it is asserted, not assumed.
+	_check("%s: the opening stasis lets go" % tag, await Opening.wake(self, game))
 	for i in 30:
 		await physics_frame
 	if player != null:

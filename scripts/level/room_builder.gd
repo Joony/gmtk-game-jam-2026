@@ -205,6 +205,10 @@ func _door_material() -> StandardMaterial3D:
 	material.albedo_color = door_color
 	material.metallic = 0.0
 	material.roughness = door_roughness
+	# The panels tint their chamfered inner edges by vertex colour so the seam between the two
+	# doors reads under flat lighting — see SlidingDoor._build_panel_mesh. Everything else on
+	# the panel is white, so this is a no-op for the rest of the surface.
+	material.vertex_color_use_as_albedo = true
 	_materials["door"] = material
 	return material
 

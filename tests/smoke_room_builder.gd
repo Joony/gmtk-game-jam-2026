@@ -1,4 +1,6 @@
 extends SceneTree
+
+const Opening := preload("res://tests/opening.gd")
 # Step 9: procedural room builder.
 # Run: godot --headless --path . -s tests/smoke_room_builder.gd
 
@@ -285,7 +287,9 @@ func _run() -> void:
 	# Panels must be strictly thinner than the walls. An open panel slides INSIDE the
 	# wall, so equal thickness makes the faces coplanar and they z-fight.
 	var panel_mesh: MeshInstance3D = door.get_node("Panel_0/Mesh")
-	var panel_size: Vector3 = (panel_mesh.mesh as BoxMesh).size
+	# Read the bounds, not a BoxMesh's size: the panel is a hand-built ArrayMesh now that its
+	# inner vertical edges are chamfered (SlidingDoor._build_panel_mesh).
+	var panel_size: Vector3 = panel_mesh.mesh.get_aabb().size
 	var panel_depth: float = minf(panel_size.x, panel_size.z)
 	_check(
 		"door panels are thinner than the walls (%.3f vs %.3f) so they can't z-fight"
@@ -357,6 +361,9 @@ func _run() -> void:
 	current_scene = ship_scene
 	await process_frame
 	ship_scene.start_game()
+	# The run opens with the player asleep in the pod, held off the floor by the pod's own
+	# view marker; the standing check below only means anything once they are out of it.
+	await Opening.wake(self, ship_scene)
 	var ship: Node3D = ship_scene.get_node("Ship")
 	_check("ship built rooms", ship.rooms.size() >= 3)
 	_check("ship built doorways", ship.doorways.size() >= 2)

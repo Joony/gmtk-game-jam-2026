@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/subtitles.gd" id="1_subtitles"]
+
+; Layer 45: above the HUD (35) and the reticle (40), below the pause menu (50). A caption is
+; the most important thing on screen while it is up — it is the only channel a player with the
+; sound off has — but it must not sit over a menu they are trying to read.
+;
+; An outlined Label with no panel behind it, matching the rest of the HUD. A solid caption bar
+; would be the only opaque box in the game and would black out the middle-bottom of the screen
+; for the whole of the eighteen-second intro; a heavy outline stays legible against the white
+; of a lit corridor and against space, without hiding either.
+
+[node name="Subtitles" type="CanvasLayer"]
+layer = 45
+script = ExtResource("1_subtitles")
+
+[node name="Line" type="Label" parent="."]
+unique_name_in_owner = true
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 260.0
+offset_top = -230.0
+offset_right = -260.0
+offset_bottom = -54.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.9, 0.93, 0.97, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 12
+theme_override_font_sizes/font_size = 42
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 3

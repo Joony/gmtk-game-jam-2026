@@ -14,16 +14,26 @@ extends Node
 # low-oxygen breathing change its own rate, and what stops a sound played from four places
 # drifting into four slightly different volumes.
 
-enum Music { NONE, NORMAL, PANIC, STASIS }
+## What the computer is saying RIGHT NOW, as text, or "" when it is not speaking. Driven off
+## the voice player's own playback position, so a caption cannot drift from the audio however
+## long the line runs or however the queue reorders it. The Subtitles autoload draws it; this
+## signal is the only thing anything else needs to know about captions.
+signal subtitle_changed(text: String)
+
+enum Music { NONE, NORMAL, PANIC, STASIS, LOW_OXYGEN }
 
 const MUSIC_BUS := &"Music"
 const SFX_BUS := &"SFX"
+const VOICE_BUS := &"Voice"
 
-## Real files, and the only part of the audio that is not generated.
+## Real files, and the only part of the audio that is not generated. Delivered as .wav but
+## transcoded to Ogg Vorbis (see tools + the .wav masters alongside): 115 MB of WAV would
+## have sunk the web export, and Vorbis loops with a single `loop` flag.
 const MUSIC_PATHS := {
-	Music.NORMAL: "res://assets/audio/music_normal.ogg",
-	Music.PANIC: "res://assets/audio/music_panic.ogg",
-	Music.STASIS: "res://assets/audio/music_stasis.ogg",
+	Music.NORMAL: "res://assets/audio/lost_in_space.ogg",
+	Music.PANIC: "res://assets/audio/red_alert.ogg",
+	Music.STASIS: "res://assets/audio/klaatu_barada_nikto.ogg",
+	Music.LOW_OXYGEN: "res://assets/audio/crash_landing.ogg",
 }
 
 ## How long a crossfade takes.
@@ -40,10 +50,55 @@ const SFX_3D_RANGE := 26.0
 
 ## Sounds that are real files rather than synthesised. Doors came from GMTK 2025's `Sounds/`
 ## folder, where they were sitting unused — nothing in that project ever played them.
+##
+## These are loaded AFTER _forge() and share its dictionary, so a name here OVERRIDES the
+## generated sound of the same name. That is how the recorded klaxon replaces
+## SoundForge.klaxon() without the generator going anywhere: the synth version stays the
+## fallback for a missing file, and stays the thing the sound tests measure.
 const FILE_SOUNDS := {
 	&"door_open": "res://assets/audio/sfx/door_open.mp3",
 	&"door_close": "res://assets/audio/sfx/door_close.mp3",
+	&"klaxon": "res://assets/audio/sfx/Klaxon.mp3",
 }
+
+## The ship computer's voice lines, named by what they MEAN rather than by which take they
+## came from — a caller asks for `life_support` and never learns the filename.
+##
+## Wiring a line to an event is DATA, not code: Malfunction has a `vo_line` export, so giving
+## a fault a voice is one field in game.tscn. See say().
+const VOICE_LINES := {
+	# Wired to events today.
+	&"intro": "res://assets/audio/voiceover/CD_Intro.mp3",
+	&"oxygen_low": "res://assets/audio/voiceover/CD_OxygenLow.mp3",
+	&"life_support": "res://assets/audio/voiceover/CD_LifeSupportFailing.mp3",
+	&"nav_off": "res://assets/audio/voiceover/CD_NavOff.mp3",
+	&"power_off": "res://assets/audio/voiceover/CD_PowerOff.mp3",
+	&"pipes_engine": "res://assets/audio/voiceover/CD_PipesBroken_Engine.mp3",
+	&"need_oil": "res://assets/audio/voiceover/CD_NeedOil.mp3",
+	# Recorded and registered, but nothing plays them yet. Left in so wiring one up later is
+	# a `vo_line` field rather than a code change — which is the whole point of the table.
+	&"alarm_broken": "res://assets/audio/voiceover/CD_AlarmBroken.mp3",
+	&"pipes_life_support": "res://assets/audio/voiceover/CD_PipesBroken_LifeSupport.mp3",
+	&"asteroids": "res://assets/audio/voiceover/CD_AsteroidsIncoming.mp3",
+	&"ate_food": "res://assets/audio/voiceover/CD_AteFood.mp3",
+	&"garage_open": "res://assets/audio/voiceover/CD_GarageOpen.mp3",
+	&"no_beer": "res://assets/audio/voiceover/CD_NoBeer.mp3",
+	&"shitters_full": "res://assets/audio/voiceover/CD_ShittersFull.mp3",
+	&"thingamajig": "res://assets/audio/voiceover/CD_Thingamajig.mp3",
+}
+
+## Captions sit beside the audio, one per line, same basename: CD_Intro.mp3 -> CD_Intro.srt.
+## They are plain SubRip files so the text and its timings can be fixed without touching code
+## — see SubtitleTrack. NOTE: .srt is not a Godot resource, so it only reaches an exported
+## build through `include_filter` in export_presets.cfg. smoke_subtitles.gd guards that.
+const SUBTITLE_EXT := ".srt"
+
+## Beyond this the computer would be describing a situation that has already moved on. The
+## OLDEST queued line is dropped, never the newest: when three things break at once the one
+## worth hearing is the one that just happened.
+const VOICE_QUEUE_MAX := 3
+## Silence between lines, so two alerts do not run together into one sentence.
+const VOICE_GAP := 0.4
 
 ## Breathing interval at the moment the warning starts, and at zero air. Getting faster is
 ## most of what makes it frightening — the volume barely matters.
@@ -67,6 +122,22 @@ var _sounds: Dictionary = {}
 
 var _alarm_player: AudioStreamPlayer
 var _paused: bool = false
+var _sealed: bool = false
+
+# The computer's voice gets ONE player and a queue. Two lines at once is not two alerts, it is
+# neither — a synthesised voice over itself is unintelligible, and the moment it matters most
+# is exactly the moment several things are going wrong together. Non-positional, because the
+# computer is speaking over the ship's PA and must be the same from every room.
+var _voice_player: AudioStreamPlayer
+var _voice_queue: Array[StringName] = []
+var _voice_gap: float = 0.0
+var _voices_by_name: Dictionary = {}
+
+## The caption currently on screen, and the line it belongs to. Read-only from outside — set
+## it by playing a line. See _update_subtitle().
+var subtitle: String = ""
+var _speaking_line: StringName = &""
+var _subtitles_by_name: Dictionary = {}
 
 var _breath_intensity: float = 0.0
 var _breath_timer: float = 0.0
@@ -89,8 +160,10 @@ func _ready() -> void:
 	# than a moment. Played through the round-robin pool it looped forever and was only ever
 	# silenced by another sound stealing its voice — which is exactly what went wrong.
 	_alarm_player = _make_player(SFX_BUS)
+	_voice_player = _make_player(VOICE_BUS)
 
 	_forge()
+	_load_voice_lines()
 
 
 func _make_player(bus: StringName) -> AudioStreamPlayer:
@@ -128,13 +201,46 @@ func _forge() -> void:
 		&"pod_open": SoundForge.pod_door(true),
 		&"pod_close": SoundForge.pod_door(false),
 	}
-	_alarm_player.stream = _sounds[&"klaxon"]
+	# File sounds LAST, so a recorded take overrides the generated one of the same name and a
+	# missing file silently leaves the synth version in place (see FILE_SOUNDS).
 	for name in FILE_SOUNDS:
 		var path: String = FILE_SOUNDS[name]
 		if not ResourceLoader.exists(path):
 			_warn_once(path, "sound file missing: %s" % path)
 			continue
 		_sounds[name] = load(path)
+	# After the override, or the alarm would keep a reference to whichever klaxon was built
+	# first and the recorded one would never be heard.
+	_alarm_player.stream = _sounds[&"klaxon"]
+	# The klaxon is the one sound with a LIFETIME: set_alarm(true) starts it and expects it to
+	# run until the fault is dealt with. A generated klaxon is authored looping; an imported
+	# mp3 defaults to one-shot, so the alarm would have died after a couple of seconds and
+	# left a critical fault sounding like a passing beep. Set here rather than in the .import
+	# so it cannot be lost to a re-import.
+	if _alarm_player.stream is AudioStreamMP3:
+		(_alarm_player.stream as AudioStreamMP3).loop = true
+
+
+## The voice lines are their own table, kept out of `_sounds` on purpose: play() round-robins
+## a pool of eight voices and would happily start a second line over the first. Everything the
+## computer says goes through say(), which owns the one player that can speak.
+func _load_voice_lines() -> void:
+	for line in VOICE_LINES:
+		var path: String = VOICE_LINES[line]
+		if not ResourceLoader.exists(path):
+			_warn_once(path, "voice line missing: %s" % path)
+			continue
+		_voices_by_name[line] = load(path)
+		# Captions live beside the audio under the same basename, so adding a line and adding
+		# its subtitles are the same gesture — drop CD_Whatever.mp3 and CD_Whatever.srt into
+		# the folder and both halves are wired. A line with no .srt still plays; it just has
+		# nothing to show, which is the right failure for a take that arrived before its text.
+		var srt := path.get_basename() + SUBTITLE_EXT
+		var track := SubtitleTrack.load_srt(srt)
+		if track == null or track.cues.is_empty():
+			_warn_once(srt, "no subtitles for voice line '%s' (%s)" % [line, srt])
+			continue
+		_subtitles_by_name[line] = track
 
 
 # --- effects ----------------------------------------------------------------------------
@@ -195,6 +301,91 @@ func set_alarm(active: bool) -> void:
 		_alarm_player.stop()
 
 
+# --- the ship computer ------------------------------------------------------------------
+
+## Have the computer say something. This is the whole API — `Audio.say(&"oxygen_low")` — and
+## it is safe to call from anywhere, at any time, including while another line is playing.
+##
+## NOT positional. The computer is on the PA: it has to be exactly as audible from the engine
+## room as from inside the pod, which is the one place the player cannot walk away from.
+##
+## `interrupt` is for a line that makes the queued ones wrong — the run ending, say. The
+## default is to queue, because cutting the computer off mid-sentence to start another
+## sentence is how you end up understanding neither.
+func say(line: StringName, interrupt: bool = false) -> void:
+	if not VOICE_LINES.has(line):
+		# A typo in a wiring call should cost a line, not the run — same contract as play().
+		_warn_once(line, "no such voice line '%s'" % line)
+		return
+	if not _voices_by_name.has(line):
+		return  # registered but the file is not on disk; already warned once at load
+	if interrupt:
+		_voice_queue.clear()
+		_speak(line)
+		return
+	# `playing` is the right test here and NOT while paused — see _advance_voice().
+	if not _voice_player.playing and _voice_queue.is_empty() and not _paused:
+		_speak(line)
+		return
+	_voice_queue.append(line)
+	while _voice_queue.size() > VOICE_QUEUE_MAX:
+		_voice_queue.pop_front()
+
+
+## True while the computer is talking or has something still to say. For anything that wants
+## to wait for it — a run-end screen, a future music duck.
+func is_speaking() -> bool:
+	return _voice_player.playing or not _voice_queue.is_empty()
+
+
+func _speak(line: StringName) -> void:
+	_voice_player.stream = _voices_by_name[line]
+	_voice_gap = VOICE_GAP
+	_speaking_line = line
+	_voice_player.play()
+	# Immediately, not on the next _process tick: the first caption belongs to the frame the
+	# line starts on. A frame of speech with no text under it is exactly the frame a player
+	# reading rather than listening cannot afford to miss.
+	_update_subtitle()
+
+
+## Put the caption for wherever the line has got to on screen.
+##
+## Read off the PLAYER'S OWN POSITION rather than accumulated from delta. The voice can be
+## paused, interrupted, started from a queue and stopped by the run ending; a caption clock
+## kept alongside it would have to be corrected on every one of those paths, and would be
+## silently wrong on the one that got missed. The stream always knows where it is.
+func _update_subtitle() -> void:
+	var text := ""
+	# `_sealed` mutes the Voice bus for a player asleep in the pod. Captioning a line they
+	# cannot hear would hand them information the sealed shell is there to withhold.
+	if _voice_player.playing and not _sealed and _subtitles_by_name.has(_speaking_line):
+		var track: SubtitleTrack = _subtitles_by_name[_speaking_line]
+		text = track.text_at(_voice_player.get_playback_position())
+	if text == subtitle:
+		return
+	subtitle = text
+	subtitle_changed.emit(text)
+
+
+## Pull the next line off the queue once the current one has finished and its gap has passed.
+##
+## Driven from _process rather than from the player's `finished` signal because `playing`
+## reads FALSE while a player is stream_paused (see docs/debugging-gotchas.md). On the signal
+## that is merely a missed wake-up; here it would be worse — a paused line looks finished, so
+## the queue would empty itself into the pause menu and the player would come back to silence
+## having missed every alert.
+func _advance_voice(delta: float) -> void:
+	if _voice_player.playing:
+		_voice_gap = VOICE_GAP
+		return
+	if _voice_queue.is_empty():
+		return
+	_voice_gap -= delta
+	if _voice_gap <= 0.0:
+		_speak(_voice_queue.pop_front())
+
+
 ## The two repair routes, which must never sound alike — see SoundForge. Positional: you
 ## should be able to hear which panel someone is working on.
 func repair(permanent: bool, position: Vector3) -> void:
@@ -221,6 +412,28 @@ func set_breathing(intensity: float) -> void:
 		_breath_timer = 0.0
 
 
+## The pod is a sealed shell: while the player is asleep in it, the ship's sounds do not reach
+## them. Mutes the effects and the computer's voice, and deliberately NOT the music — the stasis
+## track is scored FOR the pod rather than heard through its wall.
+##
+## A bus mute rather than a per-player one, because "sealed" has to cover sounds nobody thought
+## about: a fault's hull impact, a door somewhere, anything added later. The pod does not get to
+## be selectively soundproof.
+##
+## The opening is the exception, and Game owns it: the run starts with the drive already broken,
+## and the klaxon coming through the shell is the whole of the cold open. See
+## Game._update_ship_audio().
+func set_sealed(sealed: bool) -> void:
+	if _sealed == sealed:
+		return
+	_sealed = sealed
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(SFX_BUS), sealed)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(VOICE_BUS), sealed)
+	# On this frame rather than the next: sealing the pod mutes a line mid-word, and a caption
+	# still reading it out is the shell failing to be a shell.
+	_update_subtitle()
+
+
 ## Silence everything, without forgetting what was playing. Godot keeps streams running when
 ## the SceneTree pauses — pausing the tree does not pause audio — so this has to be explicit.
 func set_paused(paused: bool) -> void:
@@ -235,14 +448,24 @@ func set_paused(paused: bool) -> void:
 func stop_all() -> void:
 	stop_music()
 	set_alarm(false)
+	# A bus mute outlives the scene that set it: leaving the game mid-stasis would otherwise
+	# carry a silenced SFX bus out to the main menu.
+	set_sealed(false)
+	# Queued lines outlive the player leaving the scene otherwise: the computer would carry
+	# on announcing a run that has ended, over the main menu.
+	_voice_queue.clear()
 	set_breathing(0.0)
 	set_paused(false)
 	for player in _all_players():
 		player.stop()
+	# After the stop, so it reads a silent player and clears. Left to _process this would
+	# survive one more frame — and stop_all() is called from _exit_tree(), where there is no
+	# next frame and the caption would be the last thing standing on the main menu.
+	_update_subtitle()
 
 
 func _all_players() -> Array[Node]:
-	var players: Array[Node] = [_music_a, _music_b, _alarm_player]
+	var players: Array[Node] = [_music_a, _music_b, _alarm_player, _voice_player]
 	players.append_array(_voices)
 	players.append_array(_voices_3d)
 	return players
@@ -253,6 +476,8 @@ func _process(delta: float) -> void:
 	# which means everything below has to opt out of running while paused itself.
 	if _paused:
 		return
+	_advance_voice(delta)
+	_update_subtitle()
 	_music_since_change += delta
 	# Only ever a queued calm-down; escalations never queue.
 	if _music_pending != Music.NONE and _music_since_change >= MIN_DWELL:
@@ -322,6 +547,11 @@ func play_music(state: Music) -> void:
 
 func stop_music() -> void:
 	music_state = Music.NONE
+	_music_pending = Music.NONE
+	# A fresh run is a hard reset, not a de-escalation, so clear the dwell timer: otherwise
+	# the FIRST track of the next run (NORMAL) would be dwell-gated and the run would open on
+	# 2.5s of silence if the previous run had just changed the music.
+	_music_since_change = 999.0
 	if _music_tween != null and _music_tween.is_valid():
 		_music_tween.kill()
 	_music_a.stop()
@@ -331,11 +561,23 @@ func stop_music() -> void:
 func _load_music(state: Music) -> AudioStream:
 	var path: String = MUSIC_PATHS.get(state, "")
 	if path == "" or not ResourceLoader.exists(path):
-		# Not an error. The tracks are composed last, and the game has to be playable and
-		# testable long before they land.
-		_warn_once(path, "music track not present yet: %s" % path)
+		# Not an error. A track can be absent (or a new one added later) and the game must
+		# still run — a missing state simply plays silence.
+		_warn_once(path, "music track not present: %s" % path)
 		return null
-	return load(path) as AudioStream
+	var stream := load(path) as AudioStream
+	# Music must loop, and the tracks are not authored with loop metadata. Set it here so it
+	# does not depend on each file's import settings being right. Vorbis has a plain flag;
+	# a WAV master would need sample-accurate loop points, which is a second reason to ship
+	# the .ogg.
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = wav.data.size() / (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1)
+	return stream
 
 
 func _warn_once(key: Variant, message: String) -> void:

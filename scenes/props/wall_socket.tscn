@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/wall_socket.gd" id="1_wall"]
+[ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="3_receptacle"]
+
+; A wall-mounted socket you plug a cable into (look + E). Mount with +Z into the room (its -Z is the
+; wall side). `is_power_source` makes it a live outlet; leave it off for a device inlet. The
+; StaticBody box lets the camera ray hit the faceplate; a seated plug is excepted from it.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_face"]
+size = Vector3(0.24, 0.24, 0.08)
+
+[node name="WallSocket" type="StaticBody3D"]
+script = ExtResource("1_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+shape = SubResource("BoxShape3D_face")
+
+[node name="Port" type="Node3D" parent="."]
+script = ExtResource("2_socket")
+receptacle_scene = ExtResource("3_receptacle")

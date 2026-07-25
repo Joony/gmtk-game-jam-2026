@@ -1,0 +1,7 @@
+1
+00:00:00,000 --> 00:00:02,160
+Someone left the goddamn garage door open.
+
+2
+00:00:02,220 --> 00:00:04,360
+Go close it.

@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:01,860
+You're gonna need a spare part
+
+2
+00:00:01,860 --> 00:00:03,900
+to fix that thingamajig there.
+
+3
+00:00:03,960 --> 00:00:06,360
+It should be around here somewhere.
+
+4
+00:00:06,420 --> 00:00:07,920
+Or you can use that hammer
+
+5
+00:00:07,920 --> 00:00:09,900
+to patch it temporarily.
+
+6
+00:00:09,960 --> 00:00:13,070
+You'll figure it out.

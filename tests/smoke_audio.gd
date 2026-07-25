@@ -1,4 +1,6 @@
 extends SceneTree
+
+const Opening := preload("res://tests/opening.gd")
 # Audio: the generated effects, the bus layout, and — the part that actually breaks — that
 # the game's events reach the controller at all.
 #
@@ -72,8 +74,10 @@ class _Runner:
 		print("== smoke_audio ==")
 		_test_buses()
 		_test_generated()
+		_test_music_tracks()
 		_test_repair_routes_sound_different()
 		await _test_wiring()
+		await _test_low_oxygen_music()
 		await _test_positional()
 		await _test_alarm_lifetime()
 		await _test_pod_door()
@@ -111,7 +115,6 @@ class _Runner:
 			&"door_open": {"min_s": 0.1, "max_s": 4.0},
 			&"door_close": {"min_s": 0.1, "max_s": 4.0},
 			&"bump": {"min_s": 1.0, "max_s": 2.0},
-			&"klaxon": {"min_s": 0.5, "max_s": 2.0},
 			&"click": {"min_s": 0.01, "max_s": 0.2},
 			&"plug": {"min_s": 0.05, "max_s": 0.5},
 			&"ratchet": {"min_s": 0.2, "max_s": 1.0},
@@ -141,14 +144,143 @@ class _Runner:
 			suite.check(m["peak"] <= 0.90, "%s does not clip (peak %.3f)" % [name, m["peak"]])
 			suite.check(m["rms"] > 0.001, "%s is not silence (rms %.4f)" % [name, m["rms"]])
 
-		# A klaxon that clicks every loop is worse than no klaxon.
-		var klaxon: AudioStreamWAV = controller._sounds[&"klaxon"]
-		suite.check(klaxon.loop_mode == AudioStreamWAV.LOOP_FORWARD, "the klaxon is set to loop")
-		var count := klaxon.data.size() / 2
-		var first := klaxon.data.decode_s16(0)
-		var last := klaxon.data.decode_s16((count - 1) * 2)
+		# --- The klaxon, which is now a recorded file over a generated fallback ------------
+		# The GENERATOR is measured directly rather than through _sounds, because that entry is
+		# the shipped mp3 — the recording overrides the synth version by name (FILE_SOUNDS).
+		# SoundForge.klaxon() is still the fallback for a missing file and is still expected to
+		# work, so it keeps its own assertions; a klaxon that clicks every loop is worse than no
+		# klaxon at all.
+		var generated := SoundForge.klaxon(1)
+		var gm: Dictionary = suite.measure(generated)
+		suite.check(gm["seconds"] >= 0.5 and gm["seconds"] <= 2.0,
+			"the generated klaxon fallback is %.2fs, within 0.50-2.00" % gm["seconds"])
+		suite.check(gm["peak"] <= 0.90, "it does not clip (peak %.3f)" % gm["peak"])
+		suite.check(generated.loop_mode == AudioStreamWAV.LOOP_FORWARD,
+			"the generated klaxon is set to loop")
+		var count := generated.data.size() / 2
+		var first := generated.data.decode_s16(0)
+		var last := generated.data.decode_s16((count - 1) * 2)
 		suite.check(absi(first - last) < 400,
 			"and its loop seam is continuous (|first-last| = %d of 32768)" % absi(first - last))
+
+		# What actually plays. set_alarm() starts this and expects it to run until the fault is
+		# dealt with, so a one-shot stream would leave a critical fault sounding like a beep —
+		# and an imported mp3 is one-shot by default.
+		var shipped: AudioStream = controller._sounds.get(&"klaxon")
+		suite.check(shipped != null, "the klaxon the alarm plays exists")
+		suite.check(controller._alarm_player.stream == shipped,
+			"and it is the stream the alarm player holds")
+		if shipped is AudioStreamMP3:
+			suite.check((shipped as AudioStreamMP3).loop,
+				"the recorded klaxon loops (%.2fs)" % shipped.get_length())
+		else:
+			suite.check((shipped as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_FORWARD,
+				"the fallback klaxon loops")
+
+
+	func _test_music_tracks() -> void:
+		print("[the four music tracks exist and loop]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		# Every music STATE except NONE must resolve to a real, looping stream. A track that
+		# does not loop stops dead partway through a run; one that is missing plays silence.
+		for state in [controller.Music.NORMAL, controller.Music.PANIC, controller.Music.STASIS,
+				controller.Music.LOW_OXYGEN]:
+			var path: String = controller.MUSIC_PATHS.get(state, "")
+			suite.check(ResourceLoader.exists(path), "music for state %d exists (%s)" % [state, path])
+			var stream: AudioStream = controller._load_music(state)
+			suite.check(stream != null, "and loads")
+			if stream is AudioStreamOggVorbis:
+				suite.check((stream as AudioStreamOggVorbis).loop,
+					"and is set to loop (%s)" % path.get_file())
+			elif stream is AudioStreamWAV:
+				suite.check((stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_FORWARD,
+					"and is set to loop (%s)" % path.get_file())
+
+
+	## Empty the positional pool before a block measures it.
+	##
+	## The pool is eight voices, round-robin, and a voice keeps its `stream` after it stops —
+	## so a sound left over from an earlier block is still findable, and which slot a new sound
+	## lands in depends on how many played before it. Two assertions here were reading stale
+	## voices: one found an older ratchet later in the pool than the one it had just triggered,
+	## and one heard a pod door from a previous block's wake. Neither had anything to do with
+	## the code under test, and both only appeared once the number of startup sounds changed.
+	func _clear_positional() -> void:
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		for player in controller._voices_3d:
+			player.stop()
+			player.stream = null
+
+
+	## The run now OPENS with a critical fault already broken (DriveRegulator.starts_broken) —
+	## deliberately, because the klaxon coming through the pod is what wakes the player. Every
+	## block that is about something OTHER than the opening has to clear it first, or it is
+	## asking what an undamaged ship sounds like while the ship is on fire.
+	func _make_ship_healthy(game: Node3D) -> void:
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var run: RunState = game.get_node("Run")
+		for node in game.get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+			var fault := node as Malfunction
+			if fault != null and fault.is_active:
+				fault.repair(true, run.distance_remaining)
+		# Setting the scene up makes noise of its own: a ratchet at every panel, still holding
+		# positional voices when a later block counts them, and a de-escalation to NORMAL that
+		# MIN_DWELL defers by 2.5s. Both are real behaviour with their own assertions elsewhere.
+		# Cleared rather than waited out, so this stays scaffolding.
+		for player in controller._voices_3d:
+			player.stop()
+		controller._music_since_change = 999.0
+		game._update_ship_audio()
+
+
+	## The whole point of the new track: low air owns the music, above even a critical fault.
+	func _test_low_oxygen_music() -> void:
+		print("[music follows oxygen — crash_landing when low, and it wins]")
+		var controller := suite.root.get_node_or_null("/root/Audio")
+		var game: Node3D = load("res://scenes/game.tscn").instantiate()
+		suite.root.add_child(game)
+		suite.current_scene = game
+		await suite.process_frame
+		game.start_game()
+		# The run opens with a cold open — silent, no HUD — until the ship wakes the player,
+		# so every music assertion below has to be made from the other side of that.
+		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
+		await suite.process_frame
+		var run: RunState = game.get_node("Run")
+
+		suite.check(controller.music_state == controller.Music.NORMAL,
+			"full air, nothing broken -> NORMAL (lost_in_space)")
+
+		# Drop below the air warning.
+		run.oxygen_remaining = run.oxygen_warning * 0.5
+		run.oxygen_changed.emit(run.oxygen_remaining, run.oxygen_total)
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.LOW_OXYGEN,
+			"low air -> LOW_OXYGEN (crash_landing)")
+
+		# A critical fault while the air is low: low air still wins.
+		var drive: Malfunction = game.get_node("MainDrive")
+		drive.break_now()
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.LOW_OXYGEN,
+			"low air outranks a critical fault")
+
+		# Recover the air above the warning while the fault stands: now the fault shows.
+		run.oxygen_remaining = run.oxygen_total
+		run.oxygen_changed.emit(run.oxygen_remaining, run.oxygen_total)
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.PANIC,
+			"air recovered, fault remains -> PANIC (red_alert)")
+
+		# Stasis outranks everything, air and fault alike.
+		run.enter_stasis()
+		await suite.process_frame
+		suite.check(controller.music_state == controller.Music.STASIS,
+			"in the pod -> STASIS (klaatu), whatever else is going on")
+		run.exit_stasis()
+
+		game.free()
 
 
 	func _test_repair_routes_sound_different() -> void:
@@ -174,6 +306,9 @@ class _Runner:
 		suite.current_scene = game
 		await suite.process_frame
 		game.start_game()
+		# Same as above: no music at all until the opening stasis lets go.
+		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
 		await suite.process_frame
 
 		var run: RunState = game.get_node("Run")
@@ -231,6 +366,11 @@ class _Runner:
 		suite.current_scene = game
 		await suite.process_frame
 		game.start_game()
+		# The cold open is the one stretch where the klaxon is SUPPOSED to be sounding, over a
+		# fault that is already broken. This block is about what silences the alarm afterwards,
+		# so get out of the pod and clear the ship first.
+		await Opening.wake(suite, game)
+		_make_ship_healthy(game)
 		await suite.process_frame
 
 		var run: RunState = game.get_node("Run")
@@ -257,17 +397,11 @@ class _Runner:
 		suite.check(controller._alarm_player.stream_paused,
 			"pausing silences the klaxon")
 		suite.check(controller._paused, "and the controller knows it is paused")
-		# NOT asserted on the music players: Godot refuses to store `stream_paused` on a
-		# player with no stream, and the three music tracks do not exist yet. Verified
-		# directly — a player WITH a stream keeps the flag, one without silently drops it.
-		# The music goes through the same set_paused() loop, so it will pause once the
-		# tracks land; there is simply nothing to observe until then.
-		var paused_voices := 0
-		for voice in controller._voices:
-			if voice.stream != null and voice.stream_paused:
-				paused_voices += 1
-		suite.check(paused_voices > 0 or controller._paused,
-			"and every voice that has something to play is paused (%d)" % paused_voices)
+		# The music tracks exist now, so the active music player has a stream and DOES pause.
+		# (Godot silently refuses to store stream_paused on a player with NO stream — that was
+		# the old caveat, back when the tracks were missing.)
+		suite.check(controller._music_active.stream_paused,
+			"and the music pauses too")
 
 		# Breathing must not keep firing behind the pause menu. The controller runs while the
 		# tree is paused (so menu clicks are audible), so it has to opt out itself.
@@ -320,6 +454,7 @@ class _Runner:
 		var controller := suite.root.get_node_or_null("/root/Audio")
 		var pod_open: AudioStream = controller._sounds.get(&"pod_open")
 		var pod_close: AudioStream = controller._sounds.get(&"pod_close")
+		var plug: AudioStream = controller._sounds.get(&"plug")
 		suite.check(pod_open != null and pod_close != null, "both pod door sounds exist")
 		suite.check(pod_open != controller._sounds.get(&"door_open")
 				and pod_close != controller._sounds.get(&"door_close"),
@@ -341,13 +476,20 @@ class _Runner:
 		await suite.process_frame
 
 		var pod: StasisPod = game.get_node("StasisPod")
+		_clear_positional()
 		# Posing the pods at startup must be silent, or the game opens with five door noises.
 		pod.set_door_open(false, true)
 		await suite.process_frame
 		suite.check(not _heard(pod_close), "posing a door instantly makes no sound")
 
+		# Opening leads with the cork pop and brings its own sound in a beat later
+		# (Game.POD_POP_LEAD), so the door sound is NOT there on the next frame — it has to be
+		# waited out. See Game._on_pod_door_moved for why the two cannot be played together.
 		pod.set_door_open(true)
 		await suite.process_frame
+		suite.check(_heard(plug), "opening the pod leads with the cork pop")
+		suite.check(not _heard(pod_open), "the door sound does not land on top of the pop")
+		await suite.create_timer(game.POD_POP_LEAD + 0.05).timeout
 		suite.check(_heard(pod_open), "opening the pod plays its own sound")
 
 		pod.set_door_open(false)
@@ -429,6 +571,7 @@ class _Runner:
 		suite.check(closed, "closing it plays the different door_close sound")
 
 		# A repair is the other thing that must be locatable.
+		_clear_positional()
 		var drive: Malfunction = game.get_node("MainDrive")
 		drive.break_now()
 		drive.repair(true, 50.0)

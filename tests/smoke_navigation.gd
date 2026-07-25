@@ -136,10 +136,17 @@ func _run() -> void:
 
 	# Doors are shut until you approach, and would wall off the whole ship from a static
 	# sweep. Open every one first: the question is whether the LAYOUT is connected.
+	#
+	# Disable each door's _physics_process after opening. A door auto-closes ~0.1s after it
+	# is opened while empty (the cable-guillotine guard added in the door), so without this
+	# every door re-shuts before the flood runs and the ship reads as disconnected. In real
+	# play the door is open because the player is standing in its trigger; we are proving the
+	# layout is connected, not the door dynamics, so holding them open is the correct model.
 	var doors := 0
 	for door in get_nodes_in_group(RoomBuilder.GROUP_DOOR):
 		if door is SlidingDoor:
 			(door as SlidingDoor).open()
+			(door as SlidingDoor).set_physics_process(false)
 			doors += 1
 	# The panels slide on a tween over open_time; sampling before it finishes reports the
 	# ship as walled off at every doorway.
@@ -147,8 +154,10 @@ func _run() -> void:
 		await physics_frame
 	print("  (opened %d doors)" % doors)
 
-	var spawn: Marker3D = game.get_node("PlayerSpawn")
-	var reach := _reachable_from(spawn.global_position)
+	# Where the run actually puts you on your feet: the pod sets you down in front of its door
+	# on waking. There is no PlayerSpawn marker any more — the game starts you asleep inside.
+	var start_pod: StasisPod = game.get_node("StasisPod")
+	var reach := _reachable_from(start_pod.exit_transform().origin)
 	_check("the spawn point itself is standable (%d cells reachable)" % reach.size(), reach.size() > 50)
 
 	# Everywhere the game sends you.
@@ -159,6 +168,10 @@ func _run() -> void:
 			if child is RepairPoint:
 				targets.append({"name": fault.system_name, "at": (child as Node3D).global_position})
 	for node in get_nodes_in_group(&"spare_parts"):
+		targets.append({"name": (node as Node).name, "at": (node as Node3D).global_position})
+	# The hammer is the only patch route there is, and it lives in a 3x4m closet off the
+	# corridor — the smallest room on the ship and the easiest one to accidentally seal.
+	for node in get_nodes_in_group(&"repair_tools"):
 		targets.append({"name": (node as Node).name, "at": (node as Node3D).global_position})
 	var pod := game.get_node_or_null("StasisPod") as StasisPod
 	if pod != null:

@@ -1,0 +1,51 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" uid="uid://bvbhh3yj2jjod" path="res://addons/cables/scripts/cable_3d.gd" id="1_cable"]
+[ext_resource type="Script" uid="uid://bp803jqilruil" path="res://scripts/game/cable_plug.gd" id="2_plug"]
+[ext_resource type="PackedScene" uid="uid://dkair2f4bvk4g" path="res://3D-Models/CD_Plug_v1.blend" id="3_model"]
+
+; A loose extension cable: a plug on BOTH ends, neither bolted down. Drop it on the floor; the
+; player carries either end to a socket and plugs it in (look + E, or nose it into snap range). Run
+; one end to a wall SOURCE and the other to a device inlet to carry power the long way.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.42, 0.18, 0.42)
+
+[node name="LooseCable" type="Node3D"]
+
+[node name="PlugA" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0, 0)
+continuous_cd = true
+script = ExtResource("2_plug")
+
+[node name="Model" parent="PlugA" instance=ExtResource("3_model")]
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+
+[node name="StaticBody3D" parent="PlugA/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugB" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0, 0)
+continuous_cd = true
+script = ExtResource("2_plug")
+
+[node name="Model" parent="PlugB" instance=ExtResource("3_model")]
+transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+
+[node name="StaticBody3D" parent="PlugB/Model/Base" index="0"]
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="Cable" type="Node3D" parent="."]
+script = ExtResource("1_cable")
+plug_a_path = NodePath("../PlugA")
+plug_b_path = NodePath("../PlugB")
+rest_length = 4.0
+segment_length = 0.12

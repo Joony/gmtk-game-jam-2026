@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="3_pause"]
 [ext_resource type="PackedScene" path="res://ui/reticle.tscn" id="5_reticle"]
-[ext_resource type="PackedScene" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
+[ext_resource type="PackedScene" uid="uid://g7qiimy33ycm" path="res://scenes/props/pickup_crate.tscn" id="6_pickup"]
 [ext_resource type="Script" uid="uid://vawgqsgj76n8" path="res://scripts/level/ship_layout.gd" id="8_ship"]
 [ext_resource type="Script" uid="uid://dox4pdlpwd6jy" path="res://scripts/level/lighting_controller.gd" id="9_lighting"]
 [ext_resource type="Script" uid="uid://bkkwb6jo1e0c8" path="res://scripts/level/ship_motion.gd" id="10_motion"]
@@ -22,6 +22,12 @@
 [ext_resource type="PackedScene" path="res://scenes/props/computer.tscn" id="22_computer"]
 [ext_resource type="PackedScene" path="res://ui/nav_screen.tscn" id="23_navscreen"]
 [ext_resource type="PackedScene" uid="uid://d3rvhjh1qhy4e" path="res://3D-Models/CD_CryoStation_v1.blend" id="24_station"]
+[ext_resource type="PackedScene" path="res://scenes/props/power_cable.tscn" id="25_cable"]
+[ext_resource type="PackedScene" path="res://scenes/props/battery_cube.tscn" id="26_battery"]
+[ext_resource type="PackedScene" path="res://scenes/props/wall_socket.tscn" id="27_wallsocket"]
+[ext_resource type="PackedScene" path="res://scenes/props/loose_cable.tscn" id="28_loose"]
+[ext_resource type="PackedScene" path="res://scenes/props/powered_device.tscn" id="29_device"]
+[ext_resource type="PackedScene" path="res://scenes/props/hammer.tscn" id="30_hammer"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -51,8 +57,10 @@ transform = Transform3D(0.7, -0.42, 0.58, 0, 0.81, 0.58, -0.71, -0.41, 0.57, 0, 
 light_energy = 1.5
 light_cull_mask = 2
 
+; Hidden for now — kept in the scene so the arrival destination can be switched back on.
 [node name="Station" parent="." unique_id=1272130075 instance=ExtResource("12_station")]
 transform = Transform3D(0.87, 0, -0.5, 0, 1, 0, 0.5, 0, 0.87, -74, 6, 0)
+visible = false
 
 [node name="Motion" type="Node" parent="." unique_id=900825783]
 script = ExtResource("10_motion")
@@ -67,8 +75,8 @@ oxygen_total = 210.0
 [node name="Ship" type="Node3D" parent="." unique_id=1323847786]
 script = ExtResource("8_ship")
 
-[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1774573647]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1, 13.5)
+; No PlayerSpawn marker: the run opens with the player sealed in the stasis pod, so the pod's
+; own PodView (asleep inside) and PodExit (set down on waking) are the start positions.
 
 [node name="CryoStation" parent="." unique_id=341322163 instance=ExtResource("24_station")]
 transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 6.5)
@@ -106,13 +114,82 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
 
+; Power cable on the engine room's FORWARD wall (z=-22, room is z>-22 so +Z faces into the room —
+; identity basis, no rotation needed). Set to the starboard side (x=3), clear of the forward
+; window (x -2.5..2.5) and the MainDrive (x=-3.5). One end bolted to a source socket, the free
+; end for the player to run to a device. Placement screenshot-verified.
+[node name="PowerCable" parent="." unique_id=1935655553 instance=ExtResource("25_cable")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 1.3, -21.91)
+
+; Portable battery — charge it from a wall cable, carry it to a device with no socket in reach.
+[node name="BatteryCube" parent="." unique_id=2089062277 instance=ExtResource("26_battery")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.25, -19)
+
+; Engine-room wall sockets on the forward wall (z=-22, +Z into the room = identity). A live SOURCE
+; outlet plus two inlets the loose cable can be run to. Clear of the window (x -2.5..2.5) and the
+; MainDrive (x=-3.5).
+[node name="WallSocketSource" parent="." unique_id=1966765763 instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.3, -21.91)
+is_power_source = true
+
+[node name="WallSocketA" parent="." unique_id=643797883 instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 1.3, -21.91)
+
+[node name="WallSocketB" parent="." unique_id=1277330107 instance=ExtResource("27_wallsocket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.7, 1.3, -21.91)
+
+; A loose extension cable on the floor near the outlet, for the player to run to a socket.
+[node name="LooseCable" parent="." unique_id=1348615771 instance=ExtResource("28_loose")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0.3, -20)
+
+; AUX POWER: a system fixable ONLY by a power feed, set at the aft-port corner ~11 m from the wall
+; outlet — no socket in reach, so it forces the choice: run a long cable, or charge the battery and
+; carry it here. Phase 6, the cables' reason to exist.
+[node name="PoweredDevice" parent="." unique_id=193438824 instance=ExtResource("29_device")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -14)
+
+; The ship's hammer, on the floor of the janitor's closet (the 3x4m room off the corridor's
+; starboard side, x 2..5 / z -11..-7 — see scripts/level/ship_layout.gd). It is the ONLY way
+; to bodge a fault shut, so this trip is the price of having a patch route at all. Set against
+; the back wall rather than in the doorway: you have to go in, not just glance in.
+[node name="Hammer" parent="." unique_id=1103477261 instance=ExtResource("30_hammer")]
+; Tipped 90 degrees about X so it LIES on the floor. Left upright it stands balanced on
+; the end of its own handle, which reads as placed rather than put down.
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 3.5, 0.07, -9.6)
+
+; The fault the run OPENS on. Already broken before the first frame (starts_broken), which is
+; why the ship is waking the player at all: they are not coming out on schedule, the klaxon is
+; getting them up. Deliberately the cheapest critical on the ship — 10% and a slow bleed — so
+; the opening teaches the loop (hear it, walk the ship, find the panel, choose a route) without
+; pricing a first run out of a win.
+;
+; Engine room PORT wall (x=-6, room is x>-6 so +X faces into it — same basis as NavArray),
+; aft of the port window (z -19..-15) and clear of the forward wall's sockets.
+[node name="DriveRegulator" type="Node3D" parent="." unique_id=1704392233 groups=["malfunctions"]]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5.83, 1.3, -20.5)
+script = ExtResource("15_malfunction")
+system_name = "DRIVE REGULATOR"
+fault_text = "output regulator stuck open"
+vo_line = &"need_oil"
+severity = 1
+speed_penalty = 0.1
+speed_decay_per_day = 0.03
+starts_broken = true
+bodge_distance = 26.0
+
+[node name="RepairPanel" parent="DriveRegulator" unique_id=1189562449 instance=ExtResource("16_panel")]
+patch_text = "Knock the regulator loose"
+fit_text = "Fit a spare regulator"
+
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.3, -21.83)
 script = ExtResource("15_malfunction")
 system_name = "MAIN DRIVE"
 fault_text = "injector coupling failed"
+vo_line = &"thingamajig"
 severity = 1
 speed_penalty = 0.45
+speed_decay_per_day = 0.12
 fire_at_distance = 70.0
 bodge_distance = 30.0
 
@@ -125,6 +202,7 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.83, 1.3, -8)
 script = ExtResource("15_malfunction")
 system_name = "O2 SCRUBBER"
 fault_text = "CO2 saturating, you are breathing harder"
+vo_line = &"life_support"
 speed_penalty = 0.1
 oxygen_drain_multiplier = 1.6
 fire_at_distance = 52.0
@@ -140,7 +218,9 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.83, 0, -17)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
+vo_line = &"pipes_engine"
 severity = 1
+speed_decay_per_day = 0.1
 fire_at_distance = 33.0
 bodge_distance = 33.0
 bodge_oxygen_cost = 25.0
@@ -153,6 +233,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.83, 1.3, -2)
 script = ExtResource("15_malfunction")
 system_name = "NAV ARRAY"
 fault_text = "drifting off course"
+vo_line = &"nav_off"
 speed_penalty = 0.2
 fire_at_distance = 15.0
 bodge_distance = 24.0

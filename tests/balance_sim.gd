@@ -17,6 +17,10 @@ const WALK_SECONDS := {
 }
 ## Fiddling with the panel once you are standing at it.
 const REPAIR_SECONDS := 2.0
+## The detour into the janitor's closet for the hammer, paid ONCE — after that it is in your
+## hands for the rest of the run. Without this the 'patch' policy is a free lunch here in a
+## way it is not in the game, and a bodge that costs nothing to reach would flatter itself.
+const HAMMER_FETCH_SECONDS := 6.0
 const DT := 0.1
 
 
@@ -51,6 +55,7 @@ func simulate(policy: String) -> Dictionary:
 	var spares: int = root.get_tree().get_nodes_in_group(&"spare_parts").size()
 
 	var clock := [0.0]
+	var has_hammer := false
 	run.enter_stasis()
 
 	while not run.finished and clock[0] < 7200.0:
@@ -81,6 +86,13 @@ func simulate(policy: String) -> Dictionary:
 			var permanent := policy == "proper" and spares > 0
 			if permanent:
 				spares -= 1
+			elif not has_hammer:
+				# First bodge of the run: the hammer is in the janitor's closet and you are
+				# not. RepairPoint will not patch without it.
+				has_hammer = true
+				_await_awake(run, HAMMER_FETCH_SECONDS, clock)
+				if run.finished:
+					break
 			fault.repair(permanent, run.distance_remaining)
 		if not run.finished:
 			run.enter_stasis()

@@ -74,6 +74,11 @@ func _run() -> void:
 			rig.physics_interpolation_mode == Node.PHYSICS_INTERPOLATION_MODE_OFF
 		)
 		_check("player collision_layer is 1", p.collision_layer == 1)
+		# The crate-launch fix: player collides with props (layer 2) but does NOT treat them as
+		# moving platforms, so it never inherits a jostled crate's velocity. See smoke_crate_jump.
+		_check("player collides with props (mask has layer 2)", (p.collision_mask & 2) != 0)
+		_check("player still collides with world (mask has layer 1)", (p.collision_mask & 1) != 0)
+		_check("player excludes props from moving platforms", (p.platform_floor_layers & 2) == 0)
 		var shape: CollisionShape3D = p.get_node("CollisionShape3D")
 		_check("collision shape is a capsule", shape.shape is CapsuleShape3D)
 		p.free()
@@ -95,16 +100,27 @@ func _run() -> void:
 	await process_frame
 	_check("player still running after a redundant start_game()", player.process_mode == Node.PROCESS_MODE_INHERIT)
 
-	var spawn: Marker3D = game.get_node("PlayerSpawn")
-	# Horizontally exact; vertically loose, because gravity has already acted by now.
-	var spawn_pos := spawn.global_position
+	# The run opens with the player asleep IN the pod, not stood in front of it, so the start
+	# position is the pod's own view marker. See smoke_opening_stasis for the wake sequence;
+	# what matters here is only that the player is somewhere sane before it runs.
+	var pod: StasisPod = game.get_node("StasisPod")
+	var view_pos := pod.view_transform().origin
 	var player_pos := player.global_position
 	_check(
-		"player starts at the spawn marker in XZ (got %.2f,%.2f expected %.2f,%.2f)"
-			% [player_pos.x, player_pos.z, spawn_pos.x, spawn_pos.z],
-		Vector2(player_pos.x, player_pos.z).distance_to(Vector2(spawn_pos.x, spawn_pos.z)) < 0.01
+		"player starts inside the pod in XZ (got %.2f,%.2f expected %.2f,%.2f)"
+			% [player_pos.x, player_pos.z, view_pos.x, view_pos.z],
+		Vector2(player_pos.x, player_pos.z).distance_to(Vector2(view_pos.x, view_pos.z)) < 0.01
 	)
-	_check("player starts near the spawn height", absf(player_pos.y - spawn_pos.y) < 0.3)
+	_check("player starts at the pod's view height", absf(player_pos.y - view_pos.y) < 0.3)
+
+	# Everything below is about walking, which needs the player OUT of the pod and back under
+	# their own control. Ride the real wake rather than short-circuiting it, so this suite
+	# fails if the opening ever strands the player frozen in stasis.
+	for i in 900:
+		await physics_frame
+		if game._pod_phase == game.PodPhase.OUT:
+			break
+	_check("the opening stasis ends by itself", game._pod_phase == game.PodPhase.OUT)
 
 	# Settle onto the floor.
 	for i in 60:

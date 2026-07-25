@@ -24,6 +24,18 @@ signal exited
 ## this to the audio, so the pod itself still knows nothing about sound.
 signal door_moved(opening: bool)
 
+## The number on the inside of the door. See _build_door_label().
+const LABEL_FONT := preload("res://assets/AbolitionTest-Regular.otf")
+## Rendered at this size and then scaled to LABEL_HEIGHT, so the glyphs are rasterised big
+## enough to stay crisp with the player's face 0.7m from them.
+const LABEL_FONT_SIZE := 128
+## Cap height in metres.
+const LABEL_HEIGHT := 0.26
+## Where it sits in POD space: level with the eye, just inside the door's inner face.
+const LABEL_POSITION := Vector3(0.0, 1.6, -0.74)
+## Slightly transparent — stencilled onto the panel, not a sign hung in front of it.
+const LABEL_COLOR := Color(0.86, 0.90, 0.95, 0.4)
+
 ## Only one pod in the bay is the player's. The rest are scenery and must never offer a
 ## prompt — five identical interactable pods would be five identical wrong answers.
 @export var is_player_pod: bool = true
@@ -34,6 +46,9 @@ signal door_moved(opening: bool)
 ## How far the panel swings round the shell. Roughly the arc the door itself covers.
 @export var door_open_degrees: float = 105.0
 @export var door_time: float = 0.9
+## The pod's number, stencilled on the INSIDE of the door at eye height. Blank for none.
+## Only the player's pod gets one — it is the only door there is ever anyone behind.
+@export var door_label: String = "01"
 
 @export_group("Player positions")
 ## Where the player's BODY goes while sealed in.
@@ -59,6 +74,44 @@ func _ready() -> void:
 	_door = get_node_or_null(door_path) as Node3D
 	if _door != null:
 		_door_closed_y = _door.rotation.y
+		_build_door_label()
+
+
+## Stencil the pod's number on the inside of the door, where the player reads it for the whole
+## of every stasis: they are sealed in facing it, and it is the only thing to look at.
+##
+## Built here rather than placed in cryo_pod.tscn because it is parented to `Door`, which lives
+## inside the imported .blend and carries that model's own baked rotation — a hand-authored
+## transform under it would be an unreadable basis literal that a re-import could invalidate.
+## Setting `global_transform` AFTER the reparent lets the engine work the door-local transform
+## out, so the only number written down is the one that means something: where the label sits
+## in POD space, which is the frame every other marker in cryo_pod.tscn is written in too.
+##
+## Being a child of the door is the whole point — it swings out of the way with the panel on
+## the same tween, with nothing to keep in sync.
+func _build_door_label() -> void:
+	if door_label.is_empty() or not is_player_pod:
+		return
+	var label := Label3D.new()
+	label.name = "DoorLabel"
+	label.text = door_label
+	label.font = LABEL_FONT
+	label.font_size = LABEL_FONT_SIZE
+	label.pixel_size = LABEL_HEIGHT / float(LABEL_FONT_SIZE)
+	# Printed ON the door, not lit as an object: the ship's interior is shadowless, so a shaded
+	# label would just be a slightly different flat grey. Transparent enough to read as a
+	# stencil on the panel rather than a decal floating in front of it.
+	label.shaded = false
+	label.modulate = LABEL_COLOR
+	# The default 12px outline is a black halo, which at this alpha reads as a drop shadow.
+	label.outline_size = 0
+	# Only ever seen from inside. Culling the back face means it cannot ghost through the panel
+	# from outside the pod once the door has swung open.
+	label.double_sided = false
+	_door.add_child(label)
+	# Pod space: dead ahead of the eye (PodView + the 0.65m camera anchor = 1.6m), a few
+	# centimetres clear of the door's inner surface at z = -0.782 so the two cannot z-fight.
+	label.global_transform = global_transform * Transform3D(Basis.IDENTITY, LABEL_POSITION)
 
 
 func get_interaction_text(_held_item: Node3D = null) -> String:

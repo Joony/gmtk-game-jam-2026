@@ -3,6 +3,7 @@ extends SceneTree
 # Run: godot --headless --path . -s tests/smoke_interaction.gd
 
 const GAME_SCENE := "res://scenes/game.tscn"
+const Opening := preload("res://tests/opening.gd")
 
 var _failures: Array[String] = []
 var _game: Node3D
@@ -51,6 +52,9 @@ func _run() -> void:
 	current_scene = _game
 	await process_frame
 	_game.start_game()
+	# The run opens with the player asleep in the stasis pod; everything below needs them
+	# on their feet and back under their own control. See tests/opening.gd.
+	await Opening.wake(self, _game)
 
 	_player = _game.get_node("Player")
 	_cam = _game.get_node("Player/CameraRig/Camera3D")
@@ -244,12 +248,51 @@ func _run() -> void:
 	fault.break_now()
 	await _physics_frames(3)
 	_check("a broken system's panel is targeted", _interactor.current == panel)
-	# The patch route has to be offered empty-handed, or the player never discovers it.
+	# The patch route takes the hammer now, so empty hands get told what is missing rather
+	# than being offered a repair. A silent panel would read as broken; the prompt is how the
+	# player discovers the janitor's closet has something they need.
 	_check(
-		"panel offers the patch when empty-handed (got '%s')" % _interactor.get_prompt(),
+		"empty hands are told the hammer is missing (got '%s')" % _interactor.get_prompt(),
+		"hammer" in _interactor.get_prompt()
+	)
+	_check(
+		"empty hands are not offered the patch (got '%s')" % _interactor.get_prompt(),
+		not ("Clamp the coupling" in _interactor.get_prompt())
+	)
+	_press("interact")
+	await _frames(4)
+	_check("and pressing E empty-handed repairs nothing", fault.is_active)
+
+	# The hammer bodges it, and survives doing so. Ridden through the real carry path — the
+	# whole point of making patching a tool is that the player has to be HOLDING something.
+	var hammer: Node3D = _game.get_node("Hammer")
+	panel.global_position = Vector3(0, -50, 0)
+	await _physics_frames(2)
+	hammer.linear_velocity = Vector3.ZERO
+	_place_in_front(hammer, 1.2)
+	await _physics_frames(3)
+	_press("interact")
+	await _frames(20)
+	_check("carrying the hammer", _carry.is_holding())
+	_place_in_front(panel, 1.5)
+	await _physics_frames(3)
+	_check(
+		"the hammer offers the patch (got '%s')" % _interactor.get_prompt(),
 		"Clamp the coupling" in _interactor.get_prompt()
 	)
-	_check("panel is actionable empty-handed", _interactor.is_actionable())
+	_press("interact")
+	await _frames(6)
+	_check("the hammer patches the fault", not fault.is_active and fault.is_patched)
+	_check("and the hammer is still in hand afterwards", _carry.is_holding())
+	_check("the hammer was not consumed", is_instance_valid(hammer))
+	# Guarded: if a regression ever DOES consume the hammer, Interactor frees it, and touching
+	# a freed node here kills this coroutine mid-run — the suite hangs instead of failing.
+	if is_instance_valid(hammer):
+		_carry.drop(false)
+		hammer.global_position = Vector3(0, -50, 0)
+		await _physics_frames(2)
+	fault.break_now()
+	await _physics_frames(3)
 
 	# Wrong item: refused by name, and the reticle must not promise anything.
 	# The panel has to be moved aside first — it is a solid box, and leaving it in front

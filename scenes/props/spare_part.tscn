@@ -24,9 +24,11 @@ roughness = 0.75
 height = 0.44
 radius = 0.13
 
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not
+; inherit this body's velocity while standing on it.
 [node name="SparePart" type="RigidBody3D" groups=["spare_parts"]]
-collision_layer = 1
-collision_mask = 1
+collision_layer = 2
+collision_mask = 3
 continuous_cd = true
 script = ExtResource("1_interactable")
 interaction_type = 0
