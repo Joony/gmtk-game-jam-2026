@@ -69,6 +69,10 @@ func _run() -> void:
 	# --- Dynamic mount: seating installs a guard where the plug protrudes -------------------
 	var cube := RigidBody3D.new()
 	cube.freeze = true  # keep it put; the guard install path doesn't care that it's frozen
+	# Wearing Interactable, like the real BatteryCube: the aim test below is about the mount
+	# stealing the plug's prompt, which cannot happen to a mount nothing can interact with.
+	cube.set_script(load("res://scripts/interaction/interactable.gd"))
+	cube.name = "BatteryCube"
 	var port := _make_mount_with_socket(cube)
 	var plug := _make_plug()
 	root.add_child(plug)
@@ -87,6 +91,32 @@ func _run() -> void:
 		# SEAT_MODEL_Y (0.08): socket at z=0.2 -> guard at ~(0, -0.08, 0.38) in the mount frame.
 		_check("the guard sits where the plug protrudes (pos=%s)" % str(guard.position),
 			guard.position.is_equal_approx(Vector3(0.0, -0.08, 0.38)))
+
+	# --- ...and the guard must not steal the player's aim from the plug ---------------------
+	# Reported in play: "you can't disconnect a plug from a battery". The guard is a clone of
+	# the plug's collider sitting in the plug's own place, so a ray aimed at the plug can hit
+	# the MOUNT's shape instead — and the mount (the battery) is itself an Interactable, so the
+	# prompt offered to pick the cube up and unplugging became unreachable.
+	#
+	# The mount here wears the Interactable script for exactly that reason: with a bare
+	# RigidBody3D the hierarchy walk finds nothing and the bug cannot reproduce.
+	var seated_at := (cplug._body.get_child(0) as CollisionShape3D).global_position
+	for direction in [Vector3.BACK, Vector3.FORWARD, Vector3.LEFT, Vector3.RIGHT, Vector3.UP]:
+		var space := cube.get_world_3d().direct_space_state
+		var query := PhysicsRayQueryParameters3D.create(
+			seated_at + direction * 0.6, seated_at - direction * 0.05
+		)
+		query.collide_with_areas = true
+		var hit := space.intersect_ray(query)
+		_check("a ray from %v reaches the seated plug at all" % direction, not hit.is_empty())
+		if hit.is_empty():
+			continue
+		var found := Interactor.find_interactable_in_hierarchy(Interactor.resolve_hit(hit))
+		_check(
+			"aiming at the plug from %v targets the PLUG, not the mount (got %s)"
+				% [direction, found.name if found != null else "<none>"],
+			found == cplug
+		)
 
 	# --- Unseating removes the guard --------------------------------------------------------
 	cplug.force_unseat(Vector3.ZERO)

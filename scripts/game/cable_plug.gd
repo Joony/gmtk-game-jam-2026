@@ -338,6 +338,12 @@ func _install_mount_guard(mount: PhysicsBody3D) -> void:
 	var guard := CollisionShape3D.new()
 	guard.name = "PlugGuard"
 	guard.shape = src.shape  # shared read-only collision geometry — safe to reuse the resource
+	# PHYSICS ONLY. The guard sits exactly where the seated plug is, and a dynamic mount is a
+	# pickup in its own right, so the interaction ray struck the guard, walked up to the cube,
+	# and offered "pick up battery" over the plug the player was pointing at — unplugging from
+	# a battery was impossible. This makes the ray aim THROUGH the stand-in at the thing it
+	# stands in for; the guard's physics are untouched. See Interactor.resolve_hit().
+	guard.set_meta(Interactable.PROXY_META, self)
 	mount.add_child(guard)
 	# Where the plug's own collider sits in world space right now; reparented under the mount this
 	# becomes a constant mount-local offset that tracks the cube wherever it goes.

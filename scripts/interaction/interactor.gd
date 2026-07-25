@@ -86,13 +86,41 @@ func _cast() -> Interactable:
 	if hit.is_empty():
 		return null
 
-	var found := find_interactable_in_hierarchy(hit["collider"])
+	var found := find_interactable_in_hierarchy(resolve_hit(hit))
 	if found == null:
 		return null
 	var held_item := _carry.held_item() if _carry != null else null
 	if not found.can_interact(held_item):
 		return null
 	return found
+
+
+## What an intersect_ray hit MEANS, which is not always the body it struck.
+##
+## A single shape on a body can be a stand-in for something else. CablePlug clones its own
+## collider onto a dynamic mount so a tipped battery props itself off the floor rather than
+## letting the frozen plug rotate under it (CablePlug._install_mount_guard). That clone sits
+## exactly where the seated plug is, and the mount — the battery — is itself a pickup. So the
+## ray struck the guard, the hierarchy walk found the cube, and the reticle offered "pick up
+## battery" over a plug the player was aiming at: **you could not disconnect a plug from a
+## battery at all**, from the one direction you ever approach it.
+##
+## The obvious fix, putting the guard on a layer this ray does not scan, is not available:
+## collision layers belong to the whole CollisionObject3D, not to individual shapes. So the
+## shape declares what it stands for (Interactable.PROXY_META) and this reads it back. The
+## guard keeps every bit of its physics behaviour and simply stops answering for itself.
+static func resolve_hit(hit: Dictionary) -> Object:
+	var collider := hit.get("collider") as CollisionObject3D
+	if collider == null:
+		return hit.get("collider")
+	var owner_id := collider.shape_find_owner(hit.get("shape", 0))
+	var shape_node := collider.shape_owner_get_owner(owner_id) as Node
+	if shape_node == null or not shape_node.has_meta(Interactable.PROXY_META):
+		return collider
+	var stands_for = shape_node.get_meta(Interactable.PROXY_META)
+	if stands_for is Node and is_instance_valid(stands_for):
+		return stands_for
+	return collider
 
 
 # The ray hits a CollisionShape/body, so walk up to the node owning the Interactable.

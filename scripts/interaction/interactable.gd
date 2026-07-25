@@ -19,6 +19,15 @@ enum InteractionType {
 	DISABLED,
 }
 
+## Metadata key a CollisionShape3D can carry to say "I am physics geometry standing in for
+## something else — a ray that hits me means that thing, not the body I belong to."
+##
+## Collision LAYERS could not express this: a layer belongs to the whole CollisionObject3D, so
+## a single shape on a shared body cannot be hidden from the interaction ray. Resolving the
+## struck shape is the only place the distinction exists. See CablePlug's PlugGuard, and
+## Interactor.resolve_hit().
+const PROXY_META := &"interaction_proxy_for"
+
 @export var interaction_type: InteractionType = InteractionType.ACTIVATE
 @export var interaction_text: String = ""
 ## Shown instead of `interaction_text` when the player is holding an accepted item.

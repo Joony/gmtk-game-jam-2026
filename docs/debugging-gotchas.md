@@ -119,6 +119,29 @@ Opening a scene in the editor and saving it — even with no deliberate change �
   `tests/smoke_crate_jump.gd` (mutation-tested: reverting the exclusion drifts the player 13m
   off the world) and by config assertions in `tests/smoke_player.gd`.
 
+### A collision LAYER belongs to the body, not to one shape on it
+
+There is no way to hide a single `CollisionShape3D` from a raycast. `collision_layer` is a
+property of the whole `CollisionObject3D`, and `PhysicsRayQueryParameters3D.exclude` takes
+object RIDs — so "let this one shape keep its physics but stop it answering the interaction
+ray" cannot be expressed in the query at all.
+
+It cost a shipped bug. `CablePlug` clones its own collider onto a dynamic mount so a tipped
+battery props itself off the floor instead of letting the frozen plug rotate under it. That
+clone sits exactly where the seated plug is, and the battery is itself a pickup — so the ray
+struck the guard, the hierarchy walk found the cube, and the reticle offered "Pick up battery"
+over the plug the player was aiming at. **You could not disconnect a plug from a battery**, and
+only from the front, which is the one side you ever approach it from.
+
+The fix is to resolve the struck SHAPE rather than the body. `intersect_ray` returns a `shape`
+index; `shape_find_owner()` + `shape_owner_get_owner()` walk it back to the `CollisionShape3D`
+node, which can then carry metadata saying what it stands in for
+(`Interactable.PROXY_META`, read by `Interactor.resolve_hit()`). The physics are untouched;
+the shape just stops answering for itself.
+
+Watch for the same shape in any "clone a collider onto another body" trick: the moment the
+host body is interactable, it inherits every ray aimed at the clone.
+
 ---
 
 ## Audio

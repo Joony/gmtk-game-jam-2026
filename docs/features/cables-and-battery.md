@@ -492,6 +492,34 @@ a sliding door now stays open while a cable runs through it (see
 [sliding-doors.md](sliding-doors.md)), so breakaway is left to handle only genuine snags on static
 wall geometry.
 
+## Playtest fix (2026-07-25): you couldn't disconnect a plug from a battery
+
+Reported in play, and exactly as guessed: the battery's collision extended around the plug.
+
+The seated-plug **floor guard** (above) clones the plug's own collider onto a dynamic mount so a
+tipped cube props itself off the floor rather than letting the frozen plug rotate under it. That
+clone sits precisely where the seated plug is — and the battery is itself a pickup. So the
+interaction ray struck the guard, `find_interactable_in_hierarchy` walked up to the cube, and the
+reticle offered **"[E] Pick up battery"** over a plug the player was pointing at. Unplugging was
+unreachable, and only from the front face, which is the one side you ever approach it from — so it
+read as "never".
+
+**Collision layers cannot express the fix.** `collision_layer` belongs to the whole
+`CollisionObject3D`, so a single shape on a shared body cannot be hidden from a query, and
+`exclude` takes object RIDs rather than shapes. The distinction only exists at the struck shape.
+
+So the shape declares what it stands in for. `_install_mount_guard()` tags the guard with
+`Interactable.PROXY_META` pointing at the plug, and `Interactor.resolve_hit()` reads it back
+through `shape_find_owner()` / `shape_owner_get_owner()` before the hierarchy walk. The guard
+keeps every bit of its physics behaviour and simply stops answering for itself. The mechanism is
+general: any shape cloned onto an interactable host can now say who it belongs to.
+
+Covered by `smoke_plug_guard.gd` (rays at the seated plug from five directions resolve to the
+PLUG — its synthetic mount now wears `Interactable`, or the bug cannot reproduce) and end-to-end
+by `smoke_battery_interact.gd`, which plugs in and then pulls back out through the real
+`Interactor` and a real interact press. Both mutations die; dropping the meta reproduces the
+original `'[E] Pick up battery'` verbatim.
+
 ## Notes for later phases
 
 - New `class_name`s (`Cable3D`, `CableSocket`) only register after a full editor filesystem scan,
