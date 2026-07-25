@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://yxfdnqq4tfwa"
-path="res://.godot/imported/CD_Engine_v1.blend-8e3f34fc3c85c02552f793a2a228d472.scn"
+uid="uid://duovt1gek5b1w"
+path="res://.godot/imported/CD_Counter_End_Right_v1.blend-aaff09aded1f031f6e3c758a97be8a72.scn"
 
 [deps]
 
-source_file="res://3D-Models/CD_Engine_v1.blend"
-dest_files=["res://.godot/imported/CD_Engine_v1.blend-8e3f34fc3c85c02552f793a2a228d472.scn"]
+source_file="res://3D-Models/CD_Counter_End_Right_v1.blend"
+dest_files=["res://.godot/imported/CD_Counter_End_Right_v1.blend-aaff09aded1f031f6e3c758a97be8a72.scn"]
 
 [params]
 
