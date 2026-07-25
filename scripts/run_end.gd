@@ -51,13 +51,22 @@ func show_result(won: bool, summary: Dictionary) -> void:
 	visible = true
 	_dim.modulate.a = 1.0
 	_center.visible = true
-	_title.text = "ARRIVED" if won else "OUT OF AIR"
+	# There is more than one way to die now. Running out of air is still the default and still
+	# reads "OUT OF AIR", but a need that killed you names its own death (Need.fatal_title) and
+	# it arrives here through the summary — so the screen never has to know what a need is.
+	var title: String = summary.get("end_title", "")
+	_title.text = "ARRIVED" if won else (title if title != "" else "OUT OF AIR")
 	_title.add_theme_color_override("font_color", COLOR_WIN if won else COLOR_LOSE)
 
 	var covered: float = summary.get("distance_covered", 0.0)
 	var total: float = maxf(summary.get("total_distance", 1.0), 1.0)
+	var text: String = summary.get("end_text", "")
 	if won:
 		_subtitle.text = "You made the destination with %s of air to spare." % _clock(summary.get("air_left", 0.0))
+	elif text != "":
+		_subtitle.text = "%s The ship drifted on without you, %.0f%% of the way there." % [
+			text, covered / total * 100.0
+		]
 	else:
 		_subtitle.text = "The ship drifted on without you, %.0f%% of the way there." % (covered / total * 100.0)
 

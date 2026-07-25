@@ -405,6 +405,21 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
   of a variable assigned from a function returning an untyped `Dictionary` (or a
   `load(...).new()`), and refuses to parse — which, per the parse-error note above, exits 0.
   Annotate explicitly: `var ctx: Dictionary = build_run()`.
+- **A GDScript lambda captures by VALUE, so counters in a test go nowhere.** A
+  `var hits := 0` incremented inside `signal.connect(func(): hits += 1)` increments the
+  *lambda's own copy*; the outer variable never moves. In `smoke_needs.gd` this made four
+  signal-count assertions read zero — and the danger is the shape of the failure, because a
+  test asserting `hits == 0` (nothing fired yet) passes **vacuously** whether or not the
+  signal works. Use a reference type: `var hits: Array[int] = [0]` and `hits[0] += 1`, or
+  append to an `Array` and check `.size()`. Every existing suite that gets this right does so
+  by accident of collecting into an array.
+- **An `Interactable` script cannot be cast onto a physics body at compile time.**
+  `Interactable` extends `Node3D`, so `body as Consumable` where `body := RigidBody3D.new()`
+  is a parse-time "Invalid cast. Cannot convert from RigidBody3D to Consumable" — even though
+  every prop scene in the game does exactly that, because a `.tscn` assigns the script without
+  the parser ever seeing the cast. Re-view the body through a `Node3D`-typed variable first
+  (`var view: Node3D = body` then `view as Consumable`), which is what
+  `smoke_cable_drag._make_plug()` does.
 - **Prove a regression test can fail.** Several fixes here were mutation-tested — the code
   was deliberately re-broken to confirm the test goes red (the pod-refill rule, patch expiry,
   the instant-alarm switch, the missing-sound guard). A green test that cannot fail is not

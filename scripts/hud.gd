@@ -32,6 +32,9 @@ var _pulse: float = 0.0
 ## can be re-texted in place. Rebuilding the list every frame would mean a queue_free() and a
 ## fresh Label per fault per frame for a number that fits in the row already there.
 var _system_lines: Array[Dictionary] = []
+## Need rows, kept separately from the fault rows because they are re-texted on a different
+## schedule (every frame, since a need is a clock) and rebuilt off a different signal.
+var _need_lines: Array[Dictionary] = []
 var _oxygen_bar_style: StyleBoxFlat = null
 
 
@@ -52,10 +55,12 @@ func bind(run: RunState) -> void:
 	run.oxygen_changed.connect(_on_oxygen_changed)
 	run.distance_changed.connect(_on_distance_changed)
 	run.systems_changed.connect(_rebuild_systems)
+	run.needs_changed.connect(_rebuild_needs)
 	run.stasis_changed.connect(_on_stasis_changed)
 	_on_oxygen_changed(run.oxygen_remaining, run.oxygen_total)
 	_on_distance_changed(run.distance_remaining, run.total_distance)
 	_rebuild_systems()
+	_rebuild_needs()
 
 
 func _process(delta: float) -> void:
@@ -71,6 +76,13 @@ func _process(delta: float) -> void:
 		var malfunction: Malfunction = line["malfunction"]
 		if malfunction.is_active and malfunction.speed_decay_per_day > 0.0:
 			(line["label"] as Label).text = _fault_line(malfunction)
+	# A need is a clock, so its row is a clock: re-texted every frame, unconditionally. This
+	# is the row the player is reading while deciding whether the walk is worth it.
+	for line in _need_lines:
+		var need: Need = line["need"]
+		var label := line["label"] as Label
+		label.text = _need_line(need)
+		label.add_theme_color_override("font_color", _need_color(need))
 	if _stasis_panel.visible:
 		_update_stasis_rate()
 
@@ -122,8 +134,11 @@ func _on_distance_changed(remaining: float, _total: float) -> void:
 
 
 func _rebuild_systems() -> void:
-	for child in _system_list.get_children():
-		child.queue_free()
+	# Frees ITS OWN rows, not every child of the container: the need rows live in the same
+	# list and are rebuilt on a different signal, so clearing the container wholesale would
+	# take the CO2 clock off the screen every time a fault changed.
+	for line in _system_lines:
+		(line["label"] as Label).queue_free()
 	_system_lines.clear()
 	if _run == null:
 		return
@@ -149,6 +164,39 @@ func _rebuild_systems() -> void:
 			)
 
 
+## The need rows. A need only gets one once it has crossed its warning line — the readout
+## starts clean and fills up as the run goes wrong, rather than shipping nine dials on the
+## chance one of them matters (TODO 17e). Rebuilt on `needs_changed`, never per frame; the
+## text inside an existing row is what moves.
+func _rebuild_needs() -> void:
+	for line in _need_lines:
+		(line["label"] as Label).queue_free()
+	_need_lines.clear()
+	if _run == null:
+		return
+	for need in _run.pressing_needs():
+		var label := _make_line(_need_line(need), _need_color(need))
+		# Above the fault list: a need is about your body and a fault is about the ship, and
+		# the one that can kill you in the next minute should not be underneath the one that
+		# is costing you half a day of travel.
+		_system_list.move_child(label, 0)
+		_need_lines.append({"need": need, "label": label})
+
+
+## Shown as TIME, like both of the other clocks — "1:12 of CO2" is a number you can weigh a
+## walk against, where "24%" is not.
+func _need_line(need: Need) -> String:
+	return "%s %s — %s" % [
+		"!" if need.lethal else "~", need.display_name, _clock(need.remaining)
+	]
+
+
+func _need_color(need: Need) -> Color:
+	if need.fraction() <= need.warn_at * 0.4:
+		return COLOR_CRIT
+	return COLOR_WARN
+
+
 ## One broken system's line. Split out because a bleeding fault re-texts every frame from
 ## _process(); a fault and its line must never be able to disagree about the wording.
 func _fault_line(malfunction: Malfunction) -> String:
@@ -169,6 +217,15 @@ func _fault_line(malfunction: Malfunction) -> String:
 
 
 func _add_system_line(malfunction: Malfunction, text: String, color: Color) -> void:
+	_system_lines.append({
+		"malfunction": malfunction,
+		"label": _make_line(text, color),
+	})
+
+
+## One row of the list. Faults and needs share it so they cannot drift apart typographically —
+## they sit in the same column and have to read as one readout.
+func _make_line(text: String, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_color_override("font_color", color)
@@ -176,7 +233,7 @@ func _add_system_line(malfunction: Malfunction, text: String, color: Color) -> v
 	label.add_theme_constant_override("outline_size", 8)
 	label.add_theme_font_size_override("font_size", 30)
 	_system_list.add_child(label)
-	_system_lines.append({"malfunction": malfunction, "label": label})
+	return label
 
 
 func _on_stasis_changed(in_stasis: bool) -> void:

@@ -1,0 +1,70 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/consumable.gd" id="1_consumable"]
+[ext_resource type="PackedScene" uid="uid://c33u3j0lu1ojh" path="res://3D-Models/CD_Canister_Air_v1.glb" id="2_air"]
+[ext_resource type="PackedScene" uid="uid://d3sawrxpt2rcg" path="res://3D-Models/CD_Canister_Beer_v1.glb" id="3_beer"]
+[ext_resource type="PackedScene" uid="uid://dbxibr6gydmkx" path="res://3D-Models/CD_Canister_Empty_v1.blend" id="4_empty"]
+[ext_resource type="PackedScene" uid="uid://dvhjueha3qwv5" path="res://3D-Models/CD_Canister_Shit_v1.glb" id="5_shit"]
+
+; ONE canister scene that is all four canisters, because the only difference between them is
+; which mesh is showing — see Consumable.kind_models. That is not a saving for its own sake:
+; a canister CHANGES KIND in play (fill life support with air and you are holding an empty;
+; pump the crap tank into the empty and you are holding the consequence), so the four models
+; have to live on the same body or the swap would mean destroying and respawning the thing in
+; the player's hands mid-interaction.
+;
+; `becomes` is the cycle, and it is deliberately a dead end at `shit`: getting rid of that one
+; is its own problem, and the recorded voiceover already has a line about the garage door.
+;
+; All four models measure 4.000 x 4.675 x 4.000 units with their AABB starting 1.185 below the
+; origin, so one scale and one offset serve all of them. 0.2004 matches the decorative
+; canisters already dressed into the cargo bay, which is what stops a pickable can looking
+; different from the scenery around it.
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_canister"]
+; The model is a 0.80m drum; a cylinder rather than a box so a dropped can does not catch its
+; corners on door frames.
+radius = 0.4
+height = 0.94
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it.
+[node name="Canister" type="RigidBody3D" groups=["consumables"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_consumable")
+kind = &"o2"
+amount = 0.5
+becomes = {
+&"empty": &"shit",
+&"o2": &"empty"
+}
+kind_models = {
+&"beer": NodePath("Beer"),
+&"empty": NodePath("Empty"),
+&"o2": NodePath("Air"),
+&"shit": NodePath("Shit")
+}
+interaction_type = 0
+interaction_text = "Pick up canister"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_canister")
+
+; -0.231 = -1.1525 model units x 0.2004, which centres the mesh on the body origin. Without it
+; Carry holds the can by a point a quarter of the way up its side.
+[node name="Air" parent="." instance=ExtResource("2_air")]
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+
+[node name="Beer" parent="." instance=ExtResource("3_beer")]
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+visible = false
+
+[node name="Empty" parent="." instance=ExtResource("4_empty")]
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+visible = false
+
+[node name="Shit" parent="." instance=ExtResource("5_shit")]
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+visible = false

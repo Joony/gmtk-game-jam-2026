@@ -27,6 +27,10 @@ signal oxygen_changed(remaining: float, total: float)
 signal stasis_changed(in_stasis: bool)
 ## Any change to any fault, for the HUD to re-render its list from.
 signal systems_changed
+## A need starting, being satisfied, crossing its warning line or expiring — the HUD rebuilds
+## its need rows off this. Separate from `systems_changed` because a need is not a fault: it
+## does not slow the ship and it is not on the repair list.
+signal needs_changed
 ## A fault breaking, separately, because this is the "wake up" beat.
 signal alarm(malfunction: Malfunction, was_patch_failure: bool)
 signal run_ended(won: bool, summary: Dictionary)
@@ -75,6 +79,41 @@ signal run_ended(won: bool, summary: Dictionary)
 @export var motion_path: NodePath = NodePath("../Motion")
 @export var lighting_path: NodePath = NodePath("../Lighting")
 
+# --- needs (TODO 17) --------------------------------------------------------
+#
+# The needs are DECLARED HERE AND SPAWNED, rather than placed in game.tscn. That started as a
+# way round the scene being locked for editing elsewhere, and it is the right shape anyway:
+# `start()` already collects its faults from a GROUP rather than through exported paths, and
+# the ship's own geometry is authored in code (ship_layout.gd) rather than dragged into place.
+# A need has no position and no model — it is a number attached to the player's body — so
+# there was never anything for the scene to hold.
+#
+# The SILOS are found by group, exactly like the faults, because those genuinely are objects in
+# rooms. See ShipSupplies for where they come from.
+
+## Every need this run could have, as data. Adding one is a row here.
+##
+## `starts_with` is temporary scaffolding: per TODO 17b the O2 SCRUBBER malfunction should stop
+## attacking the drive and start the CO2 countdown instead, but that is a `vo_line`/`speed_penalty`
+## edit inside game.tscn. Until the lock lifts, the need names the fault that starts it and
+## `neutralise` strips the effects it is replacing — one dictionary to delete afterwards.
+const NEEDS := [
+	{
+		"id": &"co2",
+		"display_name": "CO2",
+		# 150 awake seconds against a 240s air budget: long enough that one charge of the
+		# scrubber covers a real excursion, short enough that ignoring it is a decision.
+		"seconds": 150.0,
+		"warn_at": 0.55,
+		"lethal": true,
+		"fatal_title": "CO2 NARCOSIS",
+		"fatal_text": "You stopped being able to think straight, then you stopped.",
+		"silo_id": &"life_support",
+		"starts_with": "O2 SCRUBBER",
+		"neutralise": {"speed_penalty": 0.0, "oxygen_drain_multiplier": 1.0},
+	},
+]
+
 var distance_remaining: float = 0.0
 ## In-fiction days since the run began. Displayed, and useful for logging a run.
 var days_elapsed: float = 0.0
@@ -105,6 +144,11 @@ var _ramp_to: float = 1.0
 var _motion: ShipMotion = null
 var _lighting: LightingController = null
 var _malfunctions: Array[Malfunction] = []
+var _needs: Array[Need] = []
+var _silos: Array[Silo] = []
+## Why the run ended, for the end screen. Empty means the default "OUT OF AIR".
+var _end_title: String = ""
+var _end_text: String = ""
 
 
 func _ready() -> void:
@@ -120,6 +164,14 @@ func _ready() -> void:
 func start() -> void:
 	if running:
 		return
+	# FIRST, before anything is collected or spawned. _spawn_needs() below starts any need
+	# whose fault is already broken, and _start_need() refuses to do anything on a finished
+	# run — so leaving this until after the spawn meant a second run silently opened with its
+	# opening need switched off, and only on the second run, which is the worst kind of bug.
+	finished = false
+	_end_title = ""
+	_end_text = ""
+
 	_malfunctions.clear()
 	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
 		var malfunction := node as Malfunction
@@ -133,14 +185,23 @@ func start() -> void:
 		# opening beat short before it had begun. The fault is simply already true.
 		if malfunction.starts_broken:
 			malfunction.break_now(false)
-		malfunction.broke.connect(_on_broke)
-		malfunction.repaired.connect(_on_repaired)
+		# Guarded, so start() can genuinely be called twice on the same faults. Today the run
+		# restarts by reloading the scene, so this never came up — but unguarded, a second
+		# start() leaves every fault wired to _on_broke TWICE, which double-counts patch
+		# failures and fires the klaxon twice for one impact. Cheaper to be correct than to
+		# rely on the scene always being thrown away.
+		if not malfunction.broke.is_connected(_on_broke):
+			malfunction.broke.connect(_on_broke)
+		if not malfunction.repaired.is_connected(_on_repaired):
+			malfunction.repaired.connect(_on_repaired)
+
+	_collect_silos()
+	_spawn_needs()
 
 	distance_remaining = total_distance
 	days_elapsed = 0.0
 	_set_time_scale(1.0)
 	oxygen_remaining = oxygen_total
-	finished = false
 	running = true
 	set_process(true)
 	if _motion != null:
@@ -179,6 +240,15 @@ func _process(delta: float) -> void:
 	# time scale carries into it and sleeping through a failing drive costs what it should.
 	for malfunction in _malfunctions:
 		malfunction.advance(distance_remaining, days)
+
+	# `delta`, and ONLY while awake. A need is a body clock, not a ship system: it must not
+	# carry the pod's 24x time scale, and it must not run at all in the pod, or sleeping
+	# through a long haul — the correct play — would kill you. TODO 17e settles this.
+	if not in_stasis:
+		for need in _needs:
+			need.advance(delta)
+		if finished:
+			return
 
 	_update_destination()
 
@@ -232,6 +302,137 @@ func _set_time_scale(value: float) -> void:
 		_motion.time_scale = value
 
 
+# --- needs and silos --------------------------------------------------------
+
+## Build a Need per row of NEEDS as a child of this node, and wire it to the fault that starts
+## it and the silo that satisfies it. Re-runnable: a second start() frees the previous set
+## rather than stacking a second CO2 countdown on the first.
+func _spawn_needs() -> void:
+	for old in _needs:
+		if is_instance_valid(old):
+			old.queue_free()
+	_needs.clear()
+
+	for row in NEEDS:
+		var need := Need.new()
+		need.name = "Need_%s" % row["id"]
+		need.id = row["id"]
+		need.display_name = row.get("display_name", "NEED")
+		need.seconds = row.get("seconds", 180.0)
+		need.warn_at = row.get("warn_at", 0.4)
+		need.lethal = row.get("lethal", false)
+		need.fatal_title = row.get("fatal_title", "DEAD")
+		need.fatal_text = row.get("fatal_text", "")
+		need.silo_id = row.get("silo_id", &"")
+		need.triggers = row.get("triggers", &"")
+		need.vo_line = row.get("vo_line", &"")
+		add_child(need)
+		_needs.append(need)
+
+		need.warned.connect(_on_need_warned)
+		need.expired.connect(_on_need_expired)
+		need.satisfied.connect(_on_need_satisfied)
+
+		# The silo that clears it. `used` fires when the player breathes/drinks/eats at it, so
+		# the need resets without either of them knowing the other exists.
+		var silo := silo_by_id(need.silo_id)
+		if silo != null:
+			silo.used.connect(func(_s: Silo) -> void: need.satisfy())
+
+		_wire_need_trigger(need, row)
+
+
+## Hook a need up to the fault that starts it, and strip the effects that fault is no longer
+## supposed to have. Both halves are TEMPORARY — see the note on NEEDS. When 17i lands, the
+## Malfunction carries the need's id itself and this whole function goes.
+func _wire_need_trigger(need: Need, row: Dictionary) -> void:
+	var trigger: String = row.get("starts_with", "")
+	if trigger == "":
+		# No trigger named: the need is simply in play from the off.
+		need.start()
+		return
+	for malfunction in _malfunctions:
+		if malfunction.system_name != trigger:
+			continue
+		for key in row.get("neutralise", {}):
+			malfunction.set(key, row["neutralise"][key])
+		malfunction.broke.connect(func(_m: Malfunction, _patch: bool) -> void:
+			_start_need(need))
+		malfunction.repaired.connect(func(_m: Malfunction, permanent: bool) -> void:
+			# A PATCH does not put the air back — it stops the scrubber getting worse and
+			# nothing more, so the countdown you are already on keeps running. Only a fitted
+			# cartridge clears it, which is the same bargain every other fault offers.
+			if permanent:
+				need.stop())
+		# A fault that starts broken never fires `broke` (see the note in start()), so a run
+		# that opens on it has to pick the need up here instead.
+		if malfunction.is_active:
+			_start_need(need)
+		return
+
+
+func _start_need(need: Need) -> void:
+	if need.active or finished:
+		return
+	need.start()
+	needs_changed.emit()
+
+
+func _collect_silos() -> void:
+	_silos.clear()
+	for node in get_tree().get_nodes_in_group(Silo.GROUP_SILO):
+		var silo := node as Silo
+		if silo != null:
+			_silos.append(silo)
+
+
+func silo_by_id(id: StringName) -> Silo:
+	if id == &"":
+		return null
+	for silo in _silos:
+		if silo.silo_id == id:
+			return silo
+	return null
+
+
+func needs() -> Array[Need]:
+	return _needs
+
+
+## The needs bad enough to have earned a row on the HUD. Empty for most of a good run, which
+## is the point: the readout grows as things go wrong rather than shipping nine dials.
+func pressing_needs() -> Array[Need]:
+	var out: Array[Need] = []
+	for need in _needs:
+		if need.is_pressing():
+			out.append(need)
+	return out
+
+
+## Crossing the warning line is what puts the need on the HUD — the row IS the warning.
+## `Need.vo_line` is carried for a spoken warning, which is Phase 4 work.
+func _on_need_warned(_need: Need) -> void:
+	needs_changed.emit()
+
+
+func _on_need_satisfied(_need: Need, _triggers: StringName) -> void:
+	# The chain (17c) is wired here in Phase 4 — `triggers` names the need this one starts.
+	needs_changed.emit()
+
+
+func _on_need_expired(need: Need) -> void:
+	needs_changed.emit()
+	if not need.lethal:
+		# Degrading needs land in Phase 4 (slower movement, narrowed vision). Recorded now so
+		# the run summary can still tell the player it happened.
+		choices.append("%s got the better of you" % need.display_name)
+		return
+	choices.append("%s ran out" % need.display_name)
+	_end_title = need.fatal_title
+	_end_text = need.fatal_text
+	_end(false)
+
+
 ## Faults active right now, for the HUD.
 func active_malfunctions() -> Array[Malfunction]:
 	var out: Array[Malfunction] = []
@@ -273,6 +474,10 @@ func summary() -> Dictionary:
 		"repairs_patched": repairs_patched,
 		"patch_failures": patch_failures,
 		"choices": choices.duplicate(),
+		# Empty on a win and on running out of air, which the end screen already words for
+		# itself. A need that killed you names its own death — see Need.fatal_title.
+		"end_title": _end_title,
+		"end_text": _end_text,
 	}
 
 

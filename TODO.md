@@ -266,35 +266,58 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] **Hand-authored ship** (`scripts/level/ship_layout.gd`): pod bay, corridor, engine room,
       two doorways — replaces the flat sandbox floor in `scenes/game.tscn`
 - [x] **Ship redrawn from a plan image** (branch `ship-layout`,
-      [log](docs/features/ship-layout.md)). 4 rooms → 8 rooms + 5 corridor rects, transcribed
-      one-pixel-per-metre from `room_layout_3.png` (alpha = hull, black = corridor, white =
-      window, grey = door). Bridge, kitchen/mess, bathroom, janitor's closet, life support,
-      cryo bay, engine room, cargo/docking bay. Pod bay and spine corridor unchanged, so every
-      prop in the cryo bay kept its coordinates; the engine room moved port-aft and took its
-      10 props with it via one rigid 90° transform
+      [log](docs/features/ship-layout.md)). Now at **`room_layout_5.png`** — v3 and v4 were
+      superseded before either shipped. 4 rooms -> 8 rooms + 5 corridor rects, transcribed
+      one-pixel-per-metre (alpha = hull, black = corridor, white = window, grey = door).
+      Bridge, kitchen/mess, bathroom, janitor's closet, life support, cryo bay, engine room,
+      cargo/docking bay
+  - [x] The anchor survived three redraws: the spine corridor lands on `Rect2i(-1, -12, 3, 8)`
+        every time, so the cryo bay keeps its forward wall and centreline, and its furnace,
+        pods and spare parts keep their coordinates
+  - [x] **The bridge is the hub.** The cryo bay has exactly ONE door, so every trip routes
+        through the bridge. That makes the walks much longer than the smaller footprint
+        suggests — engine 30.8 m -> 63.5 m, cargo 29.9 m -> 67.1 m from the pod
   - [x] `smoke_ship_layout.gd` checks the built ship against the DRAWING, not against
-        `ship_layout.gd` — rects, overlaps, doors on shared walls, windows facing hull, the
-        corridor bend left open, full reachability, light confinement. Mutation-tested
-  - [x] Lighting fixed for 93 fixtures under GL Compatibility: per-room culling
-        (`LightingController.bind_occupancy`), `max_lights_per_object` 8 → 32, and one visual
+        `ship_layout.gd` — rects, overlaps, doors on shared walls, windows facing hull, full
+        reachability, per-room light confinement, and no room on the exterior layer.
+        Mutation-tested five ways
+  - [x] Lighting fixed under GL Compatibility: per-room culling
+        (`LightingController.bind_occupancy`), `max_lights_per_object` 8 -> 32, and one visual
         layer per room so shadowless omnis stop shining through walls. Floor-luminance spread
-        across camera yaw: 23–44% → 1–5%
-  - [ ] **Engine model** — removed from `scenes/game.tscn` pending a replacement. The
-        wrapper is still there and ready: instance `scenes/props/engine.tscn` back into the
-        `Decor` node and repoint its model. CD_Engine_v3 was pulled because its animation
-        squashes and stretches — the exporter baked a rotation into scale keys, which glTF
-        forces when a child rotates inside a non-uniformly scaled parent (`Middle` was
-        1.65 x 0.404 x 0.667). The replacement needs UNIFORM scale on the parent objects
-        (they need not be 1). See `LoopingModelAnimation` for the detail and for why the
-        four exported clips must not be merged.
+        across camera yaw: 23-44% -> 1-5%
+  - [x] **Furnished** — 60 decor props across 23 models, every scale derived from a measured
+        target size rather than eyeballed. Crawlers, crates, barrels and canisters in cargo;
+        beds, lockers and a bedside table in cryo; counters, table and vending in the mess;
+        pc and terminal on the bridge; silos scaled per room so each meets its own ceiling;
+        wall-mounted pipes throughout
+  - [x] **Prop scales** — hammer and battery 2x (hammer head yawed 90 degrees so it points
+        fore-aft when held), plugs and sockets 1.5x. Four bugs fell out and were each traced
+        to a cause: seat constants that must scale with the plug model; socket mount distance
+        (~0.095 m from the wall line — past the 0.075 m face, but not coplanar with it, which
+        z-fights); the battery's charge bars hardcoding the old cube size; and the plugs being
+        the only carryable left on the default collision layer, which Carry's wall sweep uses
+  - [ ] **Engine model** — removed from `scenes/game.tscn` pending a replacement. The wrapper
+        is still there and ready: instance `scenes/props/engine.tscn` back into the `Decor`
+        node and repoint its model. CD_Engine_v3 was pulled because its animation squashes and
+        stretches — the exporter baked a rotation into scale keys, which glTF forces when a
+        child rotates inside a non-uniformly scaled parent (`Middle` was 1.65 x 0.404 x 0.667).
+        The replacement needs UNIFORM scale on the parent objects (they need not be 1). See
+        `LoopingModelAnimation` for that and for why the four exported clips must not be merged
   - [x] **Editor preview** — `RoomBuilder`, `ShipLayout`, `Room`, `Doorway` and `SlidingDoor`
         are `@tool`, so the ship's floors, walls, windows, doors and ceilings build in the
         editor viewport instead of only on play. Tick `rebuild` on the Ship node after
         editing a rectangle. The generated nodes are deliberately UNOWNED so Godot never
-        serialises them into game.tscn — verified byte-identical across an editor
-        open+quit. SlidingDoor's proximity polling is skipped under `is_editor_hint`.
+        serialises them into game.tscn — verified byte-identical across an editor open+quit.
+        SlidingDoor's proximity polling is skipped under `is_editor_hint`
+  - [ ] **Rebalance oxygen for v5's walks.** Nothing has been retuned since the layout changed
+        and every destination roughly doubled in distance. This blocks step 17 too — see 17d,
+        which measures the same problem from the supply-run side
+  - [ ] **`CD_BridgeTerminals` clips the hull.** The only decor at unscaled 1:1 (the model is
+        15 x 1 x 5 units); at 5 m deep it reaches z=-22.42 against a bridge fore wall at
+        z=-21, so it passes through the wall and the 13 m forward window. `v2` was pushed but
+        is dimensionally identical, and the scene still points at `v1`. Needs a scale on the
+        node or a shallower model
   - [ ] Cargo bay airlock — the drawing has no hull door yet
-  - [ ] Fill the five new rooms with props; they are empty shells right now
 - [x] **Left behind:** `ItemManager.gd`, `Puzzles/`, `items/`, `Models/`, `AudioController`,
       `GameTypes`, and `V1/LevelManager.gd` (~300 of its 453 lines are the 2025 day-loop)
 - [x] Tested: span maths, counts, no duplicate shared walls, doorway passable + lintel solid,
@@ -477,6 +500,15 @@ look out of.
 - [x] Consequences are visible and attributable — same location, same panel, and a named
       line in the run summary
 - [x] Run summary of the choices made, shown on the end screen
+- [x] **The view collapses before the summary** — the run no longer freezes and cuts. The
+      camera goes over sideways and sinks toward the floor, the screen wipes to black, and
+      only then do the numbers arrive. Roll and drop live on `CameraController`, not on the
+      camera node, because its `_process` rewrites the camera's transform every frame; the
+      roll goes in the euler Z slot so Godot's YXZ order applies it about the view axis.
+      Both shutdowns `_on_run_ended` used to do on frame one had to move — pausing the tree
+      freezes the fall, and disabling the player stops the controller performing it.
+      `smoke_run_end.gd` measures the camera's WORLD BASIS, since a roll that is written
+      but never read looks identical from outside. Mutation-tested
 
 ### 12e. Wiring & end states — **done**
 
@@ -1219,18 +1251,28 @@ importantly — makes solving one **start** another. That is the stated tone (*T
 Every item below is the same shape: *a thing that runs down (or fills up), and a consumable you
 fetch to reset it*. Build two components and configure them; do not write six systems.
 
-- [ ] `Need` — a countdown that runs **only while awake** (see 17e), emits at thresholds, and
-      fires a consequence at zero. Owns its own HUD row. Hunger, thirst, bladder, CO2.
-- [ ] `Silo` — a fixed container with a 0..1 level that either **drains** (a supply: O2, beer,
-      power) or **fills** (a waste: the toilet). Accepts one `consumable_type`; interacting with
-      a matching carried item transfers one unit. Reuse `CD_Silo_Base_v1`, already placed in
-      life support, the mess and the bathroom.
-- [ ] `Consumable` — a carryable tagged with a type (`o2`, `beer`, `food`, `battery`, `empty`)
-      that a `Silo` or a `Need` accepts. The canister art already exists and already maps
-      one-to-one: `CD_Canister_Air_v1`, `_Beer_`, `_Shit_`, `_Empty_`.
-- [ ] One `smoke_needs.gd` covering the component pair, not six near-identical suites.
+**BUILT 2026-07-26 — see [docs/features/needs-and-silos.md](docs/features/needs-and-silos.md).**
+
+- [x] `Need` (`scripts/game/need.gd`) — a countdown that runs **only while awake** (the guard
+      lives with the caller, which already knows about `in_stasis`), warns at a threshold, and
+      fires at zero. `active` is false by default, which is what makes the 17d staggering
+      possible. `start()` is idempotent so a second beer cannot silently reset the bladder.
+- [x] `Silo` (`scripts/game/silo.gd`) — a fixed container with a 0..1 level. **Supply and waste
+      are the same object with one sign flipped**: `use()` drains a supply and FILLS a waste
+      tank, `service(can)` does the opposite, and `headroom()` reads the same for both, so the
+      HUD, the Need and the tests are written once.
+- [x] `Consumable` (`scripts/game/consumable.gd`) — a carryable tagged `o2`/`beer`/`food`/
+      `battery`/`empty`. Plus `becomes`, which was not in the original spec and earns its
+      place: **air → empty → shit**, so one prop scene covers all four canister models and
+      spending a can hands you the next problem as an object.
+- [x] One `tests/smoke_needs.gd` covering the whole component set, not six near-identical
+      suites — the 17a claim stated as a test. Builds its own fixtures, mutation-tested six
+      ways (see the feature doc's table).
 
 ### 17b. The six systems
+
+See **17j** — five of these already have recorded voiceover, and it names
+mechanics the table below does not (the garage door, oiling the crawlers).
 
 | # | Countdown | Where it is fixed | Consumable | Source | On zero |
 |---|---|---|---|---|---|
@@ -1265,37 +1307,48 @@ Measured, not estimated:
 - **Six supply runs ≈ 115 s ≈ 48% of the entire oxygen budget** — before a single repair, and
   the ship already ships a broken drive regulator at t=0.
 
-Add six needs as specified and the run is unwinnable. Pick at least one of these before
-building anything:
+Add six needs as specified and the run is unwinnable.
 
+**SETTLED 2026-07-26: stagger + long fuses now, multi-carry as the stretch.** The two chosen
+are the two that are pure `RunState` logic — no prop placed, no art — so they can ship under
+the scene lock and they are also the two cheapest. Together they cut the six runs to one or two
+per run, which fits.
+
+- [x] **Stagger, don't stack** — only 1–2 needs are ever live in a run; which ones is
+      randomised, like malfunctions already are. **Chosen.**
+- [x] **Long fuses** — each need takes several wakings to become urgent, so one trip services
+      it for a long time. **Chosen**, and it composes with stagger rather than competing.
 - [ ] **Multi-carry** — a crate or trolley holding 3–4 canisters, so a supply run is one trip
-      that services several needs. Best option: it makes the cargo bay a *planning* problem
-      ("what do I need this trip?") instead of a treadmill.
-- [ ] **Stagger, don't stack** — only 1–2 needs are ever live in a run; which ones is
-      randomised, like malfunctions already are. Cheapest option.
-- [ ] **Long fuses** — each need takes several wakings to become urgent, so a trip services it
-      for a long time.
-- [ ] **Distribute the sources** — not everything from the cargo bay. Beer in the mess, spare
-      O2 in life support. Reduces travel and makes rooms mean something.
+      that services several needs. **The best answer and still worth building**, because it
+      turns the cargo bay into a *planning* problem ("what do I need this trip?") instead of a
+      treadmill — but it needs a carryable crate placed in the cargo bay, so it is 17i work.
+      Deferred, not dropped.
+- [ ] **Distribute the sources** — beer in the mess, spare O2 in life support. Folded into the
+      17i placement pass; it costs nothing extra once things are being placed anyway.
 
-### 17e. Open questions to settle before coding
+### 17e. Settled 2026-07-26 — these were the open questions
 
-- [ ] **Do needs tick in stasis?** They must NOT, or a long haul kills you asleep. Same rule as
-      oxygen (`stasis_oxygen_rate`). State it explicitly: the pod pauses the body.
-- [ ] **How many fail states?** Nine countdowns × "you died" is a bad ending screen.
-      Recommendation: **only CO2 narcosis and the crap-silo explosion are lethal**; hunger,
-      thirst and bladder degrade (slower movement, narrowed vision, dropped items) and power
-      loss stops the drive (which the distance countdown already punishes).
-- [ ] **HUD budget.** Oxygen + arrival + drive is already three readouts. Nine is a dashboard.
-      Show a need's row only once it crosses a threshold, so the HUD grows as things get bad.
-- [ ] **What does the vending machine's two-stage restock add?** Hunger → vending → food crate
-      is one hop longer than every other need. Justify it or flatten it.
+- [x] **Needs do not tick in stasis.** The pod pauses the body, or a long haul kills you asleep.
+      Same rule as oxygen (`stasis_oxygen_rate`). `RunState.in_stasis` exists and
+      `stasis_changed` is already emitted, so this is one guard, not a system.
+- [x] **Only two of them are lethal: CO2 narcosis and the crap-silo explosion.** Nine countdowns
+      × "you died" is a bad ending screen. Hunger, thirst and bladder **degrade** (slower
+      movement, narrowed vision, dropped items); power loss stops the drive, which the distance
+      countdown already punishes on its own.
+- [x] **A need's HUD row appears only once it crosses a threshold.** Oxygen + arrival + drive is
+      already three readouts. The HUD grows as things get bad rather than shipping nine dials.
+- [x] **The vending machine's "extra hop" does not exist — the objection was miscounted.** Every
+      other need is *need → silo in a room → canister from cargo*. Hunger is *need → vending
+      machine in the mess → food crate from cargo*. That is the same three steps: **the vending
+      machine IS a `Silo` and the food crate IS a `Consumable`.** Nothing about hunger is
+      special-cased, which is the point of 17a — and it is why hunger can safely be built last.
 
 ### 17f. Assets
 
 - [x] Already present: `CD_Canister_Air/Beer/Shit/Empty`, `CD_Silo_Base_v1`,
       `CD_VendingMachine_v1`, `CD_Crate_v1.1`, `CD_Cake_v1`, `CD_Can_v1`, `CD_Tp_v1`
-- [ ] **Toilet model** — needed, does not exist
+- [x] **Toilet model** — `CD_Terlet_v1` (2.00 x 2.70 x 3.00 units, no collision)
+      arrived 2026-07-25, with `CD_Chair_v1` alongside it
 - [ ] **New battery model with charge rings** — rings show charge level. Note `CD_Battery_v1`
       exists and `battery_cube.tscn` already derives its charge bars from its own collision box
       (`_half_extent()`), so a ring-based indicator should follow that pattern rather than
@@ -1305,9 +1358,244 @@ building anything:
 
 ### 17g. Build order
 
-1. [ ] `Silo` + `Consumable`, proven on ONE system (CO2 / life support / O2 canisters)
-2. [ ] Decide 17d and 17e — they change the shape of everything after this
-3. [ ] `Need` + HUD rows, proven on CO2
+1. [x] `Silo` + `Consumable` — built and proven, 2026-07-26 (17h Phase 1)
+2. [x] Decide 17d and 17e — they change the shape of everything after this (done 2026-07-26)
+3. [ ] `Need` + HUD rows, proven on CO2 — the `Need` script exists; the HUD row and the
+       `RunState` spawning do not
 4. [ ] Power/batteries (no new art dependency beyond the battery model)
 5. [ ] The thirst → bladder → toilet → crap chain, as one unit (17c)
 6. [ ] Hunger + vending restock last — it is the least novel and has the extra hop
+
+### 17h. IMPLEMENTATION PLAN (2026-07-25)
+
+**Working constraint:** `scenes/game.tscn` and `scripts/level/ship_layout.gd` are being edited
+elsewhere and must not be touched. Everything below is arranged so that no step needs either
+file; what genuinely does is parked in 17i.
+
+**The constraint picks the architecture, and it picks a good one.** `RunState.start()` already
+finds its systems with `get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION)` rather
+than through exported paths wired in the scene. Needs and silos follow that precedent: they are
+declared as DATA and spawned at runtime, the same way the ship's own geometry is authored in
+code rather than placed by hand. That means zero scene edits for the logic, and it stays the
+right design after the lock lifts.
+
+- [x] **Phase 0 — settle 17d/17e.** Done 2026-07-26; the answers are written into 17d and 17e
+      themselves rather than duplicated here. In short: stagger + long fuses, needs pause in
+      stasis, only CO2 and the crap silo are lethal, HUD rows appear on a threshold, and the
+      vending machine is just another `Silo`. Every one of them is buildable under the lock.
+- [x] **Phase 1 — the components.** Done 2026-07-26. All NEW files, nothing existing touched:
+      `scripts/game/need.gd`, `scripts/game/silo.gd`, `scripts/game/consumable.gd`
+  - [x] `tests/smoke_needs.gd` builds its own fixtures in code rather than leaning on
+        `game.tscn` — the technique `smoke_cable_drag.gd` already uses with `_make_plug()`.
+        That is what makes Phase 1 verifiable while the scene is locked, and it is also what
+        stops the suite breaking the next time a room is furnished
+  - [x] It assembles the whole 17c chain (beer → thirst → bladder → toilet → crap tank →
+        empties) out of the three components **with no extra script**, which is the evidence
+        that Phase 1 is enough to build the rest on
+  - [x] Two GDScript traps found and written up in `docs/debugging-gotchas.md`: a lambda
+        captures by VALUE (so `int` counters in a test silently never move, and a
+        `count == 0` assertion passes vacuously), and an `Interactable` script cannot be cast
+        onto a `RigidBody3D` at compile time
+  - **Next up is Phase 2**, which needs prop scenes (`scenes/props/canister.tscn` and a silo)
+        — those are NOT blocked, only their placement in `game.tscn` is
+- [x] **Phase 2 — CO2 end to end, no scene edits.** Done 2026-07-26. `RunState.start()` spawns
+      the CO2 `Need` from its `NEEDS` table and finds silos by group, exactly as it already
+      does with faults; the HUD builds the row at runtime into the existing `%SystemList`
+  - [x] `scenes/props/canister.tscn` — ONE scene that is all four canisters, because a
+        canister changes kind IN THE PLAYER'S HANDS and the models therefore have to live on
+        the same body. Scale 0.2004, matching the cargo bay's decorative cans
+  - [x] `scripts/level/ship_supplies.gd` — `ShipSupplies`, the supply counterpart to
+        `ship_layout.gd`. **Adopts** the silo (reads the decor prop's position and puts a
+        functional body there, so nothing is duplicated and nothing looks different) and
+        **spawns** the canisters (a decor `Node3D` cannot become a `RigidBody3D`)
+  - [x] The O2 SCRUBBER's `speed_penalty`/`oxygen_drain_multiplier` are stripped at load by the
+        `neutralise` dictionary in `RunState.NEEDS`, so the two effects do not both apply.
+        Temporary scaffolding for the `game.tscn` edit in 17i — one dictionary to delete
+  - [x] Death by CO2 says so: `Need.fatal_title` reaches the end screen through the run
+        summary, so `run_end.gd` never had to learn what a need is
+  - [x] `tests/smoke_supplies.gd` against the real scene, mutation-tested nine ways
+  - **Two bugs it caught, both pre-existing:** `RunState.start()` cleared `finished` *after*
+        spawning, so a restarted run opened with its opening need switched off; and `start()`
+        re-connected `broke`/`repaired` unguarded, double-counting patch failures on a second
+        call. Both fixed
+- [ ] **Phase 3 — power/batteries.** Logic is unblocked; the ringed battery model and its
+      cargo-bay copies are not (17i). Build against the existing `battery_cube.tscn` so the
+      system is provable before the art lands
+- [ ] **Phase 4 — the chain** (17c): thirst -> bladder -> toilet -> crap silo -> explosion,
+      built as ONE unit because it is the part worth protecting. `CD_Terlet_v1` exists
+- [ ] **Phase 5 — hunger + vending restock last.** Least novel, and the only need with an
+      extra hop
+
+### 17i. Blocked on `scenes/game.tscn` — do when the lock lifts
+
+Each of these is a placement or a scene-wiring change. Pull first, re-run the suite, then:
+
+- [ ] **Give the decor silos the `Silo` script directly** and delete the adoption pass in
+      `ShipSupplies._adopt_silo()`. Adoption is a good workaround but it is still a workaround:
+      it reads a decor node's position by name, so renaming a prop silently loses the silo
+      (`smoke_supplies` is what catches that). Applies to the mess and bathroom silos too
+  - Seen in the render: **only the adopted silo has collision.** `CD_Silo_Base_v1` ships with
+      no collider, so `LifeSilo1` is now solid while `LifeSilo2`/`3` beside it are walk-through.
+      Give the prop its own collision rather than leaving it to whoever adopts it
+  - Also seen: **the silo model has a glass window with a visible liquid level in it.** Driving
+      that from `Silo.level` is nearly free and would make the tank readable from across the
+      room instead of only through the interaction prompt. Worth doing in Phase 3
+- [ ] Place the toilet (`CD_Terlet_v1`), and the vending machine as a functional restock point
+      rather than the decor instance now standing in the mess
+- [ ] Stock the cargo bay properly: beer / empty canisters, food crates, batteries. NOTE the
+      four **decorative** canisters at x 26.3–27 are now sat right beside three functional ones
+      and look identical — a player will try to pick them up. Replace them with real ones or
+      remove them
+- [ ] Repoint the O2 SCRUBBER malfunction at the CO2 need — set its `speed_penalty` to 0 and
+      `oxygen_drain_multiplier` to 1 in the scene, then delete the `neutralise` dictionary from
+      `RunState.NEEDS` that is standing in for it (see Phase 2)
+- [ ] Place the multi-carry crate once 17d moves off "stagger"
+- [ ] Rehome the `need_oil` line from DRIVE REGULATOR to the cargo-bay crawlers (17j)
+- [ ] `CD_BridgeTerminals` still clips the bridge's fore wall and window — same file, so fold
+      it into the same pass
+
+### 17j. What the recorded voiceover already tells us
+
+`assets/audio/voiceover/` holds **15 recorded lines**; `audio_controller.gd` registers all 15,
+but only 6 are wired to anything. The 9 idle ones are a content spec that predates 17 — and
+three of the six systems in 17b already have their audio in the can.
+
+**Already recorded, matches 17b — no new VO needed:**
+
+| line | says | 17b system |
+|---|---|---|
+| `ate_food` | "You ate all the food. Go restock it." | 2, hunger + vending restock |
+| `no_beer` | "There's no more beer left." | 3, thirst |
+| `shitters_full` | "The shitter's full." | 5, crap silo |
+| `life_support` | "The life support is failing. Go fix it." | 1, CO2 (wired today) |
+| `power_off` | "The power's off. Go charge it up again with a battery." | 6, power — and it already names the battery |
+
+**Recorded, and NOT in the spec.** Each is a ready-made problem with its audio done:
+
+- [ ] **`garage_open`** — *"Someone left the goddamn garage door open. Go close it."* This is
+      the cargo bay airlock, already an open item. The line turns it from set dressing into a
+      hazard with a countdown, and it is the most on-theme of the lot: a door to vacuum
+- [ ] **`need_oil`** — *"Them robots in the garage need some oil."* The crawlers now standing
+      in the cargo bay are those robots. **It is currently mis-wired to DRIVE REGULATOR in the
+      engine room**, which is neither a robot nor in the garage; rehoming it costs nothing and
+      the crawlers stop being pure decoration (17i — the fault lives in `game.tscn`)
+- [ ] **`pipes_life_support`** — *"One of them pipes down at life support is broken."* A second
+      instance of the pipe repair that already exists in the engine room, in a room that now
+      exists. Cheapest new content on this list
+- [ ] **`alarm_broken`** — *"Hey, the alarm is broken. Uh... wee-woo, wee-woo."* Comedic: the
+      computer has to imitate the klaxon itself. A malfunction whose only effect is that you
+      stop being told about other malfunctions is a genuinely nasty little idea
+- [ ] **`asteroids`** — *"Asteroids incoming. You better shoot them down fast."* A whole action
+      mechanic and by far the biggest scope here; `CD_Asteroid_v1.blend` already exists. Not a
+      countdown-need — park it unless there is time
+
+**Tone note.** `CD_Intro` establishes the player as the ship's **janitor**, and "the last clone
+of you we's got". Every other line is the computer nagging — "go fix it", "go restock it", "go
+close it". That is exactly the register section 17 is written in, and it is why a chore list
+reads as characterful here rather than as busywork: the joke is that you are the janitor and
+the ship is a nag. Keep the needs' HUD copy in that voice.
+
+---
+
+## 18. Opening tutorial — the first fault teaches the loop
+
+Full write-up: [docs/features/opening-tutorial.md](docs/features/opening-tutorial.md).
+
+The run already opens on an active fault. The tutorial is that fault: find it, and the computer
+tells you the two ways to fix anything. No separate tutorial mode, no text box — the first
+problem IS the lesson. **Settled 2026-07-26: that fault lives on the bridge, with the hammer
+beside it** (18b); the trigger and the wiring are built (18a, 18c) and only the placement is
+still blocked (18d).
+
+**The cue is arriving in the room, not the fault firing.** Told while still in the pod the
+instruction is abstract and unactionable; told on a timer it fires whether the player found the
+room or not. Walking in with the thing in front of you is the moment it means something.
+
+`CD_Thingamajig` is exactly the right line for it, and it is already recorded:
+
+> "You're gonna need a spare part to fix that thingamajig there. It should be around here
+> somewhere. Or you can use that hammer to patch it temporarily. You'll figure it out."
+
+That one line teaches both repair routes and the hammer, which is the whole of the repair
+economy.
+
+### 18a. Built — the trigger mechanism (unblocked, done 2026-07-25)
+
+- [x] `RoomBuilder.room_at(position)` — which room a world point is in, "" for none. Reads the
+      same rects the geometry was built from, so it cannot drift when the drawing is redrawn
+- [x] `scripts/game/room_voice.gd` — `RoomVoice`. Data-driven `room id -> voice line`, said
+      once per room per run. Emits `room_changed` for any crossing and `spoke` for an actual
+      utterance. NOT an `Area3D`: the rooms are built at runtime, so there is no editor-time
+      box to attach one to, and a hand-placed trigger volume would need re-syncing every redraw
+  - [x] A `margin` (0.6m) so loitering in a doorway does not burn the cue — a doorway sits on
+        the shared wall line, so without it the room flips every frame
+  - [x] Resolves the computer by NODE PATH, not the `Audio` global: a `-s` test script loads
+        its dependencies before autoloads register, so a compile-time `Audio` reference breaks
+        the moment a suite does `RoomVoice.new()`
+- [x] `tests/smoke_room_voice.gd` — builds its own two-room ship rather than loading
+      `game.tscn`. Mutation-tested: dropping the once-only guard and zeroing the margin each
+      fail it
+
+### 18b. Settled — the first problem happens on the bridge (decided 2026-07-26)
+
+**Decision: the run opens on a fault in the BRIDGE, with the hammer on the floor beside it.**
+
+The bridge is the right room for it and by some distance. It is the hub — the cryo bay has
+exactly one door and every trip out of the pod passes through here — so it is the one room the
+player cannot fail to find, and it is ~16.5 m from the pod against the engine room's 63.5 m.
+The previous opening fault was DRIVE REGULATOR, in the furthest room on the ship, reachable
+only by crossing the spine and the whole bridge to get to it.
+
+**The hammer beside it is the SAME hammer, not a second one.** Picking it up there is how you
+learn the tool exists, and from then on it lives wherever you last put it down. That preserves
+what the janitor's-closet placement was actually for (`hammer.tscn`: the trip is "the price of
+having a patch route at all") — the cost just becomes remembering where you left it. A second
+hammer would delete that cost outright.
+
+### 18c. Built — the cue is wired and aimed (unblocked, done 2026-07-26)
+
+- [x] `Game._wire_room_voice()` — builds a `RoomVoice` in code (a node is a `game.tscn` edit),
+      binds it to `$Ship` and the player, and disables it on `run_ended`
+- [x] **The room is NOT named in code.** The cue is looked up from whichever `Malfunction`
+      carries `starts_broken`, via `RoomBuilder.room_at()`. That is the whole workaround for
+      the scene lock: the tutorial line is already aimed at the engine room today and will
+      retarget itself to the bridge the moment the fault below is moved, with no code change
+      and no second thing to keep in sync. If nothing starts broken the table is empty, which
+      is better than a line said in an arbitrary room
+- [x] `tests/smoke_tutorial_cue.gd` — proves the AIM against the real scene (smoke_room_voice
+      already proves the trigger): the cue sits on the opening fault's room whatever room that
+      is, the cold open and the wake stay silent, walking in says it, and it never repeats.
+      Mutation-tested: never building the `RoomVoice`, and nailing the cue to a fixed room id,
+      each fail it
+- [x] **Whether the fault's own alarm also speaks: it does not, and nothing had to be done.**
+      `RunState.start()` calls `break_now()` BEFORE connecting `alarm`, deliberately, so the
+      cold open is silent — an opening fault never announces itself. `RoomVoice` is the only
+      voice on it, so there was never a second one to suppress
+- **Found while testing:** a repair panel is mounted flush on a wall, so the fault's own
+      position is a few centimetres inside the room and is correctly NOT "well inside" it by
+      `RoomVoice.margin`. The player walks into the room and then up to the panel, so this
+      never bites in play — but a test that teleports to the fault's exact position sees no cue
+      and looks like a bug in the trigger. `smoke_tutorial_cue` stands in the room's centre
+
+### 18d. Blocked on `scenes/game.tscn` — a mechanical edit list
+
+Everything here is one file and one lock. Nothing else in 18 is waiting on anything.
+
+- [ ] **Make NAV ARRAY the opening fault, on the bridge.** It is the natural bridge system, the
+      bridge already has the terminals and the forward window for "drifting off course", and it
+      is currently at (-8.83, 1.3, -2) — which is *inside the cryo bay*, on its port wall. A nav
+      array in the bedroom is a placement bug regardless of the tutorial
+  - Move to `Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6.83, 1.3, -17.5)` — the bridge's port
+      wall (x = -7, +0.17 clearance, the same offset DRIVE REGULATOR uses), facing +X into the
+      room, forward of the port-arm door at z = -14.5 and clear of `BridgePipeA` at z = -13
+  - Set `starts_broken = true` on it
+  - Set `vo_line = &"thingamajig"` on it, and **remove `starts_broken` from DRIVE REGULATOR**
+- [ ] **Move the hammer beside it**, from the janitor's closet (4.5, 0.07, -9.6) to roughly
+      (-6.0, 0.07, -17.5) — a metre out from the panel, on the floor, in the same lying-flat
+      basis it already has: `Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -6.0, 0.07, -17.5)`
+- [ ] **`need_oil` moves to the crawlers.** DRIVE REGULATOR currently says "Them robots in the
+      garage need some oil", which per 17j belongs to the cargo-bay crawlers. Give DRIVE
+      REGULATOR a line that fits a drive regulator, or none
+- [ ] After the edit, re-run `smoke_tutorial_cue` — it should still pass **unchanged**, now
+      reporting `bridge` rather than `engine_room`. If it needs editing to pass, the cue stopped
+      following the fault and that is the regression it exists to catch

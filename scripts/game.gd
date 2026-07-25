@@ -63,6 +63,11 @@ const END_FALL_DROP := 1.0
 const END_FALL_PITCH_DEG := -22.0
 const END_FADE_TIME := 0.9
 
+## The whole of the opening tutorial, in one recorded line: "You're gonna need a spare part to
+## fix that thingamajig there... Or you can use that hammer to patch it temporarily." Both
+## repair routes and the tool, said once, in the room where the thing is. See _wire_room_voice().
+const TUTORIAL_LINE := &"thingamajig"
+
 ## Same reasoning as PodPhase: the approach has to reject a second interact press, and the
 ## run can end while the player is stood reading.
 enum NavPhase { AWAY, APPROACHING, READING, LEAVING }
@@ -79,6 +84,13 @@ var _warned_low_air: bool = false
 ## control. A latch rather than a call at the wake, because [E] and the timer both end that
 ## stasis and only _finish_exit() knows when the ride out is over.
 var _intro_line_pending: bool = false
+
+## Built in code rather than placed in the scene, because it has nothing to configure that is
+## not derived at runtime: its one line is looked up from the opening fault's room, and the
+## rooms themselves are built by the Ship node when the scene loads.
+var _room_voice: RoomVoice = null
+## The silos and canisters, likewise built rather than placed. See _build_supplies().
+var _supplies: ShipSupplies = null
 
 var _pod_phase: PodPhase = PodPhase.OUT
 var _nav_phase: NavPhase = NavPhase.AWAY
@@ -118,7 +130,11 @@ func _ready() -> void:
 	# click of climbing in. Connect first and frame zero opens with a sound for an action the
 	# player never took.
 	_pose_in_pod()
+	# BEFORE start_game(), because RunState.start() collects the silos by group and a silo
+	# that does not exist yet is a need with nothing that can clear it.
+	_build_supplies()
 	_wire_audio()
+	_wire_room_voice()
 	_computer.bind(_run)
 	_computer.opened.connect(_open_nav_screen)
 	_nav_screen.closed.connect(_close_nav_screen)
@@ -135,6 +151,61 @@ func _ready() -> void:
 	# After start_game(), because RunState.enter_stasis() refuses to do anything until the
 	# run is actually running.
 	_wake_from_opening_stasis()
+
+
+## The silos and the canisters (TODO 17). Built in code for the same reason RoomVoice is —
+## `scenes/game.tscn` is locked — but also because a supply layout belongs in one readable
+## table rather than scattered through a scene file. See ShipSupplies.
+##
+## Parented to this node rather than to $Ship: the ship rebuilds its own geometry from the
+## drawing, and anything hung off it would be thrown away with the old walls.
+func _build_supplies() -> void:
+	_supplies = ShipSupplies.new()
+	_supplies.name = "Supplies"
+	add_child(_supplies)
+
+
+## The opening tutorial. The run starts on a fault that is ALREADY broken, and walking into
+## the room it is in is what triggers the computer's one line about how repairs work —
+## `CD_Thingamajig`, which teaches the spare part, the hammer patch and nothing else.
+##
+## The cue has to be arrival, not the fault firing. A fault that starts broken never goes
+## through `_on_broke` at all (RunState.start() calls break_now() BEFORE connecting the
+## signals, deliberately, so the cold open is silent), so there is no alarm to hang it on —
+## and there should not be. Told from inside the pod the instruction is abstract; told on a
+## timer it fires whether the player found the room or not.
+##
+## The ROOM IS NOT NAMED HERE. It is looked up from whichever fault carries `starts_broken`,
+## so moving the opening fault in the scene moves the lesson with it and this never has to be
+## kept in sync by hand. If nothing starts broken there is no tutorial and the table is empty,
+## which is the correct behaviour rather than a line said in an arbitrary room.
+func _wire_room_voice() -> void:
+	_room_voice = RoomVoice.new()
+	_room_voice.name = "RoomVoice"
+	add_child(_room_voice)
+	_room_voice.bind($Ship, _player)
+
+	var opening_fault := _opening_fault()
+	if opening_fault != null:
+		var room := ($Ship as RoomBuilder).room_at(opening_fault.global_position)
+		if room != "":
+			_room_voice.lines[room] = TUTORIAL_LINE
+
+	# Nothing to teach once the run is over, and the collapse drags the camera through the
+	# floor — which is outside every room, but a room change on the way down would still be
+	# a line starting up underneath the end screen.
+	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void:
+		_room_voice.set_enabled(false))
+
+
+## The fault the run opens on, or null. First match wins: a second `starts_broken` fault would
+## be a second simultaneous problem to solve at minute zero, which the opening is not for.
+func _opening_fault() -> Malfunction:
+	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+		var fault := node as Malfunction
+		if fault != null and fault.starts_broken:
+			return fault
+	return null
 
 
 ## Every sound the run makes, in one place. Game already holds references to all of these

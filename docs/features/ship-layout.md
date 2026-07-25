@@ -11,7 +11,7 @@ light count quadrupled, which broke GL Compatibility's renderer limits in two se
 
 ## The drawing is the source of truth
 
-`room_layout_3.png`, 84x84 RGBA. **One pixel is one metre.** Five layers:
+`room_layout_5.png`, 84x84 RGBA. **One pixel is one metre.** Five layers:
 
 | Layer | Meaning |
 |---|---|
@@ -34,25 +34,34 @@ coordinates. Image up is forward (-Z), matching travel direction.
 
 | id | Rect2i | height |
 |---|---|---|
-| `bridge` | `(-9, -22, 19, 10)` | 3.4 |
-| `kitchen` | `(10, -17, 11, 11)` | 3.0 |
-| `bathroom` | `(-8, -12, 7, 8)` | 2.4 |
-| `janitor_closet` | `(2, -9, 6, 5)` | 2.4 |
-| `life_support` | `(-29, -6, 13, 13)` | 3.6 |
-| `pod_bay` | `(-10, -4, 21, 21)` | 9.3 — unchanged |
-| `engine_room` | `(-39, 7, 21, 21)` | 4.0 — moved from `(-6, -22, 12, 10)` |
-| `cargo_bay` | `(19, -1, 21, 33)` | 6.0 |
+| `bridge` | `(-7, -21, 15, 9)` | 3.4 |
+| `kitchen` | `(-24, -19, 9, 9)` | 3.0 |
+| `life_support` | `(16, -19, 9, 9)` | 3.6 |
+| `bathroom` | `(-9, -12, 7, 7)` | 2.4 |
+| `janitor_closet` | `(3, -12, 3, 3)` | 2.4 |
+| `cryo_bay` | `(-9, -4, 19, 19)` | 9.3 |
+| `engine_room` | `(-24, -2, 9, 9)` | 4.0 |
+| `cargo_bay` | `(13, -2, 15, 16)` | 6.0 |
 
-Corridors, all 3m wide and 2.6m high: `corridor` `(-1, -12, 3, 8)` (unchanged),
-`corridor_fore` `(2, -12, 8, 3)`, `corridor_life` `(-16, -1, 6, 3)`, `corridor_engine`
-`(-18, 10, 8, 3)`, `corridor_cargo` `(11, 10, 8, 3)`.
+Corridors, all 3m wide and 2.6m high: `corridor` `(-1, -12, 3, 8)` — the spine, unchanged
+since the ship was first built and identical across all three drawings — plus `corridor_port`
+`(-15, -16, 8, 3)`, `corridor_stbd` `(8, -16, 8, 3)`, `corridor_engine` `(-21, -10, 3, 8)` and
+`corridor_cargo` `(19, -10, 3, 8)`.
 
-Eleven doors, sixteen windows. The drawing marks both one pixel wide; doors are built at the
+Twelve doors, seventeen windows. The drawing marks both one pixel wide; doors are built at the
 ship's existing 1.8m, centred on the mark.
 
-### The corridor bend is two rectangles, not one L
+**The bridge is the hub.** The cryo bay has exactly one door, so every trip out routes through
+the bridge. The footprint shrank from 79x53m to 52x36m and the walks still roughly doubled:
+engine 30.8m -> 63.5m, cargo 29.9m -> 67.1m from the pod. The oxygen budget has not been
+retuned for that.
 
-The drawing shows a single L-shaped corridor forward of the pod bay. It is built as two
+### The corridor bend is two rectangles, not one L (v3 only — kept for the reason)
+
+v5 has no L: every corridor is a single rectangle. This is retained because the constraint it
+documents is permanent, and the next drawing that bends a corridor will hit it again.
+
+The v3 drawing showed a single L-shaped corridor forward of the pod bay. It is built as two
 rectangles because **RoomBuilder assumes rooms do not overlap** — each room raises its own
 closed wall skin, so two overlapping rects each build a wall through the other's floor. The
 split is at `x=2` (vertical) rather than at the bend's other diagonal, so the spine keeps its
@@ -70,7 +79,7 @@ bend.fit_door = false # and no sliding panel is fitted
 Full wall width, full wall height, so `_create_wall` builds neither a sill below nor a lintel
 above and the corner reads as continuous floor.
 
-## Moving the engine room
+## Moving the engine room (v3)
 
 The room turned 90 degrees: it used to be entered from its aft wall with the drive on the
 forward wall opposite; it is now entered from the east wall with the drive on the west wall
@@ -133,20 +142,19 @@ nothing declares ownership. Before assigning a layer, grep for `layers` and `cul
 `ship_layout.gd`, so the code failing to match the image is a test failure:
 
 - all 13 rects exact, and no two rooms overlap
-- 12 doors and 16 windows, each door on a wall shared by exactly two spaces
+- 12 doors and 17 windows, each door on a wall shared by exactly two spaces
 - every window faces open hull — none looks through into another room
-- the corridor bend leaves no wall box across it
-- every room reachable from the pod bay through doors alone
+- every room reachable from the cryo bay through doors alone
 - every light's cull mask hits its own room's layer and no other room's
 - no room sits on the exterior layer
 
-**Proven able to fail.** Mutation-tested: moving the engine room 1m, giving the bend a normal
-lintel, putting a window on an interior wall, turning `confine_lights_to_rooms` off, and
-setting `FIRST_ROOM_LAYER` back to 2 each produce a failure; reverting each produces a pass.
+**Proven able to fail.** Mutation-tested five ways: moving the engine room 1m, giving the v3
+bend a normal lintel, putting a window on an interior wall, turning `confine_lights_to_rooms`
+off, and setting `FIRST_ROOM_LAYER` back to 2 each produce a failure; reverting each passes.
 
 ALERT mode is checked separately, because a surface lit by something other than its room's own
 fixtures still *looks* lit — it just does not turn red with the rest of the ship. Measured as
-redness, `r / (g + b)`, at the pod bay's floor and all four walls: 2.49–3.64 after the layer
+redness, `r / (g + b)`, at the cryo bay's floor and all four walls: 2.49–3.64 after the layer
 fix, where a white-lit surface reads about 0.5.
 
 Lighting measured rather than eyeballed, with `tests/capture_lighting.gd` — mean floor

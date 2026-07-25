@@ -214,6 +214,22 @@ func room_layer(room_id: String) -> int:
 	return _room_layers.get(room_id, 1)
 
 
+## Which room a WORLD position is standing in, or "" for none (a doorway gap, or outside the
+## hull). Rooms never overlap — smoke_ship_layout asserts it — so at most one can match.
+##
+## The Y axis is ignored on purpose: this answers "which room am I in", and a player is in the
+## engine room whether they are on its floor or halfway up a crate in it.
+func room_at(position: Vector3) -> String:
+	for room in rooms:
+		var x0 := float(room.rect.position.x) * tile_size
+		var z0 := float(room.rect.position.y) * tile_size
+		var x1 := x0 + float(room.rect.size.x) * tile_size
+		var z1 := z0 + float(room.rect.size.y) * tile_size
+		if position.x >= x0 and position.x <= x1 and position.z >= z0 and position.z <= z1:
+			return room.id
+	return ""
+
+
 func _build_window(opening: Doorway) -> void:
 	var height: float = opening.resolved_top(doorway_height) - opening.sill
 	if height <= 0.01:
