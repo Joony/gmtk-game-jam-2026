@@ -568,6 +568,21 @@ should be used for the quick patch."*
 - [ ] Guard the transition: a fault clearing and re-breaking quickly must not machine-gun the
       crossfade. Minimum dwell time per state.
 
+**Voiceover — recorded.** `assets/audio/voiceover/`, fifteen ship-computer lines
+([log](docs/features/voiceover-and-klaxon.md)).
+
+- [x] `Audio.say(&"name")` — one player, one queue (max 3, drops the oldest), non-positional so
+      it carries from anywhere including inside the sealed pod, on its own `Voice` bus.
+- [x] Wiring is DATA: `Malfunction.vo_line` is an exported StringName, so a system's voice is one
+      field in `game.tscn`. Five faults wired, plus `intro` on the opening wake and `oxygen_low`
+      on the air threshold (latched — `oxygen_changed` fires every frame).
+- [x] The recorded `sfx/Klaxon.mp3` replaces the generated klaxon by name; `SoundForge.klaxon()`
+      stays as the fallback and keeps its own assertions.
+- [ ] Duck the music while the computer speaks. The `Voice` bus is at +3 dB as a starting point;
+      not judged by ear yet.
+- [ ] Eight lines recorded but unwired: `alarm_broken`, `pipes_life_support`, `asteroids`,
+      `ate_food`, `garage_open`, `no_beer`, `shitters_full`, `thingamajig`.
+
 **Sound effects — synthesised, already built.** `scripts/audio/sound_forge.gd` generates
 these as `AudioStreamWAV`s at load: no files, no licences, nothing in the web build. Dump
 them to disk with `tests/forge_sounds.gd` to listen.

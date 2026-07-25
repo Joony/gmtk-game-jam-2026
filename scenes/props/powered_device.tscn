@@ -27,6 +27,7 @@ size = Vector3(0.12, 0.12, 0.04)
 [node name="PoweredDevice" type="Node3D"]
 script = ExtResource("1_malfunction")
 system_name = "AUX POWER"
+vo_line = &"power_off"
 fault_text = "power bus offline — restore a feed"
 speed_penalty = 0.2
 fire_at_distance = 45.0

@@ -1,8 +1,13 @@
 [gd_resource type="AudioBusLayout" format=3]
 
-; Master -> Music / SFX. Two buses rather than one, so the options slider has something to
-; hold onto: music and effects need separate volumes (people turn music off and keep the
-; klaxon), and the low-oxygen breathing has to be duckable without touching the alarm.
+; Master -> Music / SFX / Voice. Separate buses so the options slider has something to hold
+; onto: music and effects need separate volumes (people turn music off and keep the klaxon),
+; and the low-oxygen breathing has to be duckable without touching the alarm.
+;
+; The ship computer gets its OWN bus rather than riding SFX, because the moment it speaks is
+; the moment the klaxon is loudest — it plays over the very sound it is explaining, and the
+; two have to be mixable against each other. It also gives a later duck-the-music-while-
+; speaking pass somewhere to live without fighting the crossfade for the players' volume_db.
 
 [resource]
 bus/1/name = &"Music"
@@ -17,3 +22,9 @@ bus/2/mute = false
 bus/2/bypass_fx = false
 bus/2/volume_db = 0.0
 bus/2/send = &"Master"
+bus/3/name = &"Voice"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = 3.0
+bus/3/send = &"Master"

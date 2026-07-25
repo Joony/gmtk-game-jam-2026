@@ -33,6 +33,10 @@ const GROUP_MALFUNCTION := &"malfunctions"
 @export var system_name: String = "SYSTEM"
 ## Short line for the HUD list, e.g. "coolant loop ruptured".
 @export var fault_text: String = "fault detected"
+## What the ship computer announces when this breaks — a key in AudioController.VOICE_LINES,
+## blank for a fault it says nothing about. Data like everything else here, so giving a system
+## a voice is one field in game.tscn rather than a branch in Game.
+@export var vo_line: StringName = &""
 @export var severity: Severity = Severity.DEGRADING
 
 ## Speed this fault costs, as a fraction of cruise. Penalties add up across faults.

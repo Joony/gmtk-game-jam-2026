@@ -18,6 +18,7 @@ enum Music { NONE, NORMAL, PANIC, STASIS, LOW_OXYGEN }
 
 const MUSIC_BUS := &"Music"
 const SFX_BUS := &"SFX"
+const VOICE_BUS := &"Voice"
 
 ## Real files, and the only part of the audio that is not generated. Delivered as .wav but
 ## transcoded to Ogg Vorbis (see tools + the .wav masters alongside): 115 MB of WAV would
@@ -43,10 +44,49 @@ const SFX_3D_RANGE := 26.0
 
 ## Sounds that are real files rather than synthesised. Doors came from GMTK 2025's `Sounds/`
 ## folder, where they were sitting unused — nothing in that project ever played them.
+##
+## These are loaded AFTER _forge() and share its dictionary, so a name here OVERRIDES the
+## generated sound of the same name. That is how the recorded klaxon replaces
+## SoundForge.klaxon() without the generator going anywhere: the synth version stays the
+## fallback for a missing file, and stays the thing the sound tests measure.
 const FILE_SOUNDS := {
 	&"door_open": "res://assets/audio/sfx/door_open.mp3",
 	&"door_close": "res://assets/audio/sfx/door_close.mp3",
+	&"klaxon": "res://assets/audio/sfx/Klaxon.mp3",
 }
+
+## The ship computer's voice lines, named by what they MEAN rather than by which take they
+## came from — a caller asks for `life_support` and never learns the filename.
+##
+## Wiring a line to an event is DATA, not code: Malfunction has a `vo_line` export, so giving
+## a fault a voice is one field in game.tscn. See say().
+const VOICE_LINES := {
+	# Wired to events today.
+	&"intro": "res://assets/audio/voiceover/CD_Intro.mp3",
+	&"oxygen_low": "res://assets/audio/voiceover/CD_OxygenLow.mp3",
+	&"life_support": "res://assets/audio/voiceover/CD_LifeSupportFailing.mp3",
+	&"nav_off": "res://assets/audio/voiceover/CD_NavOff.mp3",
+	&"power_off": "res://assets/audio/voiceover/CD_PowerOff.mp3",
+	&"pipes_engine": "res://assets/audio/voiceover/CD_PipesBroken_Engine.mp3",
+	&"need_oil": "res://assets/audio/voiceover/CD_NeedOil.mp3",
+	# Recorded and registered, but nothing plays them yet. Left in so wiring one up later is
+	# a `vo_line` field rather than a code change — which is the whole point of the table.
+	&"alarm_broken": "res://assets/audio/voiceover/CD_AlarmBroken.mp3",
+	&"pipes_life_support": "res://assets/audio/voiceover/CD_PipesBroken_LifeSupport.mp3",
+	&"asteroids": "res://assets/audio/voiceover/CD_AsteroidsIncoming.mp3",
+	&"ate_food": "res://assets/audio/voiceover/CD_AteFood.mp3",
+	&"garage_open": "res://assets/audio/voiceover/CD_GarageOpen.mp3",
+	&"no_beer": "res://assets/audio/voiceover/CD_NoBeer.mp3",
+	&"shitters_full": "res://assets/audio/voiceover/CD_ShittersFull.mp3",
+	&"thingamajig": "res://assets/audio/voiceover/CD_Thingamajig.mp3",
+}
+
+## Beyond this the computer would be describing a situation that has already moved on. The
+## OLDEST queued line is dropped, never the newest: when three things break at once the one
+## worth hearing is the one that just happened.
+const VOICE_QUEUE_MAX := 3
+## Silence between lines, so two alerts do not run together into one sentence.
+const VOICE_GAP := 0.4
 
 ## Breathing interval at the moment the warning starts, and at zero air. Getting faster is
 ## most of what makes it frightening — the volume barely matters.
@@ -71,6 +111,15 @@ var _sounds: Dictionary = {}
 var _alarm_player: AudioStreamPlayer
 var _paused: bool = false
 
+# The computer's voice gets ONE player and a queue. Two lines at once is not two alerts, it is
+# neither — a synthesised voice over itself is unintelligible, and the moment it matters most
+# is exactly the moment several things are going wrong together. Non-positional, because the
+# computer is speaking over the ship's PA and must be the same from every room.
+var _voice_player: AudioStreamPlayer
+var _voice_queue: Array[StringName] = []
+var _voice_gap: float = 0.0
+var _voices_by_name: Dictionary = {}
+
 var _breath_intensity: float = 0.0
 var _breath_timer: float = 0.0
 var _warned_missing: Dictionary = {}
@@ -92,8 +141,10 @@ func _ready() -> void:
 	# than a moment. Played through the round-robin pool it looped forever and was only ever
 	# silenced by another sound stealing its voice — which is exactly what went wrong.
 	_alarm_player = _make_player(SFX_BUS)
+	_voice_player = _make_player(VOICE_BUS)
 
 	_forge()
+	_load_voice_lines()
 
 
 func _make_player(bus: StringName) -> AudioStreamPlayer:
@@ -131,13 +182,36 @@ func _forge() -> void:
 		&"pod_open": SoundForge.pod_door(true),
 		&"pod_close": SoundForge.pod_door(false),
 	}
-	_alarm_player.stream = _sounds[&"klaxon"]
+	# File sounds LAST, so a recorded take overrides the generated one of the same name and a
+	# missing file silently leaves the synth version in place (see FILE_SOUNDS).
 	for name in FILE_SOUNDS:
 		var path: String = FILE_SOUNDS[name]
 		if not ResourceLoader.exists(path):
 			_warn_once(path, "sound file missing: %s" % path)
 			continue
 		_sounds[name] = load(path)
+	# After the override, or the alarm would keep a reference to whichever klaxon was built
+	# first and the recorded one would never be heard.
+	_alarm_player.stream = _sounds[&"klaxon"]
+	# The klaxon is the one sound with a LIFETIME: set_alarm(true) starts it and expects it to
+	# run until the fault is dealt with. A generated klaxon is authored looping; an imported
+	# mp3 defaults to one-shot, so the alarm would have died after a couple of seconds and
+	# left a critical fault sounding like a passing beep. Set here rather than in the .import
+	# so it cannot be lost to a re-import.
+	if _alarm_player.stream is AudioStreamMP3:
+		(_alarm_player.stream as AudioStreamMP3).loop = true
+
+
+## The voice lines are their own table, kept out of `_sounds` on purpose: play() round-robins
+## a pool of eight voices and would happily start a second line over the first. Everything the
+## computer says goes through say(), which owns the one player that can speak.
+func _load_voice_lines() -> void:
+	for line in VOICE_LINES:
+		var path: String = VOICE_LINES[line]
+		if not ResourceLoader.exists(path):
+			_warn_once(path, "voice line missing: %s" % path)
+			continue
+		_voices_by_name[line] = load(path)
 
 
 # --- effects ----------------------------------------------------------------------------
@@ -198,6 +272,67 @@ func set_alarm(active: bool) -> void:
 		_alarm_player.stop()
 
 
+# --- the ship computer ------------------------------------------------------------------
+
+## Have the computer say something. This is the whole API — `Audio.say(&"oxygen_low")` — and
+## it is safe to call from anywhere, at any time, including while another line is playing.
+##
+## NOT positional. The computer is on the PA: it has to be exactly as audible from the engine
+## room as from inside the pod, which is the one place the player cannot walk away from.
+##
+## `interrupt` is for a line that makes the queued ones wrong — the run ending, say. The
+## default is to queue, because cutting the computer off mid-sentence to start another
+## sentence is how you end up understanding neither.
+func say(line: StringName, interrupt: bool = false) -> void:
+	if not VOICE_LINES.has(line):
+		# A typo in a wiring call should cost a line, not the run — same contract as play().
+		_warn_once(line, "no such voice line '%s'" % line)
+		return
+	if not _voices_by_name.has(line):
+		return  # registered but the file is not on disk; already warned once at load
+	if interrupt:
+		_voice_queue.clear()
+		_speak(line)
+		return
+	# `playing` is the right test here and NOT while paused — see _advance_voice().
+	if not _voice_player.playing and _voice_queue.is_empty() and not _paused:
+		_speak(line)
+		return
+	_voice_queue.append(line)
+	while _voice_queue.size() > VOICE_QUEUE_MAX:
+		_voice_queue.pop_front()
+
+
+## True while the computer is talking or has something still to say. For anything that wants
+## to wait for it — a run-end screen, a future music duck.
+func is_speaking() -> bool:
+	return _voice_player.playing or not _voice_queue.is_empty()
+
+
+func _speak(line: StringName) -> void:
+	_voice_player.stream = _voices_by_name[line]
+	_voice_gap = VOICE_GAP
+	_voice_player.play()
+
+
+## Pull the next line off the queue once the current one has finished and its gap has passed.
+##
+## Driven from _process rather than from the player's `finished` signal because `playing`
+## reads FALSE while a player is stream_paused (see docs/debugging-gotchas.md). On the signal
+## that is merely a missed wake-up; here it would be worse — a paused line looks finished, so
+## the queue would empty itself into the pause menu and the player would come back to silence
+## having missed every alert.
+func _advance_voice(delta: float) -> void:
+	if _voice_player.playing:
+		_voice_gap = VOICE_GAP
+		return
+	if _voice_queue.is_empty():
+		return
+	_voice_gap -= delta
+	if _voice_gap <= 0.0:
+		_speak(_voice_queue.pop_front())
+
+
 ## The two repair routes, which must never sound alike — see SoundForge. Positional: you
 ## should be able to hear which panel someone is working on.
 func repair(permanent: bool, position: Vector3) -> void:
@@ -238,6 +373,9 @@ func set_paused(paused: bool) -> void:
 func stop_all() -> void:
 	stop_music()
 	set_alarm(false)
+	# Queued lines outlive the player leaving the scene otherwise: the computer would carry
+	# on announcing a run that has ended, over the main menu.
+	_voice_queue.clear()
 	set_breathing(0.0)
 	set_paused(false)
 	for player in _all_players():
@@ -245,7 +383,7 @@ func stop_all() -> void:
 
 
 func _all_players() -> Array[Node]:
-	var players: Array[Node] = [_music_a, _music_b, _alarm_player]
+	var players: Array[Node] = [_music_a, _music_b, _alarm_player, _voice_player]
 	players.append_array(_voices)
 	players.append_array(_voices_3d)
 	return players
@@ -256,6 +394,7 @@ func _process(delta: float) -> void:
 	# which means everything below has to opt out of running while paused itself.
 	if _paused:
 		return
+	_advance_voice(delta)
 	_music_since_change += delta
 	# Only ever a queued calm-down; escalations never queue.
 	if _music_pending != Music.NONE and _music_since_change >= MIN_DWELL:

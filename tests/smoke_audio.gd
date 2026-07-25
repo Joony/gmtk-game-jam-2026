@@ -115,7 +115,6 @@ class _Runner:
 			&"door_open": {"min_s": 0.1, "max_s": 4.0},
 			&"door_close": {"min_s": 0.1, "max_s": 4.0},
 			&"bump": {"min_s": 1.0, "max_s": 2.0},
-			&"klaxon": {"min_s": 0.5, "max_s": 2.0},
 			&"click": {"min_s": 0.01, "max_s": 0.2},
 			&"plug": {"min_s": 0.05, "max_s": 0.5},
 			&"ratchet": {"min_s": 0.2, "max_s": 1.0},
@@ -145,14 +144,38 @@ class _Runner:
 			suite.check(m["peak"] <= 0.90, "%s does not clip (peak %.3f)" % [name, m["peak"]])
 			suite.check(m["rms"] > 0.001, "%s is not silence (rms %.4f)" % [name, m["rms"]])
 
-		# A klaxon that clicks every loop is worse than no klaxon.
-		var klaxon: AudioStreamWAV = controller._sounds[&"klaxon"]
-		suite.check(klaxon.loop_mode == AudioStreamWAV.LOOP_FORWARD, "the klaxon is set to loop")
-		var count := klaxon.data.size() / 2
-		var first := klaxon.data.decode_s16(0)
-		var last := klaxon.data.decode_s16((count - 1) * 2)
+		# --- The klaxon, which is now a recorded file over a generated fallback ------------
+		# The GENERATOR is measured directly rather than through _sounds, because that entry is
+		# the shipped mp3 — the recording overrides the synth version by name (FILE_SOUNDS).
+		# SoundForge.klaxon() is still the fallback for a missing file and is still expected to
+		# work, so it keeps its own assertions; a klaxon that clicks every loop is worse than no
+		# klaxon at all.
+		var generated := SoundForge.klaxon(1)
+		var gm: Dictionary = suite.measure(generated)
+		suite.check(gm["seconds"] >= 0.5 and gm["seconds"] <= 2.0,
+			"the generated klaxon fallback is %.2fs, within 0.50-2.00" % gm["seconds"])
+		suite.check(gm["peak"] <= 0.90, "it does not clip (peak %.3f)" % gm["peak"])
+		suite.check(generated.loop_mode == AudioStreamWAV.LOOP_FORWARD,
+			"the generated klaxon is set to loop")
+		var count := generated.data.size() / 2
+		var first := generated.data.decode_s16(0)
+		var last := generated.data.decode_s16((count - 1) * 2)
 		suite.check(absi(first - last) < 400,
 			"and its loop seam is continuous (|first-last| = %d of 32768)" % absi(first - last))
+
+		# What actually plays. set_alarm() starts this and expects it to run until the fault is
+		# dealt with, so a one-shot stream would leave a critical fault sounding like a beep —
+		# and an imported mp3 is one-shot by default.
+		var shipped: AudioStream = controller._sounds.get(&"klaxon")
+		suite.check(shipped != null, "the klaxon the alarm plays exists")
+		suite.check(controller._alarm_player.stream == shipped,
+			"and it is the stream the alarm player holds")
+		if shipped is AudioStreamMP3:
+			suite.check((shipped as AudioStreamMP3).loop,
+				"the recorded klaxon loops (%.2fs)" % shipped.get_length())
+		else:
+			suite.check((shipped as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_FORWARD,
+				"the fallback klaxon loops")
 
 
 	func _test_music_tracks() -> void:

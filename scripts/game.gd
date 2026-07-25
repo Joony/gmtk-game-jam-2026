@@ -61,6 +61,8 @@ var is_started: bool = false
 ## silent and bare — no music, no HUD, no "IN STASIS" panel — so the first thing the player
 ## gets is the pod's seal letting go. See _pose_in_pod() and _on_stasis_changed().
 var _in_opening_stasis: bool = true
+## Latch for the computer's low-air call, so it happens once. See _on_oxygen_for_audio().
+var _warned_low_air: bool = false
 
 var _pod_phase: PodPhase = PodPhase.OUT
 var _nav_phase: NavPhase = NavPhase.AWAY
@@ -123,7 +125,13 @@ func _wire_audio() -> void:
 	# The IMPACT is an event — a one-shot on the frame the fault fires. The KLAXON is not;
 	# it belongs to the fault's whole lifetime and is driven from state below.
 	_run.alarm.connect(func(malfunction: Malfunction, _patch_failure: bool) -> void:
-		Audio.impact(malfunction.severity == Malfunction.Severity.CRITICAL))
+		Audio.impact(malfunction.severity == Malfunction.Severity.CRITICAL)
+		# ...and the computer says which system it was. Unlike the klaxon this DOES speak
+		# into the sealed pod: the klaxon is a loop that would run for the whole of a stasis,
+		# whereas one line telling you what broke is exactly the thing that should get you
+		# out of bed. Which line is the fault's own data — see Malfunction.vo_line.
+		if malfunction.vo_line != &"":
+			Audio.say(malfunction.vo_line))
 	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_ship_audio())
 	_run.systems_changed.connect(_update_ship_audio)
 	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void: Audio.stop_all())
@@ -237,6 +245,13 @@ func _on_oxygen_for_audio(remaining: float, _total: float) -> void:
 		Audio.set_breathing(0.0)
 	else:
 		Audio.set_breathing(1.0 - remaining / warn)
+	# The computer calls the air ONCE, on the way down. Latched rather than compared against
+	# the threshold every frame: oxygen_changed fires every frame of the run, and a line that
+	# re-triggered would have the computer stuck repeating itself for the last minute of it.
+	# Never re-armed — air only goes one way, so a second warning would be a bug, not a beat.
+	if not _warned_low_air and warn > 0.0 and remaining <= warn:
+		_warned_low_air = true
+		Audio.say(&"oxygen_low")
 	# Crossing the air threshold (either way) swaps the music to/from crash_landing.
 	_update_ship_audio()
 
@@ -350,6 +365,10 @@ func _on_stasis_changed(in_stasis: bool) -> void:
 		# anything is drawn and "IN STASIS" cannot flash up as the overlay arrives.
 		_hud.visible = true
 		_update_ship_audio()
+		# The computer greets you on the way out of the pod. This is the first thing the
+		# player hears after the cork pop, and the only line that is about the run rather
+		# than about something being wrong with it.
+		Audio.say(&"intro")
 
 	# Only the WAKING half of the pod is driven from here. Entering is sequenced by
 	# _enter_pod(), which has to finish moving the player before the clock starts running fast.
