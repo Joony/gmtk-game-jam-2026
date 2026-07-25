@@ -16,7 +16,7 @@
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hammer"]
 ; Slightly fatter than the head so a dropped hammer does not wedge itself into a corner.
-size = Vector3(0.12, 0.33, 0.12)
+size = Vector3(0.24, 0.66, 0.24)
 
 ; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not
 ; inherit this body's velocity while standing on it.
@@ -28,11 +28,13 @@ script = ExtResource("1_interactable")
 interaction_type = 0
 interaction_text = "Pick up hammer"
 
+; Yawed 90 degrees so the HEAD points along the handle-holder's fore-aft axis rather than across
+; it — held, an unyawed hammer presents its head side-on to the camera.
 ; CD_Hammer_v1 is modelled ~5.75 units tall with its origin at the butt of the handle, so it
-; is scaled to a 0.32m hammer and dropped half its height to sit centred on the body origin —
+; is scaled to a 0.64m hammer and dropped half its height to sit centred on the body origin —
 ; otherwise Carry holds it dangling by the very end of the handle.
 [node name="Model" parent="." instance=ExtResource("2_model")]
-transform = Transform3D(0.055, 0, 0, 0, 0.055, 0, 0, 0, 0.055, 0, -0.158, 0)
+transform = Transform3D(0, 0, 0.11, 0, 0.11, 0, -0.11, 0, 0, 0, -0.316, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_hammer")

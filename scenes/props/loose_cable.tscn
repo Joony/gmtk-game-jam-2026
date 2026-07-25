@@ -9,17 +9,24 @@
 ; one end to a wall SOURCE and the other to a device inlet to carry power the long way.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.42, 0.18, 0.42)
+size = Vector3(0.63, 0.27, 0.63)
 
 [node name="LooseCable" type="Node3D"]
 
+; Layer 2 = pushable props, mask 3 = world + props — the same convention every other
+; carryable uses. The plugs were left on the default layer 1 / mask 1, and Carry's
+; _clamp_to_walls sweeps the held body using ITS OWN MASK: a mask of 1 cannot see the
+; battery (layer 2), so a carried plug was teleported inside the cube and the solver
+; then shoved the cube away hard. On mask 3 the plug stops against it instead.
 [node name="PlugA" type="RigidBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0, 0)
+collision_layer = 2
+collision_mask = 3
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 0, 0)
 continuous_cd = true
 script = ExtResource("2_plug")
 
 [node name="Model" parent="PlugA" instance=ExtResource("3_model")]
-transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+transform = Transform3D(0.105, 0, 0, 0, 0.105, 0, 0, 0, 0.105, 0, 0.12, 0)
 
 [node name="StaticBody3D" parent="PlugA/Model/Base" index="0"]
 collision_layer = 0
@@ -29,12 +36,14 @@ collision_mask = 0
 shape = SubResource("BoxShape3D_plug")
 
 [node name="PlugB" type="RigidBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0, 0)
+collision_layer = 2
+collision_mask = 3
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9, 0, 0)
 continuous_cd = true
 script = ExtResource("2_plug")
 
 [node name="Model" parent="PlugB" instance=ExtResource("3_model")]
-transform = Transform3D(0.07, 0, 0, 0, 0.07, 0, 0, 0, 0.07, 0, 0.08, 0)
+transform = Transform3D(0.105, 0, 0, 0, 0.105, 0, 0, 0, 0.105, 0, 0.12, 0)
 
 [node name="StaticBody3D" parent="PlugB/Model/Base" index="0"]
 collision_layer = 0

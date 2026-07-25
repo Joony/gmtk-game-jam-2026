@@ -14,21 +14,17 @@ var _dir: String = "user://"
 
 ## name, position, yaw. Yaw 0 looks down -Z (toward the bow); POSITIVE yaw turns to port.
 const VIEWS := [
-	["bridge", Vector3(0.5, 0.95, -14.0), 0.0],
-	["kitchen", Vector3(15.5, 0.95, -8.0), 0.0],
-	["bathroom", Vector3(-4.5, 0.95, -6.0), 0.0],
-	["janitor_closet", Vector3(3.0, 0.95, -6.5), -90.0],
-	["life_support", Vector3(-22.5, 0.95, 4.0), 0.0],
-	["pod_bay", Vector3(0.5, 0.95, 14.0), 0.0],
-	["engine_room", Vector3(-28.5, 0.95, 24.0), 0.0],
-	["cargo_bay", Vector3(29.5, 0.95, 28.0), 0.0],
-	# The seam: standing in the spine looking into the fore arm. If the bend were left as a
-	# door there would be a lintel across the corner here.
-	["corridor_bend", Vector3(0.5, 0.95, -7.0), 0.0],
-	# Through the pod bay's port door into the life-support corridor, and on into the room.
-	["door_into_life_support", Vector3(-7.0, 0.95, 0.5), 90.0],
-	# Down the long starboard crossing into the cargo bay.
-	["door_into_cargo", Vector3(8.0, 0.95, 11.5), -90.0],
+	["bridge", Vector3(0.5, 0.95, -16.5), 0.0],
+	["kitchen", Vector3(-19.5, 0.95, -14.5), 0.0],
+	["life_support", Vector3(20.5, 0.95, -14.5), 0.0],
+	["bathroom", Vector3(-5.5, 0.95, -8.5), 0.0],
+	["janitor_closet", Vector3(4.5, 0.95, -10.5), 180.0],
+	["cryo_bay", Vector3(0.5, 0.95, 12.0), 0.0],
+	["engine_room", Vector3(-19.5, 0.95, 0.5), 180.0],
+	["cargo_bay", Vector3(20.5, 0.95, 8.0), 180.0],
+	["spine_from_cryo", Vector3(0.5, 0.95, -1.0), 0.0],
+	["bridge_hub_aft", Vector3(0.5, 0.95, -14.0), 180.0],
+	["engine_corridor", Vector3(-19.5, 0.95, -6.0), 180.0],
 ]
 
 

@@ -13,7 +13,7 @@
 
 [node name="Model" parent="." instance=ExtResource("1_model")]
 rotation_degrees = Vector3(180, 0, 0)
-scale = Vector3(0.06, 0.06, 0.06)
+scale = Vector3(0.09, 0.09, 0.09)
 position = Vector3(0, 0, 0)
 
 [node name="StaticBody3D" parent="Model/Socket" index="0"]

@@ -1,3 +1,4 @@
+@tool
 class_name RoomBuilder
 extends Node3D
 
@@ -162,9 +163,15 @@ func build() -> Node3D:
 	clear()
 	_built_root = Node3D.new()
 	_built_root.name = "Built"
+	# DELIBERATELY UNOWNED. This class is @tool, so build() also runs while the scene is merely
+	# open in the editor — that is what makes the ship visible in the viewport instead of an
+	# empty Node3D. Godot serialises only nodes that have an `owner`, so leaving it null is the
+	# single thing keeping several hundred generated boxes out of game.tscn on every save. Do
+	# not set owner here, and do not add these nodes through an EditorUndoRedo.
 	add_child(_built_root)
 
 	_assign_room_layers()
+
 
 	for room in rooms:
 		_build_floor(room)

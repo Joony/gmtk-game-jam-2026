@@ -211,6 +211,16 @@ func _run() -> void:
 	)
 
 	# --- Throw --------------------------------------------------------------
+	# Back to the start position first. The break-free sweep above walks the player 2.16m
+	# forward and never puts them back, so the throw used to happen from wherever that left
+	# them — fine while the room ahead was deep enough, and not fine the moment a redrawn ship
+	# moved the forward wall a metre closer: the item was placed 1.2m ahead into the window
+	# glass, wedged, and the impulse did nothing. The throw needs clear air in front of it, so
+	# it says so itself rather than inheriting a position from an unrelated test.
+	_player.global_position = Vector3(0.0, 0.9, -17.0)
+	_player.reset_physics_interpolation()
+	await _physics_frames(6)
+
 	pickup.linear_velocity = Vector3.ZERO
 	_place_in_front(pickup, 1.2)
 	await _physics_frames(3)

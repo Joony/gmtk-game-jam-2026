@@ -109,10 +109,5 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-; GL Compatibility caps how many lights a single MESH may receive. RoomBuilder emits one box
-; per floor and per ceiling, so the cargo bay's 21x33 floor is ONE mesh sitting under 28
-; ceiling fixtures — at the default 8 the renderer kept whichever it preferred for the current
-; view and the floor visibly dimmed as the camera turned. LightingController's per-room
-; culling keeps the TOTAL down; this is the per-surface half of the same problem.
-limits/opengl/max_lights_per_object=32
 limits/opengl/max_renderable_lights=128
+limits/opengl/max_lights_per_object=32

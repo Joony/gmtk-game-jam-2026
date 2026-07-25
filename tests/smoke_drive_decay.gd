@@ -190,7 +190,7 @@ func _run() -> void:
 		var at := hammer.global_position
 		_check(
 			"the hammer is in the janitor's closet (%.1f, %.1f)" % [at.x, at.z],
-			at.x > 2.2 and at.x < 7.8 and at.z > -8.8 and at.z < -4.2
+			at.x > 3.2 and at.x < 5.8 and at.z > -11.8 and at.z < -9.2
 		)
 		var closet_found := false
 		for room in (game.get_node("Ship") as RoomBuilder).rooms:

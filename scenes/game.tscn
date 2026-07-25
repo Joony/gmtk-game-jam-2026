@@ -28,6 +28,29 @@
 [ext_resource type="PackedScene" path="res://scenes/props/loose_cable.tscn" id="28_loose"]
 [ext_resource type="PackedScene" path="res://scenes/props/powered_device.tscn" id="29_device"]
 [ext_resource type="PackedScene" path="res://scenes/props/hammer.tscn" id="30_hammer"]
+[ext_resource type="PackedScene" uid="uid://bmisvpndl8giy" path="res://3D-Models/CD_BridgeTerminals_v1.blend" id="51_i4re6"]
+[ext_resource type="PackedScene" uid="uid://cd1low7fludhr" path="res://3D-Models/CD_Barrel_v1.blend" id="60_barrel"]
+[ext_resource type="PackedScene" uid="uid://bcbilscl5le33" path="res://3D-Models/CD_Bed_v2.blend" id="61_bed"]
+[ext_resource type="PackedScene" uid="uid://k2hu7fdf20na" path="res://3D-Models/CD_BedsideTable_v1.blend" id="62_bedsidetable"]
+[ext_resource type="PackedScene" uid="uid://c33u3j0lu1ojh" path="res://3D-Models/CD_Canister_Air_v1.glb" id="63_canisterair"]
+[ext_resource type="PackedScene" uid="uid://d3sawrxpt2rcg" path="res://3D-Models/CD_Canister_Beer_v1.glb" id="64_canisterbeer"]
+[ext_resource type="PackedScene" uid="uid://dbxibr6gydmkx" path="res://3D-Models/CD_Canister_Empty_v1.blend" id="65_canisterempty"]
+[ext_resource type="PackedScene" uid="uid://dvhjueha3qwv5" path="res://3D-Models/CD_Canister_Shit_v1.glb" id="66_canistershit"]
+[ext_resource type="PackedScene" uid="uid://by8fysgwsrh2n" path="res://3D-Models/CD_Counter_Corner_v1.blend" id="67_countercorner"]
+[ext_resource type="PackedScene" uid="uid://vq8k31ebujjp" path="res://3D-Models/CD_Counter_End_Left_v1.blend" id="68_counterleft"]
+[ext_resource type="PackedScene" uid="uid://duovt1gek5b1w" path="res://3D-Models/CD_Counter_End_Right_v1.blend" id="69_counterright"]
+[ext_resource type="PackedScene" uid="uid://c8dwl8fn32kj4" path="res://3D-Models/CD_Counter_Side_v1.blend" id="70_counterside"]
+[ext_resource type="PackedScene" uid="uid://bt75psnhvcj7l" path="res://3D-Models/CD_Counter_Sink_v1.blend" id="71_countersink"]
+[ext_resource type="PackedScene" uid="uid://dh3p1153cu6lc" path="res://3D-Models/CD_Crate_v1.1.blend" id="72_crate"]
+[ext_resource type="PackedScene" uid="uid://7eiaaugilfch" path="res://3D-Models/CD_Crate_Wide_v1.blend" id="73_cratewide"]
+[ext_resource type="PackedScene" uid="uid://baf0775u3gh55" path="res://3D-Models/CD_Crawler_v1.1.blend" id="74_crawler"]
+[ext_resource type="PackedScene" uid="uid://c3vunv43uvpie" path="res://3D-Models/CD_Locker_v1.blend" id="76_locker"]
+[ext_resource type="PackedScene" uid="uid://wtt1bkg10evu" path="res://3D-Models/CD_Pc_v2.1.blend" id="77_pc"]
+[ext_resource type="PackedScene" uid="uid://cgtrunexmdas4" path="res://3D-Models/CD_PipeDecor_v1.blend" id="78_pipe"]
+[ext_resource type="PackedScene" uid="uid://by5orinnve8pv" path="res://3D-Models/CD_Silo_Base_v1.blend" id="79_silo"]
+[ext_resource type="PackedScene" uid="uid://b5pjg087774jt" path="res://3D-Models/CD_Table_v1.blend" id="80_table"]
+[ext_resource type="PackedScene" uid="uid://5isik7np18km" path="res://3D-Models/CD_Terminal_v1.blend" id="81_terminal"]
+[ext_resource type="PackedScene" uid="uid://c7isht8e3y51" path="res://3D-Models/CD_VendingMachine_v1.blend" id="82_vending"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -57,7 +80,6 @@ transform = Transform3D(0.7, -0.42, 0.58, 0, 0.81, 0.58, -0.71, -0.41, 0.57, 0, 
 light_energy = 1.5
 light_cull_mask = 2
 
-; Hidden for now — kept in the scene so the arrival destination can be switched back on.
 [node name="Station" parent="." unique_id=1272130075 instance=ExtResource("12_station")]
 transform = Transform3D(0.87, 0, -0.5, 0, 1, 0, 0.5, 0, 0.87, -74, 6, 0)
 visible = false
@@ -75,38 +97,35 @@ oxygen_total = 210.0
 [node name="Ship" type="Node3D" parent="." unique_id=1323847786]
 script = ExtResource("8_ship")
 
-; No PlayerSpawn marker: the run opens with the player sealed in the stasis pod, so the pod's
-; own PodView (asleep inside) and PodExit (set down on waking) are the start positions.
-
 [node name="CryoStation" parent="." unique_id=341322163 instance=ExtResource("24_station")]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 6.5)
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0.5, 0, 5.5)
 
 [node name="StasisPod" parent="." unique_id=1635236617 instance=ExtResource("17_pod")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, 0, 9.78)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.5, 0, 8.78)
 
 [node name="CryoPodB" parent="." unique_id=1502149935 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.78, 0, 6.5)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.78, 0, 5.5)
 is_player_pod = false
 
 [node name="CryoPodC" parent="." unique_id=302848152 instance=ExtResource("17_pod")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 3.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 2.22)
 is_player_pod = false
 
 [node name="CryoPodD" parent="." unique_id=1478676635 instance=ExtResource("17_pod")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.78, 0, 6.5)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.78, 0, 5.5)
 is_player_pod = false
 
 [node name="SparePart1" parent="." unique_id=1949867003 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 13.5)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.2, 0.15, 11.5)
 
 [node name="SparePart2" parent="." unique_id=715025122 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 13.5)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 2.8, 0.15, 11.5)
 
 [node name="SparePart3" parent="." unique_id=1994039836 instance=ExtResource("18_part")]
-transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 13.5)
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 3.4, 0.15, 11.5)
 
 [node name="Computer" parent="." unique_id=1037937627 instance=ExtResource("22_computer")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10.75, 0, 6.5)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9.75, 0, 5.5)
 
 [node name="PickupA" parent="." unique_id=2143839495 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
@@ -114,66 +133,33 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.42, 1)
 [node name="PickupB" parent="." unique_id=545370907 instance=ExtResource("6_pickup")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.42, 1.9)
 
-; ENGINE ROOM PROPS. The drawing moved the engine room from the bow to port-aft and turned it
-; 90 degrees: it is now entered from the EAST wall (x=-18) and the drive wall is the WEST wall
-; (x=-39), which is the one you face walking in — the same relationship the old forward wall
-; had. Every prop below was carried over by one rigid transform, R_y(90 deg) about the
-; drive-wall centre: (x, z) -> (z - 17, 17.5 - x). Relative spacing is therefore untouched.
-;
-; Power cable on the drive wall (x=-39, room is x>-39 so +X faces into the room). One end
-; bolted to a source socket, the free end for the player to run to a device.
 [node name="PowerCable" parent="." unique_id=1935655553 instance=ExtResource("25_cable")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 14.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -18.5, 1.3, 6.905)
 
-; Portable battery — charge it from a wall cable, carry it to a device with no socket in reach.
 [node name="BatteryCube" parent="." unique_id=2089062277 instance=ExtResource("26_battery")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -36, 0.25, 16.1)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -16.5, 0.4, 6)
 
-; Wall sockets on the drive wall. A live SOURCE outlet plus two inlets the loose cable can be
-; run to. The drive wall carries no window, so unlike the old forward wall there is nothing
-; here to dodge.
 [node name="WallSocketSource" parent="." unique_id=1966765763 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 13.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -17.5, 1.3, 6.905)
 is_power_source = true
 
 [node name="WallSocketA" parent="." unique_id=643797883 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 12.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -16.5, 1.3, 6.905)
 
 [node name="WallSocketB" parent="." unique_id=1277330107 instance=ExtResource("27_wallsocket")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.91, 1.3, 22.2)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -22.5, 1.3, 6.905)
 
-; A loose extension cable on the floor near the outlet, for the player to run to a socket.
 [node name="LooseCable" parent="." unique_id=1348615771 instance=ExtResource("28_loose")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -37, 0.3, 13.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -17.5, 0.2, 5.5)
 
-; AUX POWER: a system fixable ONLY by a power feed, set ~11 m from the wall outlet — no socket
-; in reach, so it forces the choice: run a long cable, or charge the battery and carry it here.
-; Phase 6, the cables' reason to exist. The 21x21 room keeps that distance intact.
 [node name="PoweredDevice" parent="." unique_id=193438824 instance=ExtResource("29_device")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -31, 0, 20.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -22.8, 0, -0.8)
 
-; The ship's hammer, on the floor of the janitor's closet (the 6x5m room off the spine's
-; starboard side, x 2..8 / z -9..-4 — see scripts/level/ship_layout.gd). It is the ONLY way
-; to bodge a fault shut, so this trip is the price of having a patch route at all. Set against
-; the back wall rather than in the doorway: you have to go in, not just glance in. The door is
-; in the WEST wall at z=-6.5, so the back wall is now the east one — hence x=7, not x=3.5.
 [node name="Hammer" parent="." unique_id=1103477261 instance=ExtResource("30_hammer")]
-; Tipped 90 degrees about X so it LIES on the floor. Left upright it stands balanced on
-; the end of its own handle, which reads as placed rather than put down.
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 7, 0.07, -6.5)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 4.5, 0.07, -9.6)
 
-; The fault the run OPENS on. Already broken before the first frame (starts_broken), which is
-; why the ship is waking the player at all: they are not coming out on schedule, the klaxon is
-; getting them up. Deliberately the cheapest critical on the ship — 10% and a slow bleed — so
-; the opening teaches the loop (hear it, walk the ship, find the panel, choose a route) without
-; pricing a first run out of a win.
-;
-; Engine room AFT wall (z=28, room is z<28 so -Z faces into it). Under the 90-degree rotation
-; the old port wall becomes this one; the rigid map alone would leave the panel floating at
-; z=23.33, because the room grew from 10m deep to 21m, so it is seated on the real wall at
-; 0.17m clearance — the same clearance it had before. Still one corner round from the drive.
 [node name="DriveRegulator" type="Node3D" parent="." unique_id=1704392233 groups=["malfunctions"]]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -37.5, 1.3, 27.83)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -23.83, 1.3, 4)
 script = ExtResource("15_malfunction")
 system_name = "DRIVE REGULATOR"
 fault_text = "output regulator stuck open"
@@ -189,7 +175,7 @@ patch_text = "Knock the regulator loose"
 fit_text = "Fit a spare regulator"
 
 [node name="MainDrive" type="Node3D" parent="." unique_id=954662472 groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -38.83, 1.3, 21.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -21.5, 1.3, 6.83)
 script = ExtResource("15_malfunction")
 system_name = "MAIN DRIVE"
 fault_text = "injector coupling failed"
@@ -205,7 +191,7 @@ patch_text = "Clamp the coupling"
 fit_text = "Fit a spare coupling"
 
 [node name="O2Scrubber" type="Node3D" parent="." unique_id=1384330610 groups=["malfunctions"]]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.83, 1.3, -8)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.83, 1.3, -8)
 script = ExtResource("15_malfunction")
 system_name = "O2 SCRUBBER"
 fault_text = "CO2 saturating, you are breathing harder"
@@ -220,10 +206,8 @@ repair_oxygen_bonus = 30.0
 patch_text = "Bleed the scrubber"
 fit_text = "Fit a spare cartridge"
 
-; Engine room FORE wall (z=7, room is z>7 so +Z faces into it). The old starboard wall under
-; the same 90-degree rotation, seated on the real wall for the same reason as DriveRegulator.
 [node name="CoolantLoop" type="Node3D" parent="." unique_id=999796197 groups=["malfunctions"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 0, 7.17)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -15.17, 0, 2.5)
 script = ExtResource("15_malfunction")
 system_name = "COOLANT LOOP"
 fault_text = "coolant line split, venting"
@@ -238,7 +222,7 @@ bodge_oxygen_cost = 25.0
 fit_text = "Fit a machined sleeve"
 
 [node name="NavArray" type="Node3D" parent="." unique_id=2085409010 groups=["malfunctions"]]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.83, 1.3, -2)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -8.83, 1.3, -2)
 script = ExtResource("15_malfunction")
 system_name = "NAV ARRAY"
 fault_text = "drifting off course"
@@ -265,3 +249,185 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.64972794, 0)
 [node name="NavScreen" parent="." unique_id=1200580728 instance=ExtResource("23_navscreen")]
 
 [node name="RunEnd" parent="." unique_id=1278206934 instance=ExtResource("20_runend")]
+
+[node name="Decor" type="Node3D" parent="." unique_id=1438674541]
+
+[node name="CargoCrawlerA" parent="Decor" unique_id=1111142863 instance=ExtResource("74_crawler")]
+transform = Transform3D(0.71, 0, 0, 0, 0.71, 0, 0, 0, 0.71, 17.2, 0, 1.9)
+
+[node name="CargoCrawlerB" parent="Decor" unique_id=1021159487 instance=ExtResource("74_crawler")]
+transform = Transform3D(-0.71, 0, 8.69499e-17, 0, 0.71, 0, -8.69499e-17, 0, -0.71, 23.3, 0, 10)
+
+[node name="CargoCrate1" parent="Decor" unique_id=566350411 instance=ExtResource("72_crate")]
+transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 14, 0, 7.5)
+
+[node name="CargoCrate2" parent="Decor" unique_id=234037641 instance=ExtResource("72_crate")]
+transform = Transform3D(0.478152, 0, 0.146186, 0, 0.5, 0, -0.146186, 0, 0.478152, 15.2, 0, 7.5)
+
+[node name="CargoCrate3" parent="Decor" unique_id=1442184869 instance=ExtResource("72_crate")]
+transform = Transform3D(0.414519, 0, 0.279596, 0, 0.5, 0, -0.279596, 0, 0.414519, 14.6, 1, 7.5)
+
+[node name="CargoCrate4" parent="Decor" unique_id=1320822643 instance=ExtResource("72_crate")]
+transform = Transform3D(0.490814, 0, 0.0954045, 0, 0.5, 0, -0.0954045, 0, 0.490814, 14, 0, 9)
+
+[node name="CargoCrate5" parent="Decor" unique_id=251082312 instance=ExtResource("72_crate")]
+transform = Transform3D(0.441474, 0, 0.234736, 0, 0.5, 0, -0.234736, 0, 0.441474, 15.2, 0, 9)
+
+[node name="CargoCrate6" parent="Decor" unique_id=708229565 instance=ExtResource("72_crate")]
+transform = Transform3D(0.498097, 0, 0.0435779, 0, 0.5, 0, -0.0435779, 0, 0.498097, 14.6, 1, 9)
+
+[node name="CargoCrate7" parent="Decor" unique_id=1422811580 instance=ExtResource("72_crate")]
+transform = Transform3D(0.463592, 0, 0.187303, 0, 0.5, 0, -0.187303, 0, 0.463592, 17.5, 0, 12.6)
+
+[node name="CargoCrate8" parent="Decor" unique_id=1732034513 instance=ExtResource("72_crate")]
+transform = Transform3D(0.388573, 0, 0.31466, 0, 0.5, 0, -0.31466, 0, 0.388573, 18.7, 0, 12.6)
+
+[node name="CargoCrateWide1" parent="Decor" unique_id=1721611867 instance=ExtResource("73_cratewide")]
+transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 21, 0, 12.8)
+
+[node name="CargoCrateWide2" parent="Decor" unique_id=882028919 instance=ExtResource("73_cratewide")]
+transform = Transform3D(0.498782, 0, 0.0348782, 0, 0.5, 0, -0.0348782, 0, 0.498782, 22.3, 0, 12.8)
+
+[node name="CargoBarrel1" parent="Decor" unique_id=180792749 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.299, 0, 0, 0, 0.299, 0, 0, 0, 0.299, 22.5, 0, 1.2)
+
+[node name="CargoBarrel2" parent="Decor" unique_id=1647698932 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.238792, 0, 0.179943, 0, 0.299, 0, -0.179943, 0, 0.238792, 23.2, 0, 1.9)
+
+[node name="CargoBarrel3" parent="Decor" unique_id=1643065072 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.0824156, 0, 0.287417, 0, 0.299, 0, -0.287417, 0, 0.0824156, 22.8, 0, 2.7)
+
+[node name="CargoBarrel4" parent="Decor" unique_id=1813083117 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.279141, 0, 0.107152, 0, 0.299, 0, -0.107152, 0, 0.279141, 24.1, 0, 1.3)
+
+[node name="CargoBarrel5" parent="Decor" unique_id=1825607811 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.158446, 0, 0.253566, 0, 0.299, 0, -0.253566, 0, 0.158446, 24.8, 0, 2.1)
+
+[node name="CargoBarrel6" parent="Decor" unique_id=51254956 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.297862, 0, 0.0260596, 0, 0.299, 0, -0.0260596, 0, 0.297862, 23.9, 0, 3.1)
+
+[node name="CargoBarrel7" parent="Decor" unique_id=161866672 instance=ExtResource("60_barrel")]
+transform = Transform3D(0.2222, 0, 0.20007, 0, 0.299, 0, -0.20007, 0, 0.2222, 25.6, 0, 1.5)
+
+[node name="CargoCanister1" parent="Decor" unique_id=2086289170 instance=ExtResource("63_canisterair")]
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 26.9, 0, 5.2)
+
+[node name="CargoCanister2" parent="Decor" unique_id=969932717 instance=ExtResource("64_canisterbeer")]
+transform = Transform3D(0.114945, 0, 0.164158, 0, 0.2004, 0, -0.164158, 0, 0.114945, 26.4, 0, 5.9)
+
+[node name="CargoCanister3" parent="Decor" unique_id=202266784 instance=ExtResource("66_canistershit")]
+transform = Transform3D(-0.0685408, 0, 0.188314, 0, 0.2004, 0, -0.188314, 0, -0.0685408, 27, 0, 6.6)
+
+[node name="CargoCanister4" parent="Decor" unique_id=1024973903 instance=ExtResource("65_canisterempty")]
+transform = Transform3D(-0.193572, 0, 0.0518673, 0, 0.2004, 0, -0.0518673, 0, -0.193572, 26.3, 0, 7.3)
+
+[node name="CargoPipeA" parent="Decor" unique_id=1582446960 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 13.25, 0.15, 2)
+
+[node name="CargoPipeB" parent="Decor" unique_id=1641591997 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 27.75, 0.15, 12)
+
+[node name="EnginePipeA" parent="Decor" unique_id=404325264 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -23.75, 0.15, 0.5)
+
+[node name="EnginePipeB" parent="Decor" unique_id=1405648238 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -23.75, 0.15, 6.2)
+
+[node name="EnginePipeC" parent="Decor" unique_id=1132296316 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -15.25, 0.15, 5.8)
+
+[node name="EnginePipeD" parent="Decor" unique_id=1338757569 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -15.25, 0.15, 0.3)
+
+[node name="CryoBedA" parent="Decor" unique_id=1256647294 instance=ExtResource("61_bed")]
+transform = Transform3D(0.5238, 0, 0, 0, 0.5238, 0, 0, 0, 0.5238, -8, 0, 7.5)
+
+[node name="CryoBedB" parent="Decor" unique_id=1488071101 instance=ExtResource("61_bed")]
+transform = Transform3D(0.5238, 0, 0, 0, 0.5238, 0, 0, 0, 0.5238, -8, 0, 10.5)
+
+[node name="CryoBedsideTable" parent="Decor" unique_id=1992991265 instance=ExtResource("62_bedsidetable")]
+transform = Transform3D(0.24, 0, 0, 0, 0.24, 0, 0, 0, 0.24, -8, 0, 9)
+
+[node name="CryoLocker1" parent="Decor" unique_id=734327518 instance=ExtResource("76_locker")]
+transform = Transform3D(2.44929e-17, 0, -0.4, 0, 0.4, 0, 0.4, 0, 2.44929e-17, 9.6, 0, 8)
+
+[node name="CryoLocker2" parent="Decor" unique_id=1072608225 instance=ExtResource("76_locker")]
+transform = Transform3D(2.44929e-17, 0, -0.4, 0, 0.4, 0, 0.4, 0, 2.44929e-17, 9.6, 0, 8.8)
+
+[node name="CryoLocker3" parent="Decor" unique_id=493740190 instance=ExtResource("76_locker")]
+transform = Transform3D(2.44929e-17, 0, -0.4, 0, 0.4, 0, 0.4, 0, 2.44929e-17, 9.6, 0, 9.6)
+
+[node name="CryoLocker4" parent="Decor" unique_id=1944469044 instance=ExtResource("76_locker")]
+transform = Transform3D(2.44929e-17, 0, -0.4, 0, 0.4, 0, 0.4, 0, 2.44929e-17, 9.6, 0, 10.4)
+
+[node name="CryoPipeA" parent="Decor" unique_id=1856453147 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -8.75, 0.15, 13.5)
+
+[node name="CryoPipeB" parent="Decor" unique_id=53663769 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 9.75, 0.15, 13.5)
+
+[node name="BridgePc" parent="Decor" unique_id=1948851616 instance=ExtResource("77_pc")]
+transform = Transform3D(0.34879997, 0, -3.0493062e-08, 0, 0.34879997, 0, 3.0493062e-08, 0, 0.34879997, 0.31883144, 0.9997636, -18.369778)
+
+[node name="BridgeTerminal" parent="Decor" unique_id=1518257342 instance=ExtResource("81_terminal")]
+transform = Transform3D(-0.425, 0, 5.20475e-17, 0, 0.425, 0, -5.20475e-17, 0, -0.425, 4, 0, -19)
+
+[node name="BridgePipeA" parent="Decor" unique_id=2006130193 instance=ExtResource("78_pipe")]
+transform = Transform3D(-1.3113417e-08, 0, 0.3, 0, 0.3, 0, -0.3, 0, -1.3113417e-08, -6.9233437, 0.15, -13)
+
+[node name="BridgePipeB" parent="Decor" unique_id=199153821 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 7.75, 0.15, -13)
+
+[node name="MessCounter1" parent="Decor" unique_id=1250818710 instance=ExtResource("68_counterleft")]
+transform = Transform3D(0.45, 0, 0, 0, 0.45, 0, 0, 0, 0.45, -23.473558, 0, -17.651503)
+
+[node name="MessCounter2" parent="Decor" unique_id=1175086296 instance=ExtResource("70_counterside")]
+transform = Transform3D(-1.9670125e-08, 0, -0.45, 0, 0.45, 0, 0.45, 0, -1.9670125e-08, -22.6, 0, -18.55)
+
+[node name="MessCounter3" parent="Decor" unique_id=748377952 instance=ExtResource("71_countersink")]
+transform = Transform3D(-1.9670125e-08, 0, -0.45, 0, 0.45, 0, 0.45, 0, -1.9670125e-08, -21.7, 0, -18.55)
+
+[node name="MessCounter4" parent="Decor" unique_id=1655667147 instance=ExtResource("70_counterside")]
+transform = Transform3D(-1.9670123e-08, 0, -0.44999996, 0, 0.45, 0, 0.44999996, 0, -1.9670123e-08, -20.8, 0, -18.55)
+
+[node name="MessCounter5" parent="Decor" unique_id=906771891 instance=ExtResource("69_counterright")]
+transform = Transform3D(-1.9670125e-08, 0, -0.45, 0, 0.45, 0, 0.45, 0, -1.9670125e-08, -19.9, 0, -18.55)
+
+[node name="MessCounterCorner" parent="Decor" unique_id=97938637 instance=ExtResource("67_countercorner")]
+transform = Transform3D(0.44999996, 0, 0, 0, 0.45, 0, 0, 0, 0.44999996, -23.471783, 0, -18.550797)
+
+[node name="MessTable" parent="Decor" unique_id=257792684 instance=ExtResource("80_table")]
+transform = Transform3D(0.35, 0, 0, 0, 0.35, 0, 0, 0, 0.35, -21.203697, 0.0074317455, -14.354533)
+
+[node name="MessVending" parent="Decor" unique_id=781935374 instance=ExtResource("82_vending")]
+transform = Transform3D(-2.6226834e-08, 0, -0.6, 0, 0.6, 0, 0.6, 0, -2.6226834e-08, -15.55, 0, -17.5)
+
+[node name="MessSilo" parent="Decor" unique_id=1040569905 instance=ExtResource("79_silo")]
+transform = Transform3D(-0.142857, 0, -1.2488956e-08, 0, 0.142857, 0, 1.2488956e-08, 0, -0.142857, -16.42515, 0, -10.735085)
+
+[node name="BathroomSilo" parent="Decor" unique_id=1259607012 instance=ExtResource("79_silo")]
+transform = Transform3D(0.114286, 0, 0, 0, 0.114286, 0, 0, 0, 0.114286, -3, 0, -6)
+
+[node name="BathroomPipe" parent="Decor" unique_id=435775929 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -8.75, 0.15, -11.3)
+
+[node name="LifeSilo1" parent="Decor" unique_id=1214915468 instance=ExtResource("79_silo")]
+transform = Transform3D(0.171429, 0, 0, 0, 0.171429, 0, 0, 0, 0.171429, 18, 0, -17)
+
+[node name="LifeSilo2" parent="Decor" unique_id=862294574 instance=ExtResource("79_silo")]
+transform = Transform3D(0.171429, 0, 0, 0, 0.171429, 0, 0, 0, 0.171429, 21, 0, -17)
+
+[node name="LifeSilo3" parent="Decor" unique_id=241507708 instance=ExtResource("79_silo")]
+transform = Transform3D(0.171429, 0, 0, 0, 0.171429, 0, 0, 0, 0.171429, 24, 0, -17)
+
+[node name="LifePipeA" parent="Decor" unique_id=956488146 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 16.25, 0.15, -11.5)
+
+[node name="LifePipeB" parent="Decor" unique_id=430804191 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 24.75, 0.15, -11.5)
+
+[node name="SpinePipe" parent="Decor" unique_id=369080505 instance=ExtResource("78_pipe")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 1.75, 0.15, -10.5)
+
+[node name="CD_BridgeTerminals_v1" parent="Decor" unique_id=1866717669 instance=ExtResource("51_i4re6")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.46991146, 0, -19.922993)

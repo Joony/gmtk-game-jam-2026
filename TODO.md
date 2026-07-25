@@ -279,6 +279,20 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
         (`LightingController.bind_occupancy`), `max_lights_per_object` 8 → 32, and one visual
         layer per room so shadowless omnis stop shining through walls. Floor-luminance spread
         across camera yaw: 23–44% → 1–5%
+  - [ ] **Engine model** — removed from `scenes/game.tscn` pending a replacement. The
+        wrapper is still there and ready: instance `scenes/props/engine.tscn` back into the
+        `Decor` node and repoint its model. CD_Engine_v3 was pulled because its animation
+        squashes and stretches — the exporter baked a rotation into scale keys, which glTF
+        forces when a child rotates inside a non-uniformly scaled parent (`Middle` was
+        1.65 x 0.404 x 0.667). The replacement needs UNIFORM scale on the parent objects
+        (they need not be 1). See `LoopingModelAnimation` for the detail and for why the
+        four exported clips must not be merged.
+  - [x] **Editor preview** — `RoomBuilder`, `ShipLayout`, `Room`, `Doorway` and `SlidingDoor`
+        are `@tool`, so the ship's floors, walls, windows, doors and ceilings build in the
+        editor viewport instead of only on play. Tick `rebuild` on the Ship node after
+        editing a rectangle. The generated nodes are deliberately UNOWNED so Godot never
+        serialises them into game.tscn — verified byte-identical across an editor
+        open+quit. SlidingDoor's proximity polling is skipped under `is_editor_hint`.
   - [ ] Cargo bay airlock — the drawing has no hull door yet
   - [ ] Fill the five new rooms with props; they are empty shells right now
 - [x] **Left behind:** `ItemManager.gd`, `Puzzles/`, `items/`, `Models/`, `AudioController`,
@@ -1190,3 +1204,110 @@ A `StandardMaterial3D` with `transparency = ALPHA`, a very low albedo alpha and 
 the omni highlight and a faint tint with no shader work at all — perhaps fifteen minutes. What it
 cannot do is the Fresnel, so the glass is equally visible head-on as at an angle, which reads as a
 dirty perspex sheet rather than glass. Acceptable as a submission-day compromise; not the target.
+
+---
+
+## 17. Needs & supply countdowns — SPEC (not yet built)
+
+**Theme fit.** The jam theme is *Countdown* and the ship currently runs three: distance to
+arrival, oxygen, and drive %. This turns survival itself into countdowns, and — more
+importantly — makes solving one **start** another. That is the stated tone (*The Martian* —
+"solutions that create tomorrow's problem") expressed as mechanics rather than flavour text.
+
+### 17a. It is ONE mechanic, six times over — build it once
+
+Every item below is the same shape: *a thing that runs down (or fills up), and a consumable you
+fetch to reset it*. Build two components and configure them; do not write six systems.
+
+- [ ] `Need` — a countdown that runs **only while awake** (see 17e), emits at thresholds, and
+      fires a consequence at zero. Owns its own HUD row. Hunger, thirst, bladder, CO2.
+- [ ] `Silo` — a fixed container with a 0..1 level that either **drains** (a supply: O2, beer,
+      power) or **fills** (a waste: the toilet). Accepts one `consumable_type`; interacting with
+      a matching carried item transfers one unit. Reuse `CD_Silo_Base_v1`, already placed in
+      life support, the mess and the bathroom.
+- [ ] `Consumable` — a carryable tagged with a type (`o2`, `beer`, `food`, `battery`, `empty`)
+      that a `Silo` or a `Need` accepts. The canister art already exists and already maps
+      one-to-one: `CD_Canister_Air_v1`, `_Beer_`, `_Shit_`, `_Empty_`.
+- [ ] One `smoke_needs.gd` covering the component pair, not six near-identical suites.
+
+### 17b. The six systems
+
+| # | Countdown | Where it is fixed | Consumable | Source | On zero |
+|---|---|---|---|---|---|
+| 1 | **CO2 → narcosis** | Life support silo | O2 canister | Cargo bay | Narcosis — the one new LETHAL |
+| 2 | **Hunger** | Vending machine (mess) | Food item | Vending, restocked from food crates in cargo | Degrade: slower, then collapse |
+| 3 | **Thirst** | Beer silo (mess) | Beer canister | Cargo bay | Degrade |
+| 4 | **Bladder** | Toilet (bathroom) | — (an action, not an item) | Caused by 3 | Degrade + indignity |
+| 5 | **Crap silo** | Toilet silo — FILLS | Empty canister to pump out | Cargo bay | Explosion |
+| 6 | **Power/fuel** | Engine | Battery | Cargo bay | Drive stops |
+
+- [ ] **Change the existing O2 SCRUBBER malfunction.** It currently applies
+      `speed_penalty = 0.1` + `oxygen_drain_multiplier = 1.6` — i.e. it attacks the drive and
+      the oxygen budget. Per this spec it should instead start the CO2 countdown. Keep
+      `repair_oxygen_bonus`; drop the drive penalty.
+
+### 17c. The chain is the best idea here — protect it
+
+Drink beer → bladder fills → use the toilet → the crap silo fills → it will explode unless you
+carry empty canisters from the cargo bay. **Fixing thirst is what creates the toilet problem,
+and using the toilet is what creates the explosion problem.** Nothing else in the game
+currently does this. If any part of this spec gets cut for time, cut around this chain, not
+through it.
+
+### 17d. THE PROBLEM TO SOLVE FIRST: six needs do not fit in the oxygen budget
+
+Measured, not estimated:
+
+- The cargo bay is **67.1 m** from the pod — the furthest room but one. A round trip is 134 m.
+- `Carry` holds exactly **one** item (`carry.gd`, `var _held: RigidBody3D`). One trip, one can.
+- At `max_speed = 7.0` that is **~19 s per trip**, ~8% of the 240 s oxygen total. Realistically
+  20–25 s with acceleration and door waits.
+- **Six supply runs ≈ 115 s ≈ 48% of the entire oxygen budget** — before a single repair, and
+  the ship already ships a broken drive regulator at t=0.
+
+Add six needs as specified and the run is unwinnable. Pick at least one of these before
+building anything:
+
+- [ ] **Multi-carry** — a crate or trolley holding 3–4 canisters, so a supply run is one trip
+      that services several needs. Best option: it makes the cargo bay a *planning* problem
+      ("what do I need this trip?") instead of a treadmill.
+- [ ] **Stagger, don't stack** — only 1–2 needs are ever live in a run; which ones is
+      randomised, like malfunctions already are. Cheapest option.
+- [ ] **Long fuses** — each need takes several wakings to become urgent, so a trip services it
+      for a long time.
+- [ ] **Distribute the sources** — not everything from the cargo bay. Beer in the mess, spare
+      O2 in life support. Reduces travel and makes rooms mean something.
+
+### 17e. Open questions to settle before coding
+
+- [ ] **Do needs tick in stasis?** They must NOT, or a long haul kills you asleep. Same rule as
+      oxygen (`stasis_oxygen_rate`). State it explicitly: the pod pauses the body.
+- [ ] **How many fail states?** Nine countdowns × "you died" is a bad ending screen.
+      Recommendation: **only CO2 narcosis and the crap-silo explosion are lethal**; hunger,
+      thirst and bladder degrade (slower movement, narrowed vision, dropped items) and power
+      loss stops the drive (which the distance countdown already punishes).
+- [ ] **HUD budget.** Oxygen + arrival + drive is already three readouts. Nine is a dashboard.
+      Show a need's row only once it crosses a threshold, so the HUD grows as things get bad.
+- [ ] **What does the vending machine's two-stage restock add?** Hunger → vending → food crate
+      is one hop longer than every other need. Justify it or flatten it.
+
+### 17f. Assets
+
+- [x] Already present: `CD_Canister_Air/Beer/Shit/Empty`, `CD_Silo_Base_v1`,
+      `CD_VendingMachine_v1`, `CD_Crate_v1.1`, `CD_Cake_v1`, `CD_Can_v1`, `CD_Tp_v1`
+- [ ] **Toilet model** — needed, does not exist
+- [ ] **New battery model with charge rings** — rings show charge level. Note `CD_Battery_v1`
+      exists and `battery_cube.tscn` already derives its charge bars from its own collision box
+      (`_half_extent()`), so a ring-based indicator should follow that pattern rather than
+      hardcoding sizes
+- [ ] A few of the new batteries placed in the cargo bay
+- [ ] Small food crates in the cargo bay
+
+### 17g. Build order
+
+1. [ ] `Silo` + `Consumable`, proven on ONE system (CO2 / life support / O2 canisters)
+2. [ ] Decide 17d and 17e — they change the shape of everything after this
+3. [ ] `Need` + HUD rows, proven on CO2
+4. [ ] Power/batteries (no new art dependency beyond the battery model)
+5. [ ] The thirst → bladder → toilet → crap chain, as one unit (17c)
+6. [ ] Hunger + vending restock last — it is the least novel and has the extra hop

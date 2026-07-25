@@ -169,10 +169,19 @@ func _run() -> void:
 	_check("the cable exits the plug along its back axis (dot=%.2f)" % seg.dot(exit), seg.dot(exit) > 0.85)
 
 	# --- Seated plug follows a moving socket -----------------------------------------------
-	socket.global_position = _cam.global_position + forward * 1.0
+	# Lifted by SEAT_MODEL_Y so the SEATED PLUG, not the socket, ends up on the camera axis. A
+	# seated plug hangs that far below its socket, so aiming at the socket's own height only
+	# ever clipped the top edge of the plug's collision box — it happened to work at the plug's
+	# original scale and is a coin flip at any other.
+	socket.global_position = _cam.global_position + forward * 1.0 + Vector3.UP * CablePlug.SEAT_MODEL_Y
 	await _physics_frames(6)
-	_check("the seated plug follows the moved socket",
-		plug.global_position.distance_to(socket.global_position) < 0.3)
+	# The plug sits SEAT_STANDOFF out along the socket's +Z and SEAT_MODEL_Y down, so it is
+	# never AT the socket. Derived rather than a hardcoded 0.3, which the constants had grown
+	# to within 5mm of.
+	var seat_offset := Vector2(CablePlug.SEAT_STANDOFF, CablePlug.SEAT_MODEL_Y).length()
+	_check("the seated plug follows the moved socket (%.3f m away, seat offset %.3f)"
+			% [plug.global_position.distance_to(socket.global_position), seat_offset],
+		plug.global_position.distance_to(socket.global_position) < seat_offset + 0.05)
 
 	# --- Re-grab a seated plug: it unseats and power dies ----------------------------------
 	_check("the seated plug is targetable again", _interactor.current == plug)

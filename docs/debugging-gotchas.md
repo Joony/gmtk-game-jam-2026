@@ -26,6 +26,20 @@ The format is deliberately blunt: **symptom → cause → fix**, plus where it b
   backwards mount.
 - **Bit us in:** the cryo pod wrapper (`cryo_pod.tscn`) and every wall-mounted panel.
 
+### `timeout` does not exist on macOS
+
+- **Symptom:** a verification command "passed" instantly and its evidence file was never
+  written — twice — leading to the wrong conclusion that a `@tool` build was not running in
+  the editor.
+- **Cause:** `timeout ... godot --editor ...` fails with `command not found` (it is GNU
+  coreutils; macOS ships `gtimeout` only if coreutils is installed). The pipeline then greps
+  empty output, `grep -c` reports 0 errors, and the run reads as a clean pass. **The command
+  under test never executed at all.**
+- **Fix:** don't wrap Godot in `timeout` — `--quit-after <frames>` makes it exit on its own.
+  More generally: when a check's only evidence is the ABSENCE of output, prove the command
+  actually ran before trusting it.
+- **Bit us in:** verifying the editor-preview (`@tool`) work.
+
 ### Visual layers are a project-wide namespace with no owner
 
 - **Symptom:** after giving each room its own visual layer, the cryo bay's floor and two of its

@@ -1,3 +1,4 @@
+@tool
 class_name SlidingDoor
 extends Node3D
 
@@ -300,6 +301,11 @@ func _on_body_exited(body: Node3D) -> void:
 # so it closes the moment the player unplugs or drags the line clear. Opening stays player-only (the
 # trigger) — a cable lying near a CLOSED door must never make it yawn open by itself.
 func _physics_process(delta: float) -> void:
+	# In the editor the door is set dressing: it is BUILT so the opening reads correctly in the
+	# viewport, but nothing drives it. Proximity polling there would chase a player that does
+	# not exist, and create_tween() outside a running scene is a needless liability.
+	if Engine.is_editor_hint():
+		return
 	if not is_open or _occupants > 0:
 		return
 	_recheck_accum += delta

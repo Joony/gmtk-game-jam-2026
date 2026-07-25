@@ -5,17 +5,24 @@
 [ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="3_receptacle"]
 
 ; A wall-mounted socket you plug a cable into (look + E). Mount with +Z into the room (its -Z is the
-; wall side). `is_power_source` makes it a live outlet; leave it off for a device inlet. The
+; wall side).
+;
+; MOUNT DISTANCE: the receptacle's back plate sits ON this node's origin, so the origin belongs on
+; the wall's inner FACE plus a hair. RoomBuilder puts that face wall_thickness/2 = 0.075 m in from
+; the wall line, so mount at ~0.095 — NOT at the 0.17 m the repair panels use (their housing is
+; centred, so it needs the extra room), which leaves the socket floating visibly off the wall.
+; Do not mount at exactly 0.075 either: the back plate then sits coplanar with the wall face and
+; the two z-fight. The ~0.02 m of daylight is what stops that. `is_power_source` makes it a live outlet; leave it off for a device inlet. The
 ; StaticBody box lets the camera ray hit the faceplate; a seated plug is excepted from it.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_face"]
-size = Vector3(0.24, 0.24, 0.08)
+size = Vector3(0.36, 0.36, 0.12)
 
 [node name="WallSocket" type="StaticBody3D"]
 script = ExtResource("1_wall")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.045)
 shape = SubResource("BoxShape3D_face")
 
 [node name="Port" type="Node3D" parent="."]

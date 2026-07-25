@@ -23,9 +23,9 @@ var _dir: String = "user://"
 # centres: the pod bay's centre is inside the CryoStation furnace and the engine room's is
 # among the drive props, so a centre sample measures those meshes rather than the floor.
 const SPOTS := [
-	{"name": "cargo_bay", "at": Vector3(29.5, 0.95, 15.5)},
-	{"name": "pod_bay", "at": Vector3(7.0, 0.95, 12.0)},
-	{"name": "engine_room", "at": Vector3(-30.0, 0.95, 13.0)},
+	{"name": "cargo_bay", "at": Vector3(20.5, 0.95, 8.0)},
+	{"name": "cryo_bay", "at": Vector3(6.0, 0.95, 11.0)},
+	{"name": "engine_room", "at": Vector3(-19.5, 0.95, 2.5)},
 ]
 const YAWS := [0, 90, 180, 270]
 
@@ -122,7 +122,7 @@ func _go() -> void:
 	var worst_at := ""
 	for probe in [["floor", 0.0, -70.0], ["fore wall", 0.0, 0.0], ["stbd wall", -90.0, 0.0],
 			["aft wall", 180.0, 0.0], ["port wall", 90.0, 0.0]]:
-		_player.global_position = Vector3(7.0, 0.95, 12.0)
+		_player.global_position = Vector3(6.0, 0.95, 11.0)
 		_player.reset_physics_interpolation()
 		_camera.set_look(deg_to_rad(float(probe[1])), deg_to_rad(float(probe[2])))
 		await _frames(14)
@@ -140,7 +140,7 @@ func _go() -> void:
 		if redness < worst:
 			worst = redness
 			worst_at = String(probe[0])
-		print("[alert] pod bay %-10s redness %.2f" % [probe[0], redness])
+		print("[alert] cryo bay %-9s redness %.2f" % [probe[0], redness])
 	print("[alert] weakest surface: %s at %.2f  %s" % [worst_at, worst,
 		"OK - every surface is red-lit" if worst > 1.0 else "*** a surface is not red ***"])
 

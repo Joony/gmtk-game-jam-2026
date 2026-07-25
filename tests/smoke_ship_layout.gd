@@ -4,7 +4,7 @@ extends SceneTree
 # (docs/features/ship-layout.md). smoke_room_builder.gd covers the BUILDER — this covers the
 # LAYOUT, which that suite only asserts `rooms.size() >= 3` about. A wrong ship passes there.
 #
-# Every expectation below is derived from room_layout_3.png, not from ship_layout.gd, so this
+# Every expectation below is derived from room_layout_5.png, not from ship_layout.gd, so this
 # fails if the code drifts from the drawing.
 #
 # Run: godot --headless --path . -s tests/smoke_ship_layout.gd
@@ -13,23 +13,27 @@ var _failures: Array[String] = []
 
 # id -> Rect2i, straight off the decoded image.
 const EXPECTED_ROOMS := {
-	"bridge": Rect2i(-9, -22, 19, 10),
-	"kitchen": Rect2i(10, -17, 11, 11),
-	"bathroom": Rect2i(-8, -12, 7, 8),
-	"janitor_closet": Rect2i(2, -9, 6, 5),
-	"life_support": Rect2i(-29, -6, 13, 13),
-	"pod_bay": Rect2i(-10, -4, 21, 21),
-	"engine_room": Rect2i(-39, 7, 21, 21),
-	"cargo_bay": Rect2i(19, -1, 21, 33),
+	"bridge": Rect2i(-7, -21, 15, 9),
+	"kitchen": Rect2i(-24, -19, 9, 9),
+	"life_support": Rect2i(16, -19, 9, 9),
+	"bathroom": Rect2i(-9, -12, 7, 7),
+	"janitor_closet": Rect2i(3, -12, 3, 3),
+	"cryo_bay": Rect2i(-9, -4, 19, 19),
+	"engine_room": Rect2i(-24, -2, 9, 9),
+	"cargo_bay": Rect2i(13, -2, 15, 16),
 	"corridor": Rect2i(-1, -12, 3, 8),
-	"corridor_fore": Rect2i(2, -12, 8, 3),
-	"corridor_life": Rect2i(-16, -1, 6, 3),
-	"corridor_engine": Rect2i(-18, 10, 8, 3),
-	"corridor_cargo": Rect2i(11, 10, 8, 3),
+	"corridor_port": Rect2i(-15, -16, 8, 3),
+	"corridor_stbd": Rect2i(8, -16, 8, 3),
+	"corridor_engine": Rect2i(-21, -10, 3, 8),
+	"corridor_cargo": Rect2i(19, -10, 3, 8),
 }
 
-const EXPECTED_DOORS := 12   # 11 drawn doors + the unsealed corridor bend
-const EXPECTED_WINDOWS := 16
+const EXPECTED_DOORS := 12
+const EXPECTED_WINDOWS := 17
+
+## The room every trip starts and ends in. Named because the drawings have renamed it once
+## already (`pod_bay` -> `cryo_bay`) and the reachability flood has to start somewhere real.
+const HUB := "cryo_bay"
 
 
 func _init() -> void:
@@ -71,7 +75,9 @@ func _run() -> void:
 
 	# --- no two rooms overlap ------------------------------------------------
 	# The builder gives every room a closed wall skin, so an overlap raises a wall through a
-	# neighbour's floor. This is why the drawn L-shaped corridor is built as two rectangles.
+	# neighbour's floor. An earlier drawing had an L-shaped corridor that had to be split into
+	# two rects with the seam opened out for exactly this reason; this one has none, but the
+	# check is what would catch the next one.
 	for i in ship.rooms.size():
 		for j in range(i + 1, ship.rooms.size()):
 			var a: Room = ship.rooms[i]
@@ -108,20 +114,6 @@ func _run() -> void:
 		var joined := _spaces_on_wall(ship, opening)
 		_check("window at %s faces hull (opens into %s)" % [opening.position, joined],
 			joined.size() == 1)
-
-	# --- the corridor bend is genuinely open ---------------------------------
-	# The seam between the spine and the fore arm must leave NO wall geometry: no sill below,
-	# no lintel above. Assert on the built boxes, not on the Doorway's fields, because it is
-	# the geometry that the player walks into.
-	var bend_walls := 0
-	for node in ship.find_children("*", "StaticBody3D", true, false):
-		if not node.is_in_group(RoomBuilder.GROUP_WALL):
-			continue
-		# The bend spans x=2, z=-12..-9. A wall box straddling that line inside that span
-		# is the seam failing to open.
-		if absf(node.position.x - 2.0) < 0.2 and node.position.z > -12.0 and node.position.z < -9.0:
-			bend_walls += 1
-	_check("corridor bend has no wall across it (found %d boxes)" % bend_walls, bend_walls == 0)
 
 	# --- no light can reach another room's shell -----------------------------
 	# The fixtures are shadowless (GL Compatibility cannot afford shadows), so a light with an
@@ -161,7 +153,7 @@ func _run() -> void:
 	# Reachability through doors only. Catches a room drawn correctly but sealed off.
 	var reached := _flood(ship)
 	for id: String in EXPECTED_ROOMS:
-		_check("'%s' is reachable from the pod bay" % id, reached.has(id))
+		_check("'%s' is reachable from the %s" % [id, HUB], reached.has(id))
 
 	_report()
 
@@ -187,7 +179,7 @@ func _spaces_on_wall(ship: RoomBuilder, opening: Doorway) -> Array:
 	return out
 
 
-## Room ids reachable from the pod bay by walking through doorways.
+## Room ids reachable from the hub by walking through doorways.
 func _flood(ship: RoomBuilder) -> Dictionary:
 	var edges := {}
 	for opening: Doorway in ship.doorways:
@@ -198,8 +190,8 @@ func _flood(ship: RoomBuilder) -> Dictionary:
 			continue
 		edges.get_or_add(joined[0], []).append(joined[1])
 		edges.get_or_add(joined[1], []).append(joined[0])
-	var seen := {"pod_bay": true}
-	var queue: Array = ["pod_bay"]
+	var seen := {HUB: true}
+	var queue: Array = [HUB]
 	while not queue.is_empty():
 		var at: String = queue.pop_front()
 		for next: String in edges.get(at, []):

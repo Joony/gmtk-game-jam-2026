@@ -79,6 +79,9 @@ func _ready() -> void:
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
 	# Room culling: only the room the player is in (and its near neighbours) stays lit. The
+	# ship has 57 fixtures, well past what GL Compatibility will draw at once.
+	_lighting.bind_occupancy($Ship, $Player)
+	# Room culling: only the room the player is in (and its near neighbours) stays lit. The
 	# nine-room ship has 93 fixtures, well past what GL Compatibility will draw at once.
 	_lighting.bind_occupancy($Ship, $Player)
 	_readout.bind(_motion)
