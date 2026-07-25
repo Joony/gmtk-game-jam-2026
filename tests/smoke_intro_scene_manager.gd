@@ -30,6 +30,24 @@ func _await_scene(name: String) -> bool:
 	return _current_scene_is(name)
 
 
+## Run `body`, watching the shared fade rect every frame, and report the darkest it ever got.
+##
+## Reading the alpha before and after would prove nothing: a fade is 0 -> 1 -> 0 and ends where
+## it started. The only way to tell a cut from a wipe is to look DURING it.
+func _peak_fade_during(scene_manager: Node, target: String) -> float:
+	var peak := 0.0
+	var frames := 0
+	while frames < MAX_FRAMES and not _current_scene_is(target):
+		peak = maxf(peak, scene_manager._fade_rect.modulate.a)
+		await process_frame
+		frames += 1
+	# One more sample: the fade back in happens after the new scene is current.
+	for _i in 30:
+		peak = maxf(peak, scene_manager._fade_rect.modulate.a)
+		await process_frame
+	return peak
+
+
 func _run() -> void:
 	Engine.time_scale = 25.0
 
@@ -60,20 +78,34 @@ func _run() -> void:
 
 	var scene_manager: Node = root.get_node("SceneManager")
 
-	# Path 1: the video finishing takes us to the game. Emit the signal rather than waiting
-	# out 36 seconds of playback that may not even tick headless.
+	# Path 1: the video finishing takes us to the game, and does it as a HARD CUT.
+	#
+	# The game opens on a cold open — sealed in the pod, no HUD, no music, the klaxon of a
+	# fault that has already happened — and a fade would announce that as a scene change
+	# rather than let it land as something happening to the player. Emit the signal rather
+	# than waiting out 36 seconds of playback that may not even tick headless.
 	if video != null:
 		while scene_manager._changing:
 			await process_frame
 		video.finished.emit()
-		if not await _await_scene("Game"):
+		var peak: float = await _peak_fade_during(scene_manager, "Game")
+		if not _current_scene_is("Game"):
 			_failures.append("the video finishing did not reach the game scene")
+		if peak > 0.01:
+			_failures.append(
+				"intro -> game faded to %.2f, expected a hard cut (0.00)" % peak)
 
 	# Path 2: the Skip button. Back to the intro, press Skip, expect the game.
 	while scene_manager._changing:
 		await process_frame
+	# ...and the fade is still there for everything else. A "hard cut" that was really
+	# SceneManager quietly losing its transition would pass every check above.
 	scene_manager.change_scene(INTRO_SCENE)
-	if await _await_scene("Intro"):
+	var menu_peak: float = await _peak_fade_during(scene_manager, "Intro")
+	if menu_peak < 0.9:
+		_failures.append(
+			"a normal scene change only reached %.2f — the fade is gone entirely" % menu_peak)
+	if _current_scene_is("Intro"):
 		var skip: Button = current_scene.get_node("SkipButton")
 		while scene_manager._changing:
 			await process_frame
