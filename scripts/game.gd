@@ -91,6 +91,9 @@ var _intro_line_pending: bool = false
 var _room_voice: RoomVoice = null
 ## The silos and canisters, likewise built rather than placed. See _build_supplies().
 var _supplies: ShipSupplies = null
+## The player's undamaged walking speed, so a need's penalty is always a fraction of THAT and
+## never of an already-penalised number. See _apply_need_penalties().
+var _player_max_speed: float = 0.0
 
 var _pod_phase: PodPhase = PodPhase.OUT
 var _nav_phase: NavPhase = NavPhase.AWAY
@@ -141,6 +144,11 @@ func _ready() -> void:
 	_run.run_ended.connect(_on_run_ended)
 	_run_end.dismissed.connect(_on_run_end_dismissed)
 	_hud.bind(_run)
+	# What an unmet need actually costs you: walking speed. Cached first, because the penalty
+	# is expressed as a fraction of normal and there is nowhere else to read "normal" from once
+	# it has been applied once.
+	_player_max_speed = _player.max_speed
+	_run.needs_changed.connect(_apply_need_penalties)
 
 	# The game starts itself the moment the scene loads: the intro video already gated the
 	# launch, so a second "press START" screen in here was just a redundant click. On desktop
@@ -151,6 +159,18 @@ func _ready() -> void:
 	# After start_game(), because RunState.enter_stasis() refuses to do anything until the
 	# run is actually running.
 	_wake_from_opening_stasis()
+
+
+## An unmet need slows you down. Applied here rather than in RunState, which deliberately knows
+## nothing about the player — the same division that keeps it from touching the camera or the
+## cursor. Always computed off the CACHED base speed, so the penalty cannot compound with
+## itself every time a need changes.
+##
+## Slower walking is a well-aimed punishment in this game specifically: the whole currency is
+## seconds outside the pod, so losing a fifth of your speed makes every future trip cost a
+## fifth more air. It is felt without a single number on the screen.
+func _apply_need_penalties() -> void:
+	_player.max_speed = _player_max_speed * _run.player_speed_scale()
 
 
 ## The silos and the canisters (TODO 17). Built in code for the same reason RoomVoice is —

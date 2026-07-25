@@ -75,6 +75,34 @@ const SILOS := [
 		"vo_line": &"power_off",
 		"service_text": "Slot the cell in",
 	},
+	{
+		# The beer silo in the mess. Adopts the tank already dressed in there.
+		"id": &"beer",
+		"display_name": "BEER",
+		"decor": ^"MessSilo",
+		"mode": Silo.Mode.SUPPLY,
+		"accepts": &"beer",
+		"level": 1.0,
+		"use_amount": 0.25,
+		"warn_at": 0.3,
+		"vo_line": &"no_beer",
+		"use_text": "Have a drink",
+		"service_text": "Load a beer canister",
+		"size": Vector3(1.0, 2.4, 1.8),
+		"offset": Vector3(0.0, 1.2, 0.5),
+	},
+	{
+		# The head. Its own prop rather than an adoption, because the bathroom's decorative
+		# silo is a tank and this is the thing you sit on — and the whole point of the chain is
+		# that both halves happen in the same place. See scenes/props/toilet.tscn.
+		#
+		# Everything about it is in the prop scene, so this row is only where it stands.
+		"id": &"crap",
+		"scene": "res://scenes/props/toilet.tscn",
+		"at": Vector3(-7.0, 0.0, -5.7),
+		# Yawed to face the door, which is in the aft wall at (-3.5, -12).
+		"yaw": 180.0,
+	},
 ]
 
 ## Loose supplies, spawned where they lie. The cargo bay runs x 13..28, z -2..14; these sit in
@@ -84,6 +112,14 @@ const CANISTERS := [
 	{"kind": &"o2", "at": Vector3(25.6, 0.5, 5.2)},
 	{"kind": &"o2", "at": Vector3(25.6, 0.5, 6.1)},
 	{"kind": &"o2", "at": Vector3(24.8, 0.5, 5.6)},
+	{"kind": &"beer", "at": Vector3(24.8, 0.5, 6.5)},
+	{"kind": &"beer", "at": Vector3(24.0, 0.5, 5.9)},
+	# Empties, for pumping the septic tank out. Deliberately FEWER than there are beers: every
+	# beer you drink is a trip to the toilet and every few trips is a tank to empty, so running
+	# the mess dry and running out of empties are the same mistake seen from two ends. An air
+	# canister you have already spent becomes one of these, which is the way out.
+	{"kind": &"empty", "at": Vector3(24.0, 0.5, 6.8)},
+	{"kind": &"empty", "at": Vector3(23.3, 0.5, 6.2)},
 ]
 
 ## Fuel cells, a little further into the room so they are a separate errand rather than
@@ -148,29 +184,38 @@ func _build_silo(row: Dictionary) -> Silo:
 	else:
 		at = row["at"]
 
-	# An adopted silo gets a bare body — the decor prop it stands on IS the model. A spawned
-	# one brings its own. Both end up the same kind of node, so nothing downstream cares.
-	var node: Node = SILO_SCENE.instantiate() if not adopting else _bare_silo_body(row)
+	# Three ways to get a body, in order of how much the row has to say:
+	#   a named `scene`  a prop that already knows what it is — the toilet
+	#   adopting         a bare body; the decor prop it stands on IS the model
+	#   otherwise        the generic tank, which brings its own model
+	var node: Node
+	if row.has("scene"):
+		var scene: PackedScene = load(row["scene"])
+		node = scene.instantiate()
+	elif adopting:
+		node = _bare_silo_body(row)
+	else:
+		node = SILO_SCENE.instantiate()
+
 	var view: Node3D = node
 	var silo := view as Silo
 	silo.name = "Silo_%s" % row["id"]
 	silo.silo_id = row["id"]
-	silo.display_name = row.get("display_name", "SILO")
-	silo.mode = row.get("mode", Silo.Mode.SUPPLY)
-	silo.accepts = row.get("accepts", &"o2")
-	silo.level = row.get("level", 1.0)
-	silo.use_amount = row.get("use_amount", 0.25)
-	silo.drain_per_day = row.get("drain_per_day", 0.0)
-	silo.stops_the_drive = row.get("stops_the_drive", false)
-	silo.warn_at = row.get("warn_at", 0.4)
-	silo.vo_line = row.get("vo_line", &"")
-	silo.use_text = row.get("use_text", "Use")
-	silo.service_text = row.get("service_text", "Refill it")
-	silo.lamp_offset = row.get("lamp_offset", Vector3(-0.11, 1.55, -0.30))
+	# ONLY what the row actually says, so a prop scene that already configured itself is not
+	# quietly reset to the generic defaults. The toilet is entirely its own scene; its row here
+	# is just where it stands.
+	for key in ["display_name", "mode", "accepts", "level", "use_amount", "drain_per_day",
+			"stops_the_drive", "warn_at", "vo_line", "use_text", "service_text",
+			"block_when_exhausted", "lamp_offset"]:
+		if row.has(key):
+			silo.set(key, row[key])
 
 	add_child(node)
 	# AFTER add_child: global_position on a node outside the tree is meaningless.
-	(node as Node3D).global_position = at
+	var body := node as Node3D
+	body.global_position = at
+	if row.has("yaw"):
+		body.rotation.y = deg_to_rad(row["yaw"])
 	return silo
 
 

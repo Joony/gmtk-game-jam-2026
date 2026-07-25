@@ -65,6 +65,23 @@ const GROUP_NEED := &"needs"
 ## `id` of the need that satisfying THIS one starts. The chain: thirst -> bladder.
 @export var triggers: StringName = &""
 
+## Ship days into the run at which this comes into play on its own. 0 means it never does, and
+## something else has to start it — a fault breaking, a tank overflowing, or another need being
+## satisfied.
+##
+## THIS IS THE STAGGERING (TODO 17d), and it is deliberately a schedule rather than a dice roll.
+## Six needs live at once do not fit in the oxygen budget; needs that arrive on different days
+## do. Malfunctions already stagger themselves the same way, off `fire_at_distance` — a fixed
+## point in the voyage rather than randomness — so a run is a sequence of problems the player
+## can learn the shape of rather than a slot machine.
+@export var starts_after_days: float = 0.0
+
+## Fraction of walking speed lost while this is EXPIRED, 0..1. The degrade route: TODO 17e
+## settles that only CO2 and the crap tank kill you, and that everything else makes the rest of
+## the run harder instead. An expired need stays expired — and stays costing you — until it is
+## dealt with, which is what stops "ignore it" being free.
+@export_range(0.0, 1.0) var movement_penalty: float = 0.0
+
 ## Whether this need is in play at all this run. Off by default — see the staggering note above.
 var active: bool = false
 var remaining: float = 0.0

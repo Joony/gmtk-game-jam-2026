@@ -1,0 +1,49 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/silo.gd" id="1_silo"]
+[ext_resource type="PackedScene" uid="uid://n201p0ljespa" path="res://3D-Models/CD_Terlet_v1.blend" id="2_model"]
+
+; The head, and the septic tank, as ONE object — which is the right call and not a shortcut.
+; TODO 17b lists them as a single row ("Toilet silo — FILLS") because everything the player
+; does here happens in the same place: relieving yourself FILLS it, and pumping it out with an
+; empty canister is what empties it. Two nodes a metre apart would mean two prompts for one
+; problem and a tank you can service while standing nowhere near the thing that fills it.
+;
+; A WASTE silo, so `use()` runs the level UP rather than down — the same script as the air
+; tank with one sign flipped. See silo.gd.
+;
+; The bathroom's decorative CD_Silo_Base_v1 stays where it is, as the tank this notionally
+; feeds. Linking the two visually is a scene job — see TODO 17i.
+;
+; CD_Terlet_v1 measures 2.00 x 2.70 x 3.00 units with its origin at the front, one unit above
+; the base, and ships with no collision of its own.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_toilet"]
+size = Vector3(0.7, 0.95, 1.06)
+
+[node name="Toilet" type="StaticBody3D"]
+script = ExtResource("1_silo")
+silo_id = &"crap"
+display_name = "SEPTIC TANK"
+mode = 1
+accepts = &"empty"
+level = 0.0
+use_amount = 0.25
+; OFF, deliberately. A toilet that politely declines is a worse outcome than one that
+; overflows — the overflow IS the consequence, and the septic countdown hangs off it.
+block_when_exhausted = false
+warn_at = 0.5
+vo_line = &"shitters_full"
+use_text = "Use the head"
+service_text = "Pump the tank out"
+lamp_offset = Vector3(0, 1.05, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.475, 0)
+shape = SubResource("BoxShape3D_toilet")
+
+; 0.352 = 0.95m / 2.70 units. Raised so the base sits on the floor (the model's origin is one
+; unit up from it) and pulled back so its 3-unit depth straddles the node rather than running
+; entirely off one side of it.
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.352, 0, 0, 0, 0.352, 0, 0, 0, 0.352, 0, 0.352, -0.528)

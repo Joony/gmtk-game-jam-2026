@@ -112,6 +112,45 @@ const NEEDS := [
 		"starts_with": "O2 SCRUBBER",
 		"neutralise": {"speed_penalty": 0.0, "oxygen_drain_multiplier": 1.0},
 	},
+	# --- the chain (TODO 17c) ------------------------------------------------
+	# Drink the beer -> you need the toilet -> the tank fills -> it will go off unless you walk
+	# empties to it. The only place in the game where SOLVING a problem is what CREATES the
+	# next one, which is why 17c says to cut around it rather than through it if time runs out.
+	{
+		"id": &"thirst",
+		"display_name": "THIRST",
+		"seconds": 200.0,
+		"warn_at": 0.5,
+		# The only need that arrives on a schedule. Six days in, so the opening of a run is
+		# about the ship rather than about the player's body.
+		"starts_after_days": 6.0,
+		"silo_id": &"beer",
+		"triggers": &"bladder",
+		"movement_penalty": 0.2,
+	},
+	{
+		"id": &"bladder",
+		"display_name": "BLADDER",
+		"seconds": 120.0,
+		"warn_at": 0.5,
+		# No schedule and no fault: this one exists ONLY because you dealt with the last one.
+		"silo_id": &"crap",
+		"movement_penalty": 0.35,
+	},
+	{
+		"id": &"overflow",
+		"display_name": "SEPTIC TANK",
+		# Short, and lethal. Once the tank is full the run has a hard deadline measured in
+		# walks to the cargo bay, which is the shape the whole section was aiming for.
+		"seconds": 90.0,
+		"warn_at": 1.0,  # on the HUD from the moment it starts — there is no gentle phase
+		"lethal": true,
+		"fatal_title": "SEPTIC",
+		"fatal_text": "The tank let go. They will not be putting that on the plaque.",
+		# Started by the tank filling rather than by a clock, and stopped again the moment
+		# somebody pumps it down.
+		"starts_with_silo": &"crap",
+	},
 ]
 
 var distance_remaining: float = 0.0
@@ -247,6 +286,14 @@ func _process(delta: float) -> void:
 	for silo in _silos:
 		silo.advance(days)
 
+	# Needs that arrive on a schedule do so on the SHIP's clock — the voyage is what has moved
+	# on, and a day is a day whether you slept through it or not. Only the countdown itself is
+	# awake-time. Outside the stasis guard, so a need can be waiting for you when you get up.
+	for need in _needs:
+		if not need.active and not need.has_expired and need.starts_after_days > 0.0 \
+				and days_elapsed >= need.starts_after_days:
+			_start_need(need)
+
 	# `delta`, and ONLY while awake. A need is a body clock, not a ship system: it must not
 	# carry the pod's 24x time scale, and it must not run at all in the pod, or sleeping
 	# through a long haul — the correct play — would kill you. TODO 17e settles this.
@@ -332,6 +379,8 @@ func _spawn_needs() -> void:
 		need.silo_id = row.get("silo_id", &"")
 		need.triggers = row.get("triggers", &"")
 		need.vo_line = row.get("vo_line", &"")
+		need.starts_after_days = row.get("starts_after_days", 0.0)
+		need.movement_penalty = row.get("movement_penalty", 0.0)
 		add_child(need)
 		_needs.append(need)
 
@@ -348,14 +397,41 @@ func _spawn_needs() -> void:
 		_wire_need_trigger(need, row)
 
 
-## Hook a need up to the fault that starts it, and strip the effects that fault is no longer
-## supposed to have. Both halves are TEMPORARY — see the note on NEEDS. When 17i lands, the
-## Malfunction carries the need's id itself and this whole function goes.
+## Hook a need up to whatever brings it into play. Four ways in, and between them they are the
+## staggering that makes six needs fit in one run:
+##
+##   starts_with       a fault breaking (CO2, off the scrubber)
+##   starts_with_silo  a tank filling up (the septic countdown, off the crap tank)
+##   starts_after_days a point in the voyage (thirst) — handled in _advance_needs
+##   triggers          another need being satisfied (bladder, off thirst) — the chain
+##
+## A need with none of them is in play from the off. Nothing currently is.
+##
+## The `starts_with`/`neutralise` halves are TEMPORARY — see the note on NEEDS. When 17i lands,
+## the Malfunction carries the need's id itself and they go.
 func _wire_need_trigger(need: Need, row: Dictionary) -> void:
+	var silo_trigger: StringName = row.get("starts_with_silo", &"")
+	if silo_trigger != &"":
+		var tank := silo_by_id(silo_trigger)
+		if tank != null:
+			# Filling it starts the clock; pumping it back down stops it. Watching `level_changed`
+			# rather than `exhausted` for the second half, because coming BACK from full is not
+			# an event the silo announces — it is simply no longer in trouble.
+			tank.level_changed.connect(func(s: Silo, _l: float) -> void:
+				if s.is_exhausted():
+					_start_need(need)
+				elif need.active:
+					need.stop()
+					needs_changed.emit())
+		return
+
 	var trigger: String = row.get("starts_with", "")
 	if trigger == "":
-		# No trigger named: the need is simply in play from the off.
-		need.start()
+		# A schedule and the chain are both handled elsewhere, so a need with either is left
+		# alone here. One with NEITHER has nothing to bring it in at all, and is simply live
+		# from the off.
+		if need.starts_after_days <= 0.0 and not _is_chained(need):
+			need.start()
 		return
 	for malfunction in _malfunctions:
 		if malfunction.system_name != trigger:
@@ -381,7 +457,39 @@ func _start_need(need: Need) -> void:
 	if need.active or finished:
 		return
 	need.start()
+	if need.vo_line != &"":
+		var audio := get_node_or_null(^"/root/Audio")
+		if audio != null:
+			audio.say(need.vo_line)
 	needs_changed.emit()
+
+
+## Is some other need's `triggers` pointing at this one? If so it is a link in the chain and
+## must wait to be pulled, not start itself — a bladder that is full before you have had a
+## drink is not a consequence of anything.
+func _is_chained(need: Need) -> bool:
+	for row in NEEDS:
+		if row.get("triggers", &"") == need.id:
+			return true
+	return false
+
+
+func need_by_id(id: StringName) -> Need:
+	for need in _needs:
+		if need.id == id:
+			return need
+	return null
+
+
+## Walking speed as a fraction of normal, 1.0 when nothing is wrong. Penalties MULTIPLY rather
+## than add, so two expired needs cannot between them stop the player dead — which would be an
+## unwinnable run for a pair of problems that 17e settled should not be able to kill you.
+func player_speed_scale() -> float:
+	var scale := 1.0
+	for need in _needs:
+		if need.active and need.has_expired and need.movement_penalty > 0.0:
+			scale *= 1.0 - need.movement_penalty
+	return scale
 
 
 func _collect_silos() -> void:
@@ -410,7 +518,10 @@ func _on_silo_exhausted(silo: Silo) -> void:
 		var audio := get_node_or_null(^"/root/Audio")
 		if audio != null:
 			audio.say(silo.vo_line)
-	choices.append("%s ran dry" % silo.display_name)
+	# A supply runs dry; a waste tank overflows. Same signal, opposite disaster.
+	choices.append("%s %s" % [
+		silo.display_name, "overflowed" if silo.mode == Silo.Mode.WASTE else "ran dry"
+	])
 	_update_speed()
 	needs_changed.emit()
 
@@ -458,8 +569,17 @@ func _on_need_warned(_need: Need) -> void:
 	needs_changed.emit()
 
 
-func _on_need_satisfied(_need: Need, _triggers: StringName) -> void:
-	# The chain (17c) is wired here in Phase 4 — `triggers` names the need this one starts.
+## THE CHAIN. Satisfying one need starts the next: drink the beer, and now you need the toilet.
+##
+## The lookup is here rather than in Need because a need has no business knowing about the
+## others — it carries `triggers` as data and this pulls the link. `_start_need` is idempotent,
+## which is what stops a second beer silently re-arming a bladder that is already running and
+## making the second beer free.
+func _on_need_satisfied(_need: Need, triggers: StringName) -> void:
+	if triggers != &"":
+		var next := need_by_id(triggers)
+		if next != null:
+			_start_need(next)
 	needs_changed.emit()
 
 

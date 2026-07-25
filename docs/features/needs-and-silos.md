@@ -320,8 +320,90 @@ burn loop entirely still passed. It now measures fuel-per-**ship-day** rather th
 it does not depend on the headless frame rate, and because ship days already carry the pod's 24×
 scale, proving the rate is per-day is also what proves that sleeping burns fuel faster.
 
+## Phase 4 — the chain
+
+> Drink the beer → you need the toilet → the tank fills → it goes off unless you walk empties
+> to it.
+
+**Fixing thirst is what creates the toilet problem, and using the toilet is what creates the
+explosion problem.** It is the only place in the game where solving a problem is what creates
+the next one, which is why TODO 17c says to cut *around* it rather than through it if time runs
+short — and why it was built as one unit rather than three needs that happen to be adjacent.
+
+### Four ways a need comes into play
+
+Between them, these *are* the staggering. Six live countdowns do not fit in 240 seconds of air;
+countdowns that arrive for different reasons do.
+
+| | |
+| --- | --- |
+| a fault breaking | CO2, off the scrubber |
+| a tank filling up | the septic countdown, off the toilet |
+| a point in the voyage | thirst, six ship-days in |
+| **another need being satisfied** | bladder, off thirst — the chain |
+
+`Need.starts_after_days` is a **schedule, not a dice roll**, and deliberately so: malfunctions
+already stagger themselves off `fire_at_distance`, a fixed point in the voyage, so a run is a
+sequence of problems the player can learn the shape of rather than a slot machine. Thirst
+arrives six days in, which keeps the opening of a run about the ship rather than about your body.
+
+The chain link itself lives in `RunState`, not `Need`. A need carries `triggers` as data and has
+no business knowing about the others. `_start_need` is idempotent, which is what stops a second
+beer silently re-arming a bladder that is already running — otherwise the second beer would be
+free, and the chain would have a hole in the middle of it.
+
+### The toilet is the septic tank
+
+One object, which is what 17b's single row already said. Everything the player does happens in
+the same place: relieving yourself **fills** it, and an empty canister **empties** it. Two nodes
+a metre apart would mean two prompts for one problem, and a tank you could service while
+standing nowhere near the thing that fills it.
+
+It is a `WASTE` silo, so `use()` runs the level up rather than down — the same script as the air
+tank with one sign flipped, which is the Phase 1 claim still holding on the fifth system.
+
+`block_when_exhausted` is **off**, and that is the point rather than an oversight. A toilet that
+politely declines is a worse outcome than one that overflows: the overflow *is* the consequence,
+and the septic countdown hangs off it.
+
+That countdown is itself just a lethal `Need`, started by the tank filling and stopped by
+pumping it down. No new machinery, and it gets its own name on the end screen.
+
+### What an unmet need actually costs
+
+`Need.movement_penalty`. An expired need costs walking speed until it is dealt with — and it
+stays expired until it is, which is what stops "ignore it" being free.
+
+Slower walking is a well-aimed punishment in this game specifically. The entire currency is
+seconds outside the pod, so losing a fifth of your speed makes every future trip cost a fifth
+more air. It is felt without a single number on the screen.
+
+Penalties **multiply** rather than add, so two expired needs cannot between them stop the player
+dead — that would be an unwinnable run from a pair of problems 17e settled should not be able to
+kill you. It is applied in `game.gd` rather than `RunState`, which deliberately knows nothing
+about the player, and always computed off a cached base speed so it cannot compound with itself.
+
+### Tests
+
+`tests/smoke_chain.gd` gets its own suite rather than a section inside `smoke_supplies`. Buried
+in a bigger file, this is exactly the thing that would get quietly deleted to make a failing
+suite pass — and it is the part of section 17 the spec says to protect.
+
+It walks the whole chain in the real ship: both ends are standing in the right rooms, the cargo
+bay stocks both halves, thirst is not waiting for you when you wake up, drinking starts the
+bladder, a second drink does not reset it, using the toilet fills the tank, filling the tank
+starts a lethal countdown, an empty canister stops it and leaves you holding the consequence —
+and a spent *air* canister becomes one of those empties, which is the supply loop closing on
+itself.
+
+Mutation-tested six ways: breaking the chain link, never stopping the septic countdown, never
+letting a scheduled need arrive, dropping the speed penalty, ignoring expired needs in the
+speed scale, and letting a chained need start itself.
+
 ## What is next
 
-Phase 4 (the chain, as one unit) and Phase 5 (hunger). Plus the placements waiting on the scene
-lock — TODO 17i, which also carries two things these renders turned up: `CD_Silo_Base_v1` ships
-with no collider, so only the adopted silo is solid; and its glass level needs a driveable mesh.
+Phase 5 (hunger + the vending restock), which is the least novel of the six. Plus the placements
+waiting on the scene lock — TODO 17i, which also carries three things these renders turned up:
+`CD_Silo_Base_v1` ships with no collider, so only the adopted silos are solid; its glass level
+needs a driveable mesh; and the bathroom's decorative tank is not visually linked to the toilet
+that actually *is* the septic tank.

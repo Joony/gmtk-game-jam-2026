@@ -1360,10 +1360,9 @@ per run, which fits.
 
 1. [x] `Silo` + `Consumable` — built and proven, 2026-07-26 (17h Phase 1)
 2. [x] Decide 17d and 17e — they change the shape of everything after this (done 2026-07-26)
-3. [ ] `Need` + HUD rows, proven on CO2 — the `Need` script exists; the HUD row and the
-       `RunState` spawning do not
-4. [ ] Power/batteries (no new art dependency beyond the battery model)
-5. [ ] The thirst → bladder → toilet → crap chain, as one unit (17c)
+3. [x] `Need` + HUD rows, proven on CO2 (17h Phase 2)
+4. [x] Power/fuel — done without the battery model, which is still outstanding (17h Phase 3)
+5. [x] The thirst → bladder → toilet → crap chain, as one unit (17c, 17h Phase 4)
 6. [ ] Hunger + vending restock last — it is the least novel and has the extra hop
 
 ### 17h. IMPLEMENTATION PLAN (2026-07-25)
@@ -1442,8 +1441,27 @@ right design after the lock lifts.
   - [x] `Silo` builds an emissive status lamp, green through amber to red
   - **Not done, and it was my claim to begin with:** driving the silo's glass level from
         `Silo.level`. See 17i — the model has no liquid mesh to drive
-- [ ] **Phase 4 — the chain** (17c): thirst -> bladder -> toilet -> crap silo -> explosion,
-      built as ONE unit because it is the part worth protecting. `CD_Terlet_v1` exists
+- [x] **Phase 4 — the chain** (17c). Done 2026-07-26, as ONE unit, because it is the part worth
+      protecting: thirst -> bladder -> toilet -> septic tank -> a bad end
+  - [x] Beer silo in the mess (adopts `MessSilo`), `no_beer` wired
+  - [x] `scenes/props/toilet.tscn` — the head AND the septic tank as one object, which is what
+        17b's single row already said. Everything the player does happens in the same place:
+        relieving yourself FILLS it, an empty canister empties it. Two nodes a metre apart
+        would mean two prompts for one problem. `shitters_full` wired
+  - [x] `Need.starts_after_days` — the staggering (17d) as a SCHEDULE rather than a dice roll,
+        matching how malfunctions already stagger off `fire_at_distance`. Thirst arrives six
+        days in, so the opening of a run is about the ship rather than about your body
+  - [x] Four ways a need comes into play, and between them they are the staggering: a fault
+        breaking, a tank filling, a point in the voyage, or **another need being satisfied**
+  - [x] `Need.movement_penalty` — the degrade route (17e). An expired need costs walking speed
+        until it is dealt with, which in a game whose currency is seconds outside the pod means
+        every future trip costs more air. Penalties multiply, so two of them cannot stop you dead
+  - [x] The septic countdown is itself a lethal `Need`, started by the tank filling and stopped
+        by pumping it down — no new machinery, and it gets `SEPTIC` on the end screen
+  - [x] Beer and empty canisters in the cargo bay, deliberately fewer empties than beers
+  - [x] `tests/smoke_chain.gd`, its own suite rather than a section of `smoke_supplies` —
+        buried in a bigger file this is the thing that would get quietly deleted to make a
+        failing suite pass. Mutation-tested six ways
 - [ ] **Phase 5 — hunger + vending restock last.** Least novel, and the only need with an
       extra hop
 
@@ -1466,8 +1484,12 @@ Each of these is a placement or a scene-wiring change. Pull first, re-run the su
       a named liquid mesh** whose Y scale can be driven, and `Silo` will drive it. Until then
       `Silo` builds a small emissive lamp instead — green/amber/red — which is readable from
       across a dark room and was the thing that actually mattered
-- [ ] Place the toilet (`CD_Terlet_v1`), and the vending machine as a functional restock point
-      rather than the decor instance now standing in the mess
+- [ ] The vending machine as a functional restock point rather than the decor instance now
+      standing in the mess (Phase 5)
+- [ ] **Link the toilet and the bathroom's decorative tank.** The toilet at (-7, 0, -5.7) IS
+      the septic silo; `BathroomSilo` at (-3, 0, -6) is a tank it notionally feeds and is still
+      pure scenery. Either run a pipe between them or move the tank beside the toilet — as it
+      stands the room reads as two unrelated objects
 - [ ] Stock the cargo bay properly: beer / empty canisters, food crates, batteries. NOTE the
       four **decorative** canisters at x 26.3–27 are now sat right beside three functional ones
       and look identical — a player will try to pick them up. Replace them with real ones or
