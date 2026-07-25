@@ -28,12 +28,19 @@ const RESEAT_COOLDOWN := 0.75
 # A seated plug's body sits this far OUT along the socket's +Z, so its prongs go into the
 # receptacle while its body stays OUTSIDE the socket/mount — otherwise a plug seated in the
 # battery's face socket buried itself in the cube. (A wall plug just sits proud of the wall.)
-const SEAT_STANDOFF := 0.18
-# The CD_Plug model is authored ~0.08 m ABOVE the body origin (its Model node centres the base on
+#
+# BOTH constants below are measured off the PLUG MODEL, so they have to move with its scale.
+# CD_Plug_v1 spans z -3.75..0 in model units with the nose at -3.75, so at the current 0.105
+# scale the nose is 0.394 m long and the body must stand off far enough to keep the prongs in
+# the receptacle instead of driving through it. They were 0.18/0.08 for the original 0.07-scale plug and
+# scale with it: rescaling the plug without rescaling these makes a seated plug sit high and
+# sink into its socket.
+const SEAT_STANDOFF := 0.27
+# The CD_Plug model is authored ~0.12 m ABOVE the body origin (its Model node centres the base on
 # the collision box). Drop the seated body by that so the plug reads as centred on the receptacle
 # instead of riding high above it. (Only affects seating; the held/floor pose keeps the model
 # offset.)
-const SEAT_MODEL_Y := 0.08
+const SEAT_MODEL_Y := 0.12
 # Group every CableSocket registers in (see cable_socket.gd).
 const SOCKET_GROUP := &"cable_sockets"
 

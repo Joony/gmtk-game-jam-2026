@@ -88,17 +88,24 @@ func _run() -> void:
 		var blocking := 0
 		var sill_pieces := 0
 		var lintel_pieces := 0
+		# Works for either orientation. An opening that SPANS X sits on a wall running along
+		# X — a constant-Z line — and vice versa. This used to assume constant-X, which was
+		# true only while the ship's first window happened to be a Z-spanning one; the moment
+		# the bridge's forward pane became doorways[0] the filter looked along the wrong axis
+		# and reported the opening as having neither sill nor lintel.
+		var spans_x := opening.axis == Doorway.Axis.X
+		var wall_line: float = (opening.position.y if spans_x else opening.position.x) * ship.tile_size
+		var along: float = (opening.position.x if spans_x else opening.position.y) * ship.tile_size
 		for wall in get_nodes_in_group(RoomBuilder.GROUP_WALL):
 			var body: StaticBody3D = wall
 			# Only walls on the same line as this opening.
-			var window_x: float = opening.position.x * ship.tile_size
-			if absf(body.global_position.x - window_x) > 0.4:
+			var across: float = body.global_position.z if spans_x else body.global_position.x
+			if absf(across - wall_line) > 0.4:
 				continue
 			var size: Vector3 = ((body.get_node("Mesh") as MeshInstance3D).mesh as BoxMesh).size
-			var z_lo := body.global_position.z - size.z * 0.5
-			var z_hi := body.global_position.z + size.z * 0.5
-			var window_z: float = opening.position.y * ship.tile_size
-			if window_z < z_lo or window_z > z_hi:
+			var centre: float = body.global_position.x if spans_x else body.global_position.z
+			var half: float = (size.x if spans_x else size.z) * 0.5
+			if along < centre - half or along > centre + half:
 				continue
 			var y_lo := body.global_position.y - size.y * 0.5
 			var y_hi := body.global_position.y + size.y * 0.5

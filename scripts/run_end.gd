@@ -12,6 +12,8 @@ const COLOR_LOSE := Color(1.00, 0.22, 0.18)
 
 signal dismissed
 
+@onready var _dim: ColorRect = $Dim
+@onready var _center: CenterContainer = $Center
 @onready var _title: Label = %Title
 @onready var _subtitle: Label = %Subtitle
 @onready var _stats: GridContainer = %Stats
@@ -27,7 +29,28 @@ func _ready() -> void:
 	_button.pressed.connect(func() -> void: dismissed.emit())
 
 
+## Wipe to black over whatever the player is left looking at, before any of the numbers
+## arrive. Its own step rather than part of show_result() because it has to finish while the
+## game is still RUNNING: the tree is paused the moment the summary goes up, and the collapse
+## it follows would freeze mid-fall if the pause came first.
+func fade_to_black(duration: float) -> void:
+	visible = true
+	_center.visible = false
+	_dim.modulate.a = 0.0
+	var tween := create_tween()
+	# Explicit, like SceneManager's: this layer runs while paused, and the tween has to as well
+	# or a pause landing mid-wipe would leave the screen half-black forever.
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.tween_property(_dim, "modulate:a", 1.0, duration)
+	await tween.finished
+
+
 func show_result(won: bool, summary: Dictionary) -> void:
+	# Self-sufficient: fade_to_black() is the way in from a real run, but tests and any future
+	# caller must be able to put the screen up without one.
+	visible = true
+	_dim.modulate.a = 1.0
+	_center.visible = true
 	_title.text = "ARRIVED" if won else "OUT OF AIR"
 	_title.add_theme_color_override("font_color", COLOR_WIN if won else COLOR_LOSE)
 

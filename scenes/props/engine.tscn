@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/props/looping_model_animation.gd" id="1_loop"]
+[ext_resource type="PackedScene" path="res://3D-Models/CD_Engine_v3.glb" id="2_model"]
+
+; The main drive, as a running machine rather than a static prop. CD_Engine_v3 ships four 2.5s
+; clips whose names imply one per moving part — they are not. All four drive the same six
+; tracks, so ONE of them is the whole animation; see LoopingModelAnimation for what happens if
+; you believe the names and merge them.
+;
+; The model's origin is its CENTRE (its AABB runs y -10.89..10.89 in model units), so whatever
+; places this scene has to lift it by half its scaled height to stand it on the floor.
+;
+; v3 is 15.84 x 21.78 x 30.00 model units — same width, height and origin as v2, 1.1 units
+; deeper. At the placement scale that is 14 cm, so nothing that positions it had to move.
+
+[node name="Engine" type="Node3D"]
+script = ExtResource("1_loop")
+speed = 0.6
+drop_scale_tracks = false
+
+[node name="Model" parent="." instance=ExtResource("2_model")]

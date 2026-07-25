@@ -172,20 +172,36 @@ func _build_bars() -> void:
 	holder.name = "ChargeBars"
 	add_child(holder)
 	var n := maxi(bar_count, 1)
-	var span := 0.28
+	# Everything below is a RATIO of the cube's own half-extent, read off its collision box.
+	# These used to be literals tuned to the 0.4 m cube (span 0.28, bars at y=0.205). Scaling
+	# the cube to 0.8 m left the bars at y=0.205 — inside it — and the charge indicator simply
+	# vanished. The ratios reproduce the original numbers exactly at half = 0.2.
+	var half := _half_extent()
+	var span := half * 1.4
 	var bar_w := span / float(n) * 0.7
 	for i in n:
 		var bar := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(bar_w, 0.015, 0.06)
+		mesh.size = Vector3(bar_w, half * 0.075, half * 0.3)
 		bar.mesh = mesh
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		bar.material_override = mat
 		var x := -span * 0.5 + span * (float(i) + 0.5) / float(n)
-		bar.position = Vector3(x, 0.205, 0.0)  # sit on the +Y top face (cube half-extent ~0.2)
+		# Just clear of the +Y top face, so the bars read as sitting ON the cube.
+		bar.position = Vector3(x, half * 1.025, 0.0)
 		holder.add_child(bar)
 		_bar_mats.append(mat)
+
+
+## Half the cube's height, taken from its own collision box so the charge bars track the art.
+func _half_extent() -> float:
+	for child in get_children():
+		if child is CollisionShape3D:
+			var box := (child as CollisionShape3D).shape as BoxShape3D
+			if box != null:
+				return box.size.y * 0.5
+	return 0.2
 
 
 func _update_bars() -> void:

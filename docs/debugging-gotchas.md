@@ -26,6 +26,52 @@ The format is deliberately blunt: **symptom → cause → fix**, plus where it b
   backwards mount.
 - **Bit us in:** the cryo pod wrapper (`cryo_pod.tscn`) and every wall-mounted panel.
 
+### Physics tests that stand in a real room break when you furnish it
+
+- **Symptom:** `smoke_cable_drag` started failing with "a cable that can't follow releases the
+  held plug rather than stretching forever" — nothing to do with cables. Bisecting a 60-prop
+  decor list found it: `CD_BridgeTerminals_v1` sits at identity scale, and the model is
+  15 x 1 x 5 units, so it is a 15m x 5m collider across the bridge. The test parks its far
+  plug at (0, 1.55, -17.5), inside that volume; the plug was ejected and shoved along with the
+  player, so the two ends never separated past breakaway.
+- **Fix:** the suite now frees the `Decor` node before positioning anything. A test about
+  cable physics must not be decided by furniture. Do the same in any suite that hand-places
+  fixtures at fixed coordinates in a real room.
+- **Also worth knowing:** every other decor prop is scaled from a measured target size; this
+  one is unscaled, and at 5m deep it reaches z=-22.42 against a bridge fore wall at z=-21 —
+  so it clips through the wall and the 13m window.
+- **Bit us in:** furnishing the ship (`ship-layout.md`).
+
+### `timeout` does not exist on macOS
+
+- **Symptom:** a verification command "passed" instantly and its evidence file was never
+  written — twice — leading to the wrong conclusion that a `@tool` build was not running in
+  the editor.
+- **Cause:** `timeout ... godot --editor ...` fails with `command not found` (it is GNU
+  coreutils; macOS ships `gtimeout` only if coreutils is installed). The pipeline then greps
+  empty output, `grep -c` reports 0 errors, and the run reads as a clean pass. **The command
+  under test never executed at all.**
+- **Fix:** don't wrap Godot in `timeout` — `--quit-after <frames>` makes it exit on its own.
+  More generally: when a check's only evidence is the ABSENCE of output, prove the command
+  actually ran before trusting it.
+- **Bit us in:** verifying the editor-preview (`@tool`) work.
+
+### Visual layers are a project-wide namespace with no owner
+
+- **Symptom:** after giving each room its own visual layer, the cryo bay's floor and two of its
+  four walls stopped turning red in ALERT mode. The other two walls were fine, and every other
+  room was fine.
+- **Cause:** layer 2 was already taken. `ExteriorSun` is a `DirectionalLight3D` with
+  `light_cull_mask = 2` and `space_station.tscn` puts its meshes on `layers = 2` — that pairing
+  is what lets the sun light the station outside without leaking indoors. Numbering rooms from
+  layer 2 handed the pod bay's shell to the sun, and a directional light lights the surfaces
+  that FACE it, which is why it hit exactly the floor and two walls.
+- **Fix:** rooms start at layer 3 (`RoomBuilder.FIRST_ROOM_LAYER`). Before claiming a layer,
+  `grep -rn "layers\|cull_mask" --include="*.tscn" --include="*.gd"` — nothing declares
+  ownership, so the only way to know a layer is free is to look. `smoke_ship_layout` now
+  asserts no room sits on `EXTERIOR_LAYER`.
+- **Bit us in:** the ship layout rewrite (`ship-layout.md`).
+
 ### Node names containing dots get sanitised
 
 - **Symptom:** `get_node("WindowGlass_door_-5.0_2.0")` returns null even though the node is

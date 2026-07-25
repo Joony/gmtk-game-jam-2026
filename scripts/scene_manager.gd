@@ -20,17 +20,29 @@ func _ready() -> void:
 	layer.add_child(_fade_rect)
 
 
-func change_scene(path: String) -> void:
+## Change scene, black-fading out and back in.
+##
+## `fade` defaults to true because most transitions want the wipe to cover a load and to give
+## the player a moment. Pass FALSE for a hard cut, where the change itself is the beat and a
+## fade would soften it — see intro.gd.
+func change_scene(path: String, fade: bool = true) -> void:
 	if _changing:
 		return
 	_changing = true
-	# Block clicks on the outgoing scene while fading.
+	# Block clicks on the outgoing scene while the transition runs.
 	_fade_rect.mouse_filter = Control.MOUSE_FILTER_STOP
-	await _fade_to(1.0)
+	if fade:
+		await _fade_to(1.0)
+	else:
+		# A cut still has to clear the rect. It is shared, and a transition that was
+		# interrupted part-way could leave it opaque — a hard cut onto a black screen is not
+		# a hard cut, it is a hang.
+		_fade_rect.modulate.a = 0.0
 	get_tree().change_scene_to_file(path)
 	await get_tree().process_frame
 	print("[SceneManager] changed scene to %s" % path)
-	await _fade_to(0.0)
+	if fade:
+		await _fade_to(0.0)
 	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_changing = false
 

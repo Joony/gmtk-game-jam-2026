@@ -1,8 +1,13 @@
 extends Control
 
-# The intro is the "Perpetual Pickle" video. It plays once, full-screen, and when it ends
-# the game fades in. Reached from the main menu's Start button, not on launch — the menu
+# The intro is the "Perpetual Pickle" video. It plays once, full-screen, and when it ends the
+# game HARD CUTS in. Reached from the main menu's Start button, not on launch — the menu
 # comes first now.
+#
+# The cut is the point. The game opens on a cold open — no HUD, no music, the player sealed in
+# a pod with the klaxon of a fault that has already happened — and a fade would announce the
+# change as a scene transition. Cutting straight from the last frame of the video to the
+# inside of the pod lands it as something that happens TO the player instead.
 #
 # There is no countdown here any more; the old 10 -> 01 title card was replaced by the video.
 
@@ -36,4 +41,5 @@ func _finish() -> void:
 		return
 	_finished = true
 	_video.stop()
-	SceneManager.change_scene(NEXT_SCENE)
+	# No fade — see the note at the top of this file.
+	SceneManager.change_scene(NEXT_SCENE, false)

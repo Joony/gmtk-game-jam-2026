@@ -85,12 +85,20 @@ func _run() -> void:
 	_check("seating a dynamic mount installs a PlugGuard collider", guard != null)
 	if guard != null:
 		var gbox := guard.shape as BoxShape3D
+		# Read the plug's box off the PLUG rather than restating it. The literal used to live
+		# here, so every rescale of the plug art broke this test for no behavioural reason.
+		var plug_box: BoxShape3D = null
+		for c in plug.get_children():
+			if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
+				plug_box = (c as CollisionShape3D).shape as BoxShape3D
 		_check("the guard wears the plug's own box shape",
-			gbox != null and gbox.size.is_equal_approx(Vector3(0.42, 0.18, 0.42)))
-		# The seated plug sits out along the socket's +Z by SEAT_STANDOFF (0.18) and down by
-		# SEAT_MODEL_Y (0.08): socket at z=0.2 -> guard at ~(0, -0.08, 0.38) in the mount frame.
-		_check("the guard sits where the plug protrudes (pos=%s)" % str(guard.position),
-			guard.position.is_equal_approx(Vector3(0.0, -0.08, 0.38)))
+			gbox != null and plug_box != null and gbox.size.is_equal_approx(plug_box.size))
+		# The seated plug sits out along the socket's +Z by SEAT_STANDOFF and down by
+		# SEAT_MODEL_Y, both of which scale with the plug model. Derived, not restated, for the
+		# same reason as the box above. The test's own socket sits at z=0.2 in the mount frame.
+		var want := Vector3(0.0, -CablePlug.SEAT_MODEL_Y, 0.2 + CablePlug.SEAT_STANDOFF)
+		_check("the guard sits where the plug protrudes (pos=%s, want %s)" % [str(guard.position), str(want)],
+			guard.position.is_equal_approx(want))
 
 	# --- ...and the guard must not steal the player's aim from the plug ---------------------
 	# Reported in play: "you can't disconnect a plug from a battery". The guard is a clone of

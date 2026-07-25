@@ -21,6 +21,14 @@ extends Node3D
 @export var pitch_min_deg: float = -89.0
 @export var pitch_max_deg: float = 89.0
 
+## Head-tilt on top of the look direction, in radians, and how far the eye drops below the
+## anchor. Neither is aiming — nothing the player does produces them. They exist for the
+## collapse at the end of a run, and they live HERE because _process rewrites the camera's
+## basis and origin from scratch every render frame: a roll animated on the node itself would
+## survive exactly one frame before being overwritten. Same reason set_look() exists.
+var collapse_roll: float = 0.0
+var collapse_drop: float = 0.0
+
 var _player: CharacterBody3D
 var _anchor: Node3D
 var _pitch: float = 0.0
@@ -57,7 +65,10 @@ func _process(_delta: float) -> void:
 	_anchor.transform.basis = Basis.from_euler(Vector3(_pitch, 0.0, 0.0))
 	_player.global_transform.basis = Basis.from_euler(Vector3(0.0, _yaw, 0.0))
 	var eye: Vector3 = _anchor.get_global_transform_interpolated().origin
-	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), eye)
+	eye.y -= collapse_drop
+	# Roll goes in the Z slot: Godot's default euler order is YXZ, so it is applied FIRST and
+	# therefore about the view axis — the head tipping over, not the world turning.
+	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, collapse_roll)), eye)
 
 
 # Place the camera at the anchor NOW, reading the anchor's real transform rather than its
@@ -67,7 +78,9 @@ func _process(_delta: float) -> void:
 func snap_to_body() -> void:
 	adopt_body_yaw()
 	_anchor.transform.basis = Basis.from_euler(Vector3(_pitch, 0.0, 0.0))
-	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), _anchor.global_transform.origin)
+	var eye := _anchor.global_transform.origin
+	eye.y -= collapse_drop
+	global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, collapse_roll)), eye)
 	reset_physics_interpolation()
 
 
