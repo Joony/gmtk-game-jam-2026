@@ -51,6 +51,18 @@ const NAV_MOVE_TIME := 0.55
 ## short enough that it is a beat rather than a wait. [E] skips it like any other stasis.
 const OPENING_STASIS_TIME := 1.6
 
+## The end of a run: the view goes over sideways like the player's legs gave way, then the
+## screen wipes to black and the numbers arrive on it. See _collapse().
+const END_FALL_TIME := 1.5
+## How far over. Not a full 90: stopping short of flat leaves the view lying at an angle
+## rather than pressed against the floor, which reads as a body and not as a dropped camera.
+const END_FALL_ROLL_DEG := 78.0
+## Eye height at the end, near enough the floor for someone lying on it.
+const END_FALL_DROP := 1.0
+## Added to wherever the player happened to be looking, so the view droops as it goes.
+const END_FALL_PITCH_DEG := -22.0
+const END_FADE_TIME := 0.9
+
 ## Same reasoning as PodPhase: the approach has to reject a second interact press, and the
 ## run can end while the player is stood reading.
 enum NavPhase { AWAY, APPROACHING, READING, LEAVING }
@@ -78,9 +90,6 @@ var _nav_return_pitch: float = 0.0
 func _ready() -> void:
 	_reticle.bind(_interactor)
 	_lighting.bind_environment($WorldEnvironment)
-	# Room culling: only the room the player is in (and its near neighbours) stays lit. The
-	# ship has 57 fixtures, well past what GL Compatibility will draw at once.
-	_lighting.bind_occupancy($Ship, $Player)
 	# Room culling: only the room the player is in (and its near neighbours) stays lit. The
 	# nine-room ship has 93 fixtures, well past what GL Compatibility will draw at once.
 	_lighting.bind_occupancy($Ship, $Player)
@@ -562,10 +571,52 @@ func _on_run_ended(won: bool, summary: Dictionary) -> void:
 	_refresh_reticle()
 	_hud.visible = false
 	_pause_menu.enabled = false
-	_player.process_mode = Node.PROCESS_MODE_DISABLED
 	MouseCapture.release()
+	# The player stops steering, but the tree keeps RUNNING and the player node keeps
+	# processing. Both used to be shut down on this line, and both have to wait: pausing the
+	# tree freezes the collapse, and disabling the player stops CameraController — a child of
+	# it — which is the thing actually performing the fall.
+	_set_player_active(false)
+	_camera.input_enabled = false
+
+	await _collapse()
+	await _run_end.fade_to_black(END_FADE_TIME)
+	# The scene can be torn down inside two and a half seconds of animation.
+	if not is_inside_tree():
+		return
+
+	_player.process_mode = Node.PROCESS_MODE_DISABLED
 	get_tree().paused = true
 	_run_end.show_result(won, summary)
+
+
+## The view going over sideways: the player's legs giving way, not a camera move.
+##
+## Driven through CameraController's `collapse_roll` / `collapse_drop` rather than by animating
+## the camera node, because the controller rewrites the camera's basis and origin from scratch
+## every render frame — anything set on the node itself would survive one frame.
+##
+## The three curves are deliberately different, and that difference IS the arc. The roll eases
+## IN, so it begins as a lean and turns into a fall. The drop eases OUT and starts a beat late,
+## so the view pivots about the feet before the floor comes up to meet it — start them together
+## on the same curve and it reads as a camera sinking straight down through the floor. The pitch
+## droops on a sine, relative to wherever the player happened to be looking, so the end pose is
+## theirs rather than a fixed one.
+func _collapse() -> void:
+	var yaw := _camera.get_yaw()
+	var from_pitch := _camera.get_pitch()
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_camera, "collapse_roll", deg_to_rad(END_FALL_ROLL_DEG), END_FALL_TIME) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween.tween_property(_camera, "collapse_drop", END_FALL_DROP, END_FALL_TIME * 0.8) \
+		.set_delay(END_FALL_TIME * 0.2) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_method(
+		func(pitch: float) -> void: _camera.set_look(yaw, pitch),
+		from_pitch, from_pitch + deg_to_rad(END_FALL_PITCH_DEG), END_FALL_TIME
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tween.finished
 
 
 func _on_run_end_dismissed() -> void:

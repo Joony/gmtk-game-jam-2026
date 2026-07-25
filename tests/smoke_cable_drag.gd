@@ -102,6 +102,15 @@ func _run() -> void:
 	_interactor = _game.get_node("Player/Interactor")
 	_holder = _game.get_node("Player/CameraRig/Camera3D/HoldPoint")
 
+	# Set dressing must not decide whether the cable physics works. This suite hand-builds its
+	# plugs and parks them at fixed points in the bridge, so the moment that room was furnished
+	# a decor collider sat where the far plug goes: the plug was ejected from it and shoved
+	# along with the player, the ends never separated past breakaway, and the held plug was
+	# never released. That is a false failure about furniture, not about cables.
+	var decor := _game.get_node_or_null("Decor")
+	if decor != null:
+		decor.free()
+
 	await _physics_frames(45)  # settle on the floor
 	_player.global_position = Vector3(0.0, 0.9, -17.0)
 	_player.reset_physics_interpolation()

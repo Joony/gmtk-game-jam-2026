@@ -33,13 +33,16 @@ corner_radius_bottom_left = 4
 layer = 70
 script = ExtResource("1_end")
 
+; Fully opaque, and faded in from nothing by RunEnd.fade_to_black(). It used to be 86% black
+; over a live view; now the run ends by blacking out, so the numbers arrive on black rather
+; than over a room the player is no longer in.
 [node name="Dim" type="ColorRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.86)
+color = Color(0, 0, 0, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
 anchors_preset = 15

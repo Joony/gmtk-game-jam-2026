@@ -26,6 +26,22 @@ The format is deliberately blunt: **symptom → cause → fix**, plus where it b
   backwards mount.
 - **Bit us in:** the cryo pod wrapper (`cryo_pod.tscn`) and every wall-mounted panel.
 
+### Physics tests that stand in a real room break when you furnish it
+
+- **Symptom:** `smoke_cable_drag` started failing with "a cable that can't follow releases the
+  held plug rather than stretching forever" — nothing to do with cables. Bisecting a 60-prop
+  decor list found it: `CD_BridgeTerminals_v1` sits at identity scale, and the model is
+  15 x 1 x 5 units, so it is a 15m x 5m collider across the bridge. The test parks its far
+  plug at (0, 1.55, -17.5), inside that volume; the plug was ejected and shoved along with the
+  player, so the two ends never separated past breakaway.
+- **Fix:** the suite now frees the `Decor` node before positioning anything. A test about
+  cable physics must not be decided by furniture. Do the same in any suite that hand-places
+  fixtures at fixed coordinates in a real room.
+- **Also worth knowing:** every other decor prop is scaled from a measured target size; this
+  one is unscaled, and at 5m deep it reaches z=-22.42 against a bridge fore wall at z=-21 —
+  so it clips through the wall and the 13m window.
+- **Bit us in:** furnishing the ship (`ship-layout.md`).
+
 ### `timeout` does not exist on macOS
 
 - **Symptom:** a verification command "passed" instantly and its evidence file was never
