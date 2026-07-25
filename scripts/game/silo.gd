@@ -23,9 +23,16 @@ extends Interactable
 # the same for both, and the HUD, the Need and the tests can all be written once. Six systems,
 # one script, which is TODO 17a.
 #
-# Nothing here ticks. A silo's level changes only when the player uses or services it; the
-# COUNTDOWNS belong to Need, which is a body clock, not a tank. Keeping the tank dumb is what
-# stops "the beer silo evaporates while you sleep" being a thing anyone has to think about.
+# MOSTLY NOTHING HERE TICKS, and the exception is the interesting one. A silo's level normally
+# changes only when the player uses or services it — the COUNTDOWNS belong to Need, which is a
+# body clock, not a tank, and keeping the tank dumb is what stops "the beer silo evaporates
+# while you sleep" being something anyone has to think about.
+#
+# `drain_per_day` is the exception, and it exists for the engine. A drive burns fuel because the
+# ship is moving, not because the player did anything, so power has to run down on its own — and
+# it runs on the SHIP's clock, which means STASIS BURNS IT. That is the point: the pod already
+# costs oxygen at a reduced rate, and now it costs fuel at 24x, so sleeping is no longer the
+# free half of the loop. Same unit as Malfunction.speed_decay_per_day, for the same reason.
 
 ## Emitted on any level change, for the HUD and for whoever is watching a tank fill.
 signal level_changed(silo: Silo, level: float)
@@ -66,16 +73,52 @@ const GROUP_SILO := &"silos"
 ## worse outcome than one that overflows — the overflow IS the consequence.
 @export var block_when_exhausted: bool = true
 
+## Headroom lost per elapsed SHIP day, all on its own. 0 for everything the player drives; the
+## engine's fuel tank is the one that burns whether you are watching or not. See the note above.
+@export var drain_per_day: float = 0.0
+
+## Headroom at which this starts shouting — the HUD row appears, and the lamp goes amber.
+## Same idea as Need.warn_at: the readout grows as things get bad.
+@export_range(0.0, 1.0) var warn_at: float = 0.4
+
+## Line the ship computer says when this runs out, or &"" for silence. Data like
+## Malfunction.vo_line, so giving a silo a voice is a field rather than a branch.
+@export var vo_line: StringName = &""
+
+## Empty means the ship stops. Only the engine's fuel tank. A flag rather than RunState
+## matching on `silo_id`, so the fuel tank can be moved, renamed or duplicated without the
+## consequence being wired to its name.
+@export var stops_the_drive: bool = false
+
 @export var use_text: String = "Use"
 @export var service_text: String = "Refill it"
 
+## Build a small emissive lamp on the tank, green through amber to red as it empties. Off for
+## a silo whose art already says what it holds.
+@export var show_lamp: bool = true
+## Where the lamp sits relative to the silo's ORIGIN, in metres. A full offset rather than just
+## a height, and the default is measured rather than guessed: CD_Silo_Base_v1's geometry is not
+## centred on its own origin — at the 0.171429 the ship dresses it at, the drum occupies
+## x -0.57..0.34 and z -0.34..1.42 — so a lamp at (0, h, 0) hangs in the air beside the tank
+## rather than on it, which is exactly what the first render showed. This sits it on the drum's
+## axis, at chest height, just proud of the face nearest the door.
+@export var lamp_offset: Vector3 = Vector3(-0.11, 1.55, -0.30)
+
+const LAMP_OK := Color(0.24, 0.90, 0.40)
+const LAMP_WARN := Color(1.00, 0.62, 0.10)
+const LAMP_CRIT := Color(1.00, 0.16, 0.12)
+
 var _consumed: bool = false
+var _lamp_material: StandardMaterial3D = null
 
 
 func _ready() -> void:
 	super()  # Interactable._ready: register in the interactables group
 	add_to_group(GROUP_SILO)
 	level = clampf(level, 0.0, 1.0)
+	if show_lamp:
+		_build_lamp()
+	_refresh_lamp()
 
 
 ## How much doing is left before this is in trouble, 0..1. 1 is a full supply or an empty
@@ -94,6 +137,20 @@ func uses_left() -> int:
 
 func is_exhausted() -> bool:
 	return headroom() <= 0.0
+
+
+## Bad enough to have earned a row on the HUD.
+func is_pressing() -> bool:
+	return headroom() <= warn_at
+
+
+## Burn what a silo loses on its own. `days` is ship time already scaled by stasis, so a fuel
+## tank empties 24x faster in the pod — which is the whole reason this runs on the ship's clock
+## rather than the player's. A no-op for every silo the player drives.
+func advance(days: float) -> void:
+	if drain_per_day <= 0.0 or days <= 0.0 or is_exhausted():
+		return
+	_set_level(level + drain_per_day * days * _use_direction())
 
 
 ## Use it: breathe, drink, eat, flush. Returns false if there was nothing to use.
@@ -207,6 +264,41 @@ func _use_direction() -> float:
 func _set_level(value: float) -> void:
 	var was_exhausted := is_exhausted()
 	level = clampf(value, 0.0, 1.0)
+	_refresh_lamp()
 	level_changed.emit(self, level)
 	if is_exhausted() and not was_exhausted:
 		exhausted.emit(self)
+
+
+## A lamp rather than a liquid level in the tank's own glass, which is what the art invites.
+## CD_Silo_Base_v1 has no separate liquid mesh to drive — the level in the window is part of
+## the model — so honouring it would need either a new mesh from the modeller or one built
+## here and lined up by hand against geometry that is rotated inside the .blend. A lamp is
+## legible from across a dark room, which is the thing that actually mattered.
+##
+## Built in code and unshaded, the same way BatteryCube builds its charge bars, so it works on
+## an adopted decor prop as well as on a spawned one.
+func _build_lamp() -> void:
+	var lamp := MeshInstance3D.new()
+	lamp.name = "StatusLamp"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.16, 0.16, 0.16)
+	lamp.mesh = mesh
+	_lamp_material = StandardMaterial3D.new()
+	_lamp_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lamp.material_override = _lamp_material
+	lamp.position = lamp_offset
+	add_child(lamp)
+
+
+func _refresh_lamp() -> void:
+	if _lamp_material == null:
+		return
+	var color := LAMP_OK
+	if is_exhausted():
+		color = LAMP_CRIT
+	elif is_pressing():
+		color = LAMP_WARN
+	_lamp_material.albedo_color = color
+	_lamp_material.emission_enabled = true
+	_lamp_material.emission = color

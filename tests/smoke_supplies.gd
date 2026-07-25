@@ -159,6 +159,60 @@ func _run() -> void:
 	_check("and you are left holding an empty (%s)" % can.kind, can.kind == &"empty")
 	_check("which the game does not take off you", not silo.consumed_last_item())
 
+	# --- the drive's fuel tank ------------------------------------------------
+	# The sixth system, and the only one that runs down without the player doing anything.
+	var tank := run.silo_by_id(&"power")
+	_check("the ship has a fuel tank", tank != null)
+	if tank != null:
+		_check("in the engine room, not floating in the hull (%s)"
+			% ship.room_at(tank.global_position),
+			ship.room_at(tank.global_position) == "engine_room")
+		_check("it takes power cells", tank.accepts == &"battery")
+		_check("and it burns fuel on its own (%.2f/day)" % tank.drain_per_day,
+			tank.drain_per_day > 0.0)
+
+		var cells := 0
+		for supply in supplies.canisters():
+			if supply.kind == &"battery" and ship.room_at(supply.global_position) == "cargo_bay":
+				cells += 1
+		_check("with spare cells in the cargo bay (%d)" % cells, cells >= 2)
+
+		# THE RUN ITSELF BURNS IT, which is the wiring that matters and the thing calling
+		# tank.advance() by hand cannot show. Measured as fuel-per-SHIP-DAY rather than
+		# per-frame, so it does not depend on the headless frame rate — and because ship days
+		# are what already carry the pod's 24x time scale, proving the rate is per-day is also
+		# what proves that sleeping burns fuel faster.
+		var burn := tank.drain_per_day
+		tank.drain_per_day = 20.0  # loud enough to measure over a handful of frames
+		var days_before := run.days_elapsed
+		var level_before := tank.level
+		await _frames(30)
+		var days := run.days_elapsed - days_before
+		var burned := level_before - tank.level
+		tank.drain_per_day = burn
+		_check("the run burns fuel as it travels (%.4f over %.4f days)" % [burned, days],
+			days > 0.0 and burned > 0.0)
+		_check("at exactly its per-day rate (%.2f/day, want 20.00)"
+			% (burned / maxf(days, 0.00001)),
+			absf(burned / maxf(days, 0.00001) - 20.0) < 0.5)
+
+		# Emptying it stops the ship. Not to a dead zero — the run has a speed floor precisely
+		# so a stalled drive is not an unwinnable run you still have to sit through — but it
+		# has to land ON that floor rather than shrug.
+		var cruising := run.speed_fraction()
+		_check("the ship is moving to begin with (%.2f)" % cruising, cruising > 0.5)
+		tank.advance(100.0)
+		_check("running the tank dry (%.2f)" % tank.level, tank.is_exhausted())
+		_check("stops the drive (%.2f -> %.2f)" % [cruising, run.speed_fraction()],
+			is_equal_approx(run.speed_fraction(), run.min_speed_fraction))
+		_check("and it is on the HUD", run.pressing_silos().has(tank))
+
+		# ...and a cell from the cargo bay gets it going again.
+		var cell := _make_cell(game)
+		_check("a fuel cell restarts it", tank.service(cell))
+		_check("and the ship moves again (%.2f)" % run.speed_fraction(),
+			run.speed_fraction() > run.min_speed_fraction)
+
 	# --- running out is lethal, and says so -----------------------------------
 	# The whole point of the CO2 need: it is the one NEW way to die (17b), and the end screen
 	# has only ever known how to say "OUT OF AIR".
@@ -196,6 +250,15 @@ func _run() -> void:
 	_check("the restarted run is not still marked finished", not run.finished)
 
 	_finish()
+
+
+## A fresh power cell, for testing the refuel without walking one across the ship.
+func _make_cell(game: Node) -> Consumable:
+	var scene: PackedScene = load("res://scenes/props/power_cell.tscn")
+	var node: Node = scene.instantiate()
+	game.add_child(node)
+	var view: Node3D = node
+	return view as Consumable
 
 
 func _finish() -> void:

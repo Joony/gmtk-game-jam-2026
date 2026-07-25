@@ -236,9 +236,92 @@ penalties, the silo not clearing the need, and the supplies never being built.
   twice: double-counted patch failures and two klaxons for one impact. The run currently
   restarts by reloading the scene so it never bit, but `start()` reads as re-runnable and now is.
 
+## Phase 3 — power, and the one tank that empties itself
+
+The sixth system, and the only one that runs down without the player doing anything.
+
+### Stasis stops being free
+
+Every other silo is inert until someone touches it. The drive's fuel tank burns because the
+**ship** is moving, so `Silo.drain_per_day` runs on the ship's clock — the same unit as
+`Malfunction.speed_decay_per_day`, and for the same reason.
+
+That is the whole point rather than an implementation detail. The pod was the cheap half of the
+loop: oxygen drains at a reduced rate in there and nothing else moved against you. Now sleeping
+burns fuel at **24×**, so a long stretch of stasis is a decision with a price, and the price is
+a walk to the cargo bay.
+
+At `0.11`/day against a ~31-day crossing, a tank is about nine days of travel — three or four
+supply runs across a full voyage if you never sleep through a stretch, more if you do.
+
+### Running dry stops the ship, but does not strand it
+
+`stops_the_drive` makes an empty tank a **100% speed penalty** rather than a hard zero, so it
+lands on the same `min_speed_fraction` floor that a pile-up of faults would. A drive frozen at
+exactly nothing is an unwinnable run that the player still has to sit through, and the floor
+exists precisely to stop that — power should not be the one thing that dodges it.
+
+It is a flag on the silo rather than `RunState` matching on `silo_id`, so the tank can be moved,
+renamed or duplicated without the consequence being wired to its name.
+
+The recorded `power_off` line names the battery, so the computer now says it when the tank runs
+dry — one of the nine idle voice lines from TODO 17j, wired.
+
+### Where it stands
+
+`scenes/props/silo.tscn` is a **spawnable** tank with its own model, for rooms that have no decor
+silo to adopt. The engine room is one: its model was pulled when the animation turned out to be
+broken, so the only thing dressed in there is four wall pipes.
+
+It stands *off* the aft wall rather than against one, because every wall in that room is already
+spoken for — DRIVE REGULATOR owns the port wall, MAIN DRIVE the aft, COOLANT LOOP the starboard —
+and each panel needs 0.9 m of clear air in front of it. `smoke_navigation` caught the first
+placement stealing exactly that from MAIN DRIVE.
+
+`scenes/props/power_cell.tscn` is a `Consumable` of kind `battery`, which goes through the same
+`Silo.service()` path an air canister does. **Not a `BatteryCube`** — that is the cable puzzle's
+power source, which you plug a cable into to carry electricity somewhere. This is fuel: it goes
+in and it stays in. They look alike and do entirely different jobs, so they are separate scenes
+rather than one with a mode.
+
+### Reading a tank without walking to it
+
+Two readouts, because the tank is the first thing that can go wrong while you are nowhere near it.
+
+- **A HUD row**, sharing the need rows. A tank running low and a body clock running down are the
+  same problem to the player — *something needs fetching* — so they read as one list. Shown as a
+  **percentage**, unlike both clocks: fuel is not convertible into "can I get there and back",
+  and what the player needs is how much is left and what to bring, so the row says both.
+- **An emissive lamp on the tank**, green through amber to red.
+
+The lamp is a substitute for the thing the art invites, and the substitution is worth recording.
+`CD_Silo_Base_v1` has a glass window with a liquid level in it, and driving that from
+`Silo.level` looked nearly free — it is not. There is no separate liquid mesh, and the model's
+geometry is offset from its own origin (at the ship's 0.171429 the drum occupies x −0.57..0.34,
+z −0.34..1.42), so a code-built mesh would have to be hand-aligned against art that may move.
+The lamp's own default offset is measured from those numbers rather than guessed, and it still
+took a render to get it onto the tank rather than floating 11 cm beside it. The real fix is a
+named liquid mesh from the modeller — TODO 17i.
+
+### Tests
+
+`smoke_needs` gains the draining tank in isolation: a day burns a tenth, ten days empties it,
+`exhausted` fires exactly once and then goes quiet, a cell recharges it, and **a silo with no
+drain emits nothing at all** rather than announcing a change of zero — which matters because
+every silo is advanced every frame and `RunState` recomputes ship speed and rebuilds the HUD off
+that signal.
+
+`smoke_supplies` covers the wiring: the tank is in the engine room, cells are in the cargo bay,
+emptying it drops the ship to the floor speed, and a cell gets it moving again.
+
+The assertion worth naming is **that the run itself burns the fuel**. The first version called
+`tank.advance()` by hand, which proved nothing about `RunState`, and a mutation that deleted the
+burn loop entirely still passed. It now measures fuel-per-**ship-day** rather than per-frame — so
+it does not depend on the headless frame rate, and because ship days already carry the pod's 24×
+scale, proving the rate is per-day is also what proves that sleeping burns fuel faster.
+
 ## What is next
 
-Phase 3 (power/batteries), Phase 4 (the chain, as one unit), Phase 5 (hunger). Plus the
-placements waiting on the scene lock — TODO 17i, which now also carries two things the render
-turned up: `CD_Silo_Base_v1` ships with no collider, so only the adopted silo is solid; and the
-silo model has a glass window with a visible liquid level that `Silo.level` should be driving.
+Phase 4 (the chain, as one unit) and Phase 5 (hunger). Plus the placements waiting on the scene
+lock — TODO 17i, which also carries two things these renders turned up: `CD_Silo_Base_v1` ships
+with no collider, so only the adopted silo is solid; and its glass level needs a driveable mesh.

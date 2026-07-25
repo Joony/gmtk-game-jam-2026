@@ -1418,9 +1418,30 @@ right design after the lock lifts.
         spawning, so a restarted run opened with its opening need switched off; and `start()`
         re-connected `broke`/`repaired` unguarded, double-counting patch failures on a second
         call. Both fixed
-- [ ] **Phase 3 — power/batteries.** Logic is unblocked; the ringed battery model and its
-      cargo-bay copies are not (17i). Build against the existing `battery_cube.tscn` so the
-      system is provable before the art lands
+- [x] **Phase 3 — power/fuel.** Done 2026-07-26. The sixth system, and the only one that runs
+      down without the player doing anything
+  - [x] `Silo.drain_per_day` — the one silo that empties on its own, on the **ship's** clock.
+        That is the point rather than a detail: the pod was the free half of the loop, and now
+        stasis burns fuel at 24x. Everything else on the ship has `drain_per_day = 0` and is
+        genuinely inert (it emits nothing at all, rather than a change of zero)
+  - [x] `Silo.stops_the_drive` — an empty tank is a 100% speed penalty, so it lands on the same
+        `min_speed_fraction` floor every other total does. A drive frozen at exactly zero is an
+        unwinnable run the player still has to sit through
+  - [x] `scenes/props/power_cell.tscn` (Consumable, kind `battery`) and
+        `scenes/props/silo.tscn` — a spawnable tank, for rooms with no decor silo to adopt.
+        Four cells in the cargo bay, deliberately a separate errand from the air canisters
+  - [x] The tank stands **off** the aft wall: every wall in the engine room is already taken by
+        a repair panel needing 0.9 m of clear air, which `smoke_navigation` caught the first
+        placement stealing from MAIN DRIVE
+  - [x] `power_off` is now wired — the recorded line names the battery, so the computer says it
+        when the tank runs dry (17j)
+  - [x] HUD rows for silos in trouble, sharing the need rows: a tank running low and a body
+        clock running down are the same problem to the player, which is *something needs
+        fetching*. Shown as a percentage, not a clock — it is not convertible into "can I get
+        there and back"
+  - [x] `Silo` builds an emissive status lamp, green through amber to red
+  - **Not done, and it was my claim to begin with:** driving the silo's glass level from
+        `Silo.level`. See 17i — the model has no liquid mesh to drive
 - [ ] **Phase 4 — the chain** (17c): thirst -> bladder -> toilet -> crap silo -> explosion,
       built as ONE unit because it is the part worth protecting. `CD_Terlet_v1` exists
 - [ ] **Phase 5 — hunger + vending restock last.** Least novel, and the only need with an
@@ -1437,9 +1458,14 @@ Each of these is a placement or a scene-wiring change. Pull first, re-run the su
   - Seen in the render: **only the adopted silo has collision.** `CD_Silo_Base_v1` ships with
       no collider, so `LifeSilo1` is now solid while `LifeSilo2`/`3` beside it are walk-through.
       Give the prop its own collision rather than leaving it to whoever adopts it
-  - Also seen: **the silo model has a glass window with a visible liquid level in it.** Driving
-      that from `Silo.level` is nearly free and would make the tank readable from across the
-      room instead of only through the interaction prompt. Worth doing in Phase 3
+  - **The silo model's glass window has a liquid level painted into it, and it cannot be
+      driven.** I said in Phase 2 this would be nearly free; it is not. `CD_Silo_Base_v1` has no
+      separate liquid mesh (`Holder_Bottom/Top`, `Pipe_Bottom/Top`, `Plane`, `Silo_001`,
+      `Siphon`, `Siphon_Pipe`) and its geometry is offset from its own origin, so a code-built
+      mesh would have to be lined up by hand against art that may move. **Ask the modeller for
+      a named liquid mesh** whose Y scale can be driven, and `Silo` will drive it. Until then
+      `Silo` builds a small emissive lamp instead — green/amber/red — which is readable from
+      across a dark room and was the thing that actually mattered
 - [ ] Place the toilet (`CD_Terlet_v1`), and the vending machine as a functional restock point
       rather than the decor instance now standing in the mess
 - [ ] Stock the cargo bay properly: beer / empty canisters, food crates, batteries. NOTE the

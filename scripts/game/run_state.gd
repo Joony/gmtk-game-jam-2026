@@ -241,6 +241,12 @@ func _process(delta: float) -> void:
 	for malfunction in _malfunctions:
 		malfunction.advance(distance_remaining, days)
 
+	# `days` again, and deliberately: a silo that drains on its own is the ENGINE burning fuel,
+	# which happens because the ship is moving. So stasis burns it at 24x, and sleeping stops
+	# being the free half of the loop. Everything else in here has drain_per_day = 0.
+	for silo in _silos:
+		silo.advance(days)
+
 	# `delta`, and ONLY while awake. A need is a body clock, not a ship system: it must not
 	# carry the pod's 24x time scale, and it must not run at all in the pod, or sleeping
 	# through a long haul — the correct play — would kill you. TODO 17e settles this.
@@ -382,8 +388,45 @@ func _collect_silos() -> void:
 	_silos.clear()
 	for node in get_tree().get_nodes_in_group(Silo.GROUP_SILO):
 		var silo := node as Silo
-		if silo != null:
-			_silos.append(silo)
+		if silo == null:
+			continue
+		_silos.append(silo)
+		if not silo.level_changed.is_connected(_on_silo_level):
+			silo.level_changed.connect(_on_silo_level)
+		if not silo.exhausted.is_connected(_on_silo_exhausted):
+			silo.exhausted.connect(_on_silo_exhausted)
+
+
+## The fuel tank running dry stops the drive, so the arrival clock has to be recomputed the
+## moment it does — and the HUD row has to appear before that, while there is still time to
+## walk a cell to it.
+func _on_silo_level(_silo: Silo, _level: float) -> void:
+	_update_speed()
+	needs_changed.emit()
+
+
+func _on_silo_exhausted(silo: Silo) -> void:
+	if silo.vo_line != &"":
+		var audio := get_node_or_null(^"/root/Audio")
+		if audio != null:
+			audio.say(silo.vo_line)
+	choices.append("%s ran dry" % silo.display_name)
+	_update_speed()
+	needs_changed.emit()
+
+
+## Silos in trouble, for the HUD. Same idea as pressing_needs(): a tank you have plenty of is
+## not worth a line.
+func pressing_silos() -> Array[Silo]:
+	var out: Array[Silo] = []
+	for silo in _silos:
+		if silo.is_pressing():
+			out.append(silo)
+	return out
+
+
+func silos() -> Array[Silo]:
+	return _silos
 
 
 func silo_by_id(id: StringName) -> Silo:
@@ -460,6 +503,14 @@ func speed_fraction() -> float:
 	var penalty := 0.0
 	for malfunction in _malfunctions:
 		penalty += malfunction.active_speed_penalty()
+	# An empty fuel tank is a total penalty rather than a hard zero, so it lands on the SAME
+	# min_speed_fraction floor every other total does. A drive frozen at exactly nothing is an
+	# unwinnable run that still makes the player sit through their own suffocation, and the
+	# floor exists precisely to stop that — power should not be the one thing that dodges it.
+	for silo in _silos:
+		if silo.stops_the_drive and silo.is_exhausted():
+			penalty += 1.0
+			break
 	return clampf(1.0 - penalty, min_speed_fraction, 1.0)
 
 

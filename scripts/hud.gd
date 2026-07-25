@@ -77,12 +77,18 @@ func _process(delta: float) -> void:
 		if malfunction.is_active and malfunction.speed_decay_per_day > 0.0:
 			(line["label"] as Label).text = _fault_line(malfunction)
 	# A need is a clock, so its row is a clock: re-texted every frame, unconditionally. This
-	# is the row the player is reading while deciding whether the walk is worth it.
+	# is the row the player is reading while deciding whether the walk is worth it. The fuel
+	# tank is the same — it drains on the ship's clock, so it moves without anything happening.
 	for line in _need_lines:
-		var need: Need = line["need"]
 		var label := line["label"] as Label
-		label.text = _need_line(need)
-		label.add_theme_color_override("font_color", _need_color(need))
+		if line.has("need"):
+			var need: Need = line["need"]
+			label.text = _need_line(need)
+			label.add_theme_color_override("font_color", _need_color(need))
+		else:
+			var silo: Silo = line["silo"]
+			label.text = _silo_line(silo)
+			label.add_theme_color_override("font_color", _silo_color(silo))
 	if _stasis_panel.visible:
 		_update_stasis_rate()
 
@@ -181,6 +187,12 @@ func _rebuild_needs() -> void:
 		# is costing you half a day of travel.
 		_system_list.move_child(label, 0)
 		_need_lines.append({"need": need, "label": label})
+	# Silos share the row list rather than getting their own: a tank running low and a body
+	# clock running down are the same problem to the player — something needs fetching.
+	for silo in _run.pressing_silos():
+		var label := _make_line(_silo_line(silo), _silo_color(silo))
+		_system_list.move_child(label, 0)
+		_need_lines.append({"silo": silo, "label": label})
 
 
 ## Shown as TIME, like both of the other clocks — "1:12 of CO2" is a number you can weigh a
@@ -195,6 +207,21 @@ func _need_color(need: Need) -> Color:
 	if need.fraction() <= need.warn_at * 0.4:
 		return COLOR_CRIT
 	return COLOR_WARN
+
+
+## A tank reads as a PERCENTAGE, unlike the two clocks. It is not a countdown the player can
+## convert into "can I get there and back" — what they need to know is how much is left and
+## what to bring, so the row says both.
+func _silo_line(silo: Silo) -> String:
+	if silo.is_exhausted():
+		return "! %s — EMPTY, needs %s" % [silo.display_name, silo.accepts]
+	return "~ %s — %d%%, needs %s" % [
+		silo.display_name, int(round(silo.headroom() * 100.0)), silo.accepts
+	]
+
+
+func _silo_color(silo: Silo) -> Color:
+	return COLOR_CRIT if silo.is_exhausted() else COLOR_WARN
 
 
 ## One broken system's line. Split out because a bleeding fault re-texts every frame from

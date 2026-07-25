@@ -1,0 +1,44 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/consumable.gd" id="1_consumable"]
+[ext_resource type="PackedScene" uid="uid://bcxp08n1qigli" path="res://3D-Models/CD_Battery_v1.blend" id="2_model"]
+
+; A fuel cell for the drive. Carried one at a time from the cargo bay to the engine's tank,
+; and slotted in — a Consumable of kind `battery`, so it goes through exactly the same
+; Silo.service() path as an air canister does. That is the whole claim of TODO 17a holding up
+; on a sixth system: no new script, one prop scene, one row in ShipSupplies.
+;
+; NOT a BatteryCube. That is the cable puzzle's power source — you plug a cable into it and
+; carry electricity to a device. This is fuel: it goes in and it stays in. They look alike and
+; do entirely different jobs, which is why they are separate scenes rather than one with a mode.
+;
+; `becomes` is empty, so a spent cell is consumed. A flat cell you had to carry back would need
+; a recharging station the ship does not have.
+;
+; ART: the ringed battery (charge shown as rings) is still outstanding — see TODO 17f. This
+; uses CD_Battery_v1, which is 6.250 x 8.837 x 6.250 units with its origin at the base, scaled
+; to a 0.70m cell you can just about get your arms round.
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_cell"]
+radius = 0.25
+height = 0.7
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it.
+[node name="PowerCell" type="RigidBody3D" groups=["consumables"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_consumable")
+kind = &"battery"
+amount = 0.5
+interaction_type = 0
+interaction_text = "Pick up power cell"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_cell")
+
+; 0.0792 = 0.70m / 8.837 units. Dropped half its height, because the model's origin is at its
+; base and Carry would otherwise hold the cell dangling from underneath.
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.0792, 0, 0, 0, 0.0792, 0, 0, 0, 0.0792, 0, -0.35, 0)

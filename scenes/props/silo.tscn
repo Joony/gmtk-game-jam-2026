@@ -1,0 +1,31 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/silo.gd" id="1_silo"]
+[ext_resource type="PackedScene" uid="uid://by5orinnve8pv" path="res://3D-Models/CD_Silo_Base_v1.blend" id="2_model"]
+
+; A functional tank, model and all — for rooms that do not already have a decorative silo
+; standing in them. Where one DOES exist (life support, the mess, the bathroom), ShipSupplies
+; adopts it instead: putting a second tank on top of the first would be two silos in one room.
+; See ship_supplies.gd for which is which and why.
+;
+; Everything that makes this a particular tank — what it holds, how fast it drains, whether
+; running dry stops the ship — is set by ShipSupplies from its table, not baked in here. The
+; defaults below are just a full supply that never empties on its own.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_silo"]
+; Roughly the tank, offset back over its body: CD_Silo_Base_v1 is a 0.9m x 3.4m column whose
+; pipework runs behind the origin. The MODEL ships with no collision of its own, so this is
+; also what makes the thing solid to walk into.
+size = Vector3(1, 2.4, 1.8)
+
+[node name="Silo" type="StaticBody3D"]
+script = ExtResource("1_silo")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0.5)
+shape = SubResource("BoxShape3D_silo")
+
+; 0.171429, matching the silos already dressed into life support — a 3.43m column, which just
+; clears the engine room's 4m ceiling.
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.171429, 0, 0, 0, 0.171429, 0, 0, 0, 0.171429, 0, 0, 0)

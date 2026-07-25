@@ -87,6 +87,7 @@ func _run() -> void:
 	_test_consumable()
 	_test_supply_silo()
 	_test_waste_silo()
+	_test_draining_silo()
 	_test_need()
 	_test_the_chain()
 
@@ -231,6 +232,67 @@ func _test_waste_silo() -> void:
 
 	var full_can := _make_consumable(&"o2", 0.5)
 	_check("a FULL canister is no use on a waste tank", not toilet.service(full_can))
+
+
+# --- Silo, the one that empties on its own -----------------------------------
+#
+# The drive's fuel tank. Every other silo is inert until the player touches it; this one burns
+# because the ship is moving, and it burns on the SHIP's clock — so the pod, which was the free
+# half of the loop, now costs fuel at 24x.
+
+func _test_draining_silo() -> void:
+	var tank := _make_silo(&"power", Silo.Mode.SUPPLY, &"battery", 1.0, 0.0)
+	tank.drain_per_day = 0.1
+	tank.warn_at = 0.35
+	tank.stops_the_drive = true
+	var exhausted: Array[int] = [0]
+	tank.exhausted.connect(func(_s: Silo) -> void: exhausted[0] += 1)
+
+	_check("a full tank is not worth a HUD row", not tank.is_pressing())
+	tank.advance(1.0)
+	_check("a day's travel burns a tenth of it (%.2f)" % tank.level,
+		is_equal_approx(tank.level, 0.9))
+
+	# Not a per-frame drip: `days` is already scaled by stasis when RunState hands it over, so
+	# one call with a big number is exactly what sleeping through a stretch looks like.
+	tank.advance(6.0)
+	_check("six more days and it is asking for attention (%.2f)" % tank.headroom(),
+		tank.is_pressing())
+	_check("but still moving", not tank.is_exhausted() and exhausted[0] == 0)
+
+	tank.advance(4.0)
+	_check("ten days empties it (%.2f)" % tank.level, tank.is_exhausted())
+	_check("and it says so once (%d)" % exhausted[0], exhausted[0] == 1)
+	tank.advance(5.0)
+	_check("an empty tank cannot go negative (%.2f)" % tank.level, tank.level <= 0.0)
+	_check("and does not keep announcing itself (%d)" % exhausted[0], exhausted[0] == 1)
+
+	# The only way back is a cell from the cargo bay.
+	var cell := _make_consumable(&"battery", 0.5)
+	_check("a fuel cell recharges it", tank.service(cell))
+	_check("by half a tank (%.2f)" % tank.level, is_equal_approx(tank.level, 0.5))
+	_check("and the cell is used up — there is no taking it back out", cell.is_spent)
+	_check("the drive is off the floor again", not tank.is_exhausted())
+
+	# A silo with drain_per_day = 0 must be genuinely INERT — not merely unchanged. Every silo
+	# on the ship is advanced every frame, so one that "drains by zero" would still announce a
+	# level change sixty times a second, and RunState rebuilds the HUD and recomputes ship
+	# speed off that signal.
+	var beer := _make_silo(&"beer", Silo.Mode.SUPPLY, &"beer", 1.0, 0.25)
+	var beer_events: Array[int] = [0]
+	beer.level_changed.connect(func(_s: Silo, _l: float) -> void: beer_events[0] += 1)
+	beer.advance(100.0)
+	_check("a silo with no drain does not move on its own (%.2f)" % beer.level,
+		is_equal_approx(beer.level, 1.0))
+	_check("and says nothing at all, rather than announcing a change of zero (%d)"
+		% beer_events[0], beer_events[0] == 0)
+
+	# Same for a tank that is already empty: it must go quiet, not keep firing every frame.
+	var events: Array[int] = [0]
+	tank.level = 0.0
+	tank.level_changed.connect(func(_s: Silo, _l: float) -> void: events[0] += 1)
+	tank.advance(5.0)
+	_check("an empty tank stops emitting (%d)" % events[0], events[0] == 0)
 
 
 # --- Need -------------------------------------------------------------------
