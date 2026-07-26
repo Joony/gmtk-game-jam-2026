@@ -29,8 +29,21 @@ const LABEL_FONT := preload("res://assets/AbolitionTest-Regular.otf")
 ## Rendered at this size and then scaled to LABEL_HEIGHT, so the glyphs are rasterised big
 ## enough to stay crisp with the player's face 0.7m from them.
 const LABEL_FONT_SIZE := 128
-## Cap height in metres.
-const LABEL_HEIGHT := 0.26
+## Em size in metres. This is the ONLY thing that sets how big the label looks —
+## LABEL_FONT_SIZE above is rasterisation resolution and is divided straight back out by
+## `pixel_size`, so raising it sharpens the glyphs and changes nothing on screen. The digits
+## themselves come out about three quarters of this tall.
+const LABEL_HEIGHT := 0.64
+## How far to lift the label so the DIGITS are centred on the eye rather than their line box.
+##
+## Label3D centres the box, and a box is ascent + descent — but "01" has no descender, so its
+## ink sits in the upper part and the visible number lands low. Measured off a render rather
+## than derived: Godot exposes no cap height, only ascent and descent. As a FRACTION of
+## LABEL_HEIGHT, so it stays right when the size changes.
+##
+## To re-measure: tint the label a colour nothing else in the pod uses, render
+## tests/capture_pod_label.gd, and find the first and last rows containing it.
+const LABEL_INK_LIFT := 0.1375
 ## Where it sits in POD space: level with the eye, just inside the door's inner face.
 const LABEL_POSITION := Vector3(0.0, 1.6, -0.74)
 ## Slightly transparent — stencilled onto the panel, not a sign hung in front of it.
@@ -111,7 +124,8 @@ func _build_door_label() -> void:
 	_door.add_child(label)
 	# Pod space: dead ahead of the eye (PodView + the 0.65m camera anchor = 1.6m), a few
 	# centimetres clear of the door's inner surface at z = -0.782 so the two cannot z-fight.
-	label.global_transform = global_transform * Transform3D(Basis.IDENTITY, LABEL_POSITION)
+	label.global_transform = global_transform * Transform3D(
+		Basis.IDENTITY, LABEL_POSITION + Vector3.UP * LABEL_HEIGHT * LABEL_INK_LIFT)
 
 
 func get_interaction_text(_held_item: Node3D = null) -> String:

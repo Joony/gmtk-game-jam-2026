@@ -423,6 +423,17 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Field stretching removed — changing `cell_size` re-rolled the whole grid, so every speed
       change flickered. Near field brought in to 10–260m so its stars actually stream.
       Measured: 28% sky change per second at cruise, 0.0% re-roll on speed change.
+- [x] **45° corners on every opening** ([log](docs/features/opening-chamfers.md)) — small
+      triangular prisms dropped into each opening's corners, so a window reads as a chamfered
+      porthole and a doorway as a chamfered frame. Additive, so the wall-splitting maths is
+      untouched. Tinted, because a 45° face under shadowless lighting is otherwise invisible —
+      the same lesson `SlidingDoor.BEVEL_TINT` already learned. `opening_chamfer` (default 0.12m)
+      sets the leg, clamped so the 1m bathroom portholes can't close into a diamond.
+- [x] Doorways too, in a second pass. Three differences, all real: a doorway has two corners not
+      four (it reaches the floor), is cut through BOTH neighbours' skins not one, and — the one
+      that made doors a follow-up rather than part of the first pass — its panels slide through
+      the middle of the wall, so the chamfer is confined to the outer 3cm of each skin where a
+      panel can never reach it. Asserted in `smoke_door_bevel`, three more mutations killed.
 - [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
       field to move against. One sample per ray; angular density so it fills the sky independently
       of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.
@@ -1475,6 +1486,32 @@ right design after the lock lifts.
         lamp are described in its own frame
   - [x] Longest fuse of the six and the latest arrival (11 days), so the back half of a voyage
         is where the ship's problems and the body's start landing together
+  - [x] **The machine shows its stock**, 2026-07-26. Nine pigeonholes, read from the model's own
+        `slot1`..`slot9` empties rather than a computed grid (the rows are not a perfect
+        lattice). Starts with one cake, one can and one plant; a purchase takes a RANDOM hole;
+        a food crate refills three. `VendingStock` is a view over `Silo.level`, not a second
+        tally — the randomness is only in *which* hole, never in *how many*
+  - [x] **The lamp is three states with no gradient**, 2026-07-26: red out of order, orange
+        empty, green otherwise. The old amber "getting low" tier was the wrong shape for a lamp
+        read across a room — at that distance the question is "must I bring something", which
+        has a yes and a no. Urgency belongs on the HUD row, which has room for a number
+  - [x] **The machine can break**, and it breaks like everything else on the ship: an ordinary
+        `Malfunction` with an ordinary `RepairPoint`, so it is a spare part or a hammer bodge,
+        a row in the fault list, and the same repair sounds. A bespoke "out of order" flag
+        would have been less code and a worse game — a second repair idiom for one prop
+    - Fires at a RANDOM point mid-voyage, unlike every other fault. A run should be a sequence
+        you can learn the shape of; a vending machine packing up is comic, not structural
+    - Costs no drive, so the HUD now omits the drive clause for a fault that has none —
+        `(-0% drive)` reads as a broken readout rather than as a fault with no speed cost
+    - A bodge holds 9 million miles against 25–33 elsewhere: cheap to patch, back soon, so the
+        spare is worth spending on a machine you keep needing
+    - Broken blocks `use()` but NOT `service()` — refusing the crate would throw away a trip
+        already paid for in air, over a distinction invisible from the cargo bay
+  - [x] Counting a silo in ninths turned three latent float bugs real, all fixed with one
+        `EPSILON` in `Silo`: `is_exhausted()` never fired (so `ate_food` never played),
+        `uses_left()` reported 2 while three items were on the shelf, and — worst — the last
+        item could not be bought at all, because a crate's third and a purchase's ninth do not
+        compose. The player would have seen an item and a prompt that refused it
 
 ### 17i. Blocked on `scenes/game.tscn` — do when the lock lifts
 
@@ -1656,3 +1693,187 @@ Everything here is one file and one lock. Nothing else in 18 is waiting on anyth
 - [ ] After the edit, re-run `smoke_tutorial_cue` — it should still pass **unchanged**, now
       reporting `bridge` rather than `engine_room`. If it needs editing to pass, the cue stopped
       following the fault and that is the regression it exists to catch
+
+---
+
+## 19. ✅ Ship status map — done ([log](docs/features/ship-status-map.md))
+
+Full spec: [ship-status-map.md](docs/features/ship-status-map.md). A **London Underground diagram
+of the ship** as a second page on the nav console, with **pulsating red and orange blobs in the
+rooms where something needs doing**.
+
+The HUD fault list says *what* is wrong and has never said *where*. That is the question the
+player actually has to answer on waking, because every fault is priced in walking distance and
+walking distance is priced in air.
+
+### 19a. The decisions worth not relitigating
+
+- [x] **Second page on the existing console, not a new prop or a HUD overlay.** A prop needs a
+      `scenes/game.tscn` edit (locked, see 17i); an overlay would make the information free, and
+      this game charges air for information — which is why the nav plot walks you to a console
+      instead of opening a menu
+- [x] **Colour is reserved for trouble.** The diagram is drawn in the same green ink as the nav
+      plot, so the blobs are the only saturated pixels on the page and nothing competes with them
+- [x] **RED = FAULT (repair it), ORANGE = WARNING (fetch something)** — the game's only two
+      responses to a problem, in the colours the silo lamps and the HUD rows already use
+      (`Silo.LAMP_CRIT` / `LAMP_WARN`), and the only two entries in the legend
+- [x] **Patched faults are NOT on this map** (decided 2026-07-26). A patch is not somewhere you
+      have to go — it is a bill that falls due later, and the HUD fault list already carries it
+      with the number that matters. A third symbol dilutes a page that means "walk here now"
+- [x] **Pulse RATE encodes urgency, blob SIZE does not.** 0.5–2.2 Hz, the same grammar as the HUD
+      air vignette. A constant base radius stops the map lying about magnitude; the *number* of
+      blobs in a room is the magnitude
+- [x] **A "YOU ARE HERE" arrow points at the player's room**, in green — where you are is not a
+      problem. Added 2026-07-26, reversing the spec's "the marker would be a constant": true only
+      while the console is the sole place the map is readable, and it is what makes the diagram
+      read as a map. `""` hides it, which is a player standing in a doorway
+- [x] **The legend only explains marks that are actually on the page.** Colour key with the first
+      blob, arrow when there is a player, `ALL SYSTEMS NOMINAL` otherwise — which is what keeps
+      "a clean ship has no saturated pixel on it" true rather than rhetorical
+- [x] **Topology derived, positions authored.** Edges come from `RoomBuilder.doorways` at runtime;
+      only the 13 schematic positions are hand-written. A hand-drawn map drifts from the ship the
+      first time a room moves — this way the drift is a test failure
+
+### 19b. Build order
+
+- [x] **Phase 1 — the drawing.** Done 2026-07-26. `scripts/ui/ship_plan.gd` (the plan table + edge
+      derivation from `RoomBuilder.doorways`) and `scripts/ui/status_map.gd` (`_draw()`, blobs,
+      pulse clock), fed a hard-coded problem list. Nothing existing was touched, so this phase
+      could not break the game
+- [x] **Phase 2 — wire it up.** Done 2026-07-26. `ComputerTerminal` collects problems from
+      `RunState` (`active_malfunctions()`, `pressing_silos()`, `pressing_needs()` located via
+      their silo),
+      page toggle on `left`/`right` while READING, and the console auto-shows the map whenever
+      anything is wrong. Also feeds `StatusMap.set_player_room()` from `Ship.room_at()`, the same
+      call `RoomVoice` already makes. No new input action, no `game.tscn` edit
+
+Two phases, and that is the whole feature. **Walking costs on the segments — metres, or seconds
+of air — were considered and dropped.** The map answers *where*; the segments stay unlabelled.
+
+### 19c. Verification
+
+- [x] `tests/smoke_status_map.gd` — 331 checks. Every `ShipLayout` room has a node and every node a
+      room (the drift guard); 12 doorways → 12 edges and no window mistaken for one; every edge
+      horizontal, vertical or exactly 45°; no crossings; the graph is a tree; blobs land on the
+      room they name, fan out when a room has several, and hold their order between collections
+- [x] **Orientation check** (not in the spec, added during the build): the diagram may straighten
+      the ship but may not mirror it. Everything else passes on a swapped HEAD/CLOSET
+- [x] **Mutations killed:** room added (coverage), room removed (orphan), node moved off 45°
+      (octilinear), the two stubs mirrored (orientation, 7 checks)
+- [x] `tests/capture_status_map.gd` — renders at two pulse phases: a clean ship has NO saturated
+      pixel anywhere, every trouble pixel belongs to a blob, each blob's core is the right colour,
+      and the phases differ inside the blob discs and nowhere else at all
+- [x] `tests/smoke_status_console.gd` — 64 checks against the REAL `game.tscn`: every fault and
+      every silo as actually placed resolves to a room the diagram can draw (a check nothing else
+      in the project makes); breaking/patching/repairing adds and clears the right blob in the
+      right room; a pressing need and its own tank merge to ONE blob; the console picks its own
+      page and drops a manual override when the player steps away
+- [x] **Mutations killed:** the silo dedupe removed (the merge check fails), the auto-page logic
+      inverted (six checks fail)
+- [x] `tests/capture_status_console.gd` — the real console in the room, photographed. Measured
+      RELATIVELY, because a critical fault reddens the whole room: 16.7% of the screen changes on
+      a page swap against 2.9% for the same page twice
+
+
+---
+
+## 20. Three status displays — SPEC (not yet built)
+
+Full spec: [status-displays.md](docs/features/status-displays.md). One display, one job:
+
+| | where | shows | answers |
+|---|---|---|---|
+| NAV PLOT | the console, cryo bay | `NavChart` | where is the ship going |
+| DECK PLAN | the bridge console bank | `StatusMap` | what is wrong with the ship |
+| DECK PLAN, compact | the HUD corner | `StatusMap` | which way do I walk, now |
+
+### 20a. Nothing built in step 19 is thrown away
+
+- [ ] The console's two pages, auto-choice and manual flip become **the behaviour of a screen that
+      declares both pages**: `@export var pages: Array[Page]`. One page = no flip, no auto-choice,
+      and the prompt names it. The current two-page console stays a valid configuration, and
+      `smoke_status_console` must keep passing **unchanged**
+- [ ] **The bridge display needs no new script.** `computer_terminal.gd` has nothing
+      console-specific left in it, so it is that script with `pages = [STATUS]` on an adopted
+      decor node. The class name becomes wrong; renaming touches locked `game.tscn` — follow-up
+
+### 20b. The bridge is the right home for the deck plan, and that is the point
+
+- [ ] Today the plan is on a console in the **cryo bay** — the room you are already standing in.
+      `ship_layout.gd`: the cryo bay has ONE door, up the spine to the bridge, and every other
+      room hangs off the bridge — so **every trip out crosses the bridge**, and the bridge is
+      where the direction is actually chosen. On the way back too, which is when you find out
+      what else broke
+- [ ] **Host it on `CD_BridgeTerminals_v1`, not a new prop.** It is already dressed on the bridge
+      at `(0.47, 0, -19.92)`, unscaled 1:1, and the model is **15 x 1 x 5 units** — a waist-height
+      bank of consoles running the full width of the bow, centred within 3 cm of the spine's
+      centreline. Come through the spine door and its centre panel is what you walk into
+- [ ] **Adopt it, the way `ShipSupplies` adopts the decor silos and the vending machine** — read
+      the decor node and hang the collider, SubViewport, quad and `ViewPoint` off it. No new
+      furniture, no clearance problem, no `game.tscn` edit
+- [ ] **Parent the display in the node's LOCAL frame, and that is load-bearing.**
+      `CD_BridgeTerminals` still clips the hull and the forward window (step 9 list + 17i, fix is
+      a scale or a shallower model). A display parented locally rides along with either — so this
+      neither waits on that fix nor breaks when it lands. Assert it: move the host, everything
+      moves
+- [ ] **The measurement this spec cannot make:** where the chart panel is on the 15 m bank, how
+      far proud of it, and whether its face is flat, sloped or upright. Take it from the editor or
+      tune it against the capture. **A shallower-model fix would change it** — the one thing local
+      parenting does not absorb
+- [ ] **If the panel is flat or sloped, lay the map out bow-up.** The reader stands aft of the
+      bank (~`(0.5, -16.6)`, facing −Z) because that is the only side there is — so map-up = away
+      = −Z = the ship's heading, AND the labels are upright, both for free. If the panel turns out
+      **upright**, it reads like the console and ship-alignment simply does not apply
+- [ ] **`Game._open_nav_screen()` hardcodes the reading pitch to `0.0`** — invisible while every
+      readable thing was a wall CRT, wrong the moment a display is waist height. Take the pitch
+      from the marker so `view_transform()` describes the whole pose. `_glide_player_to()`'s `0.0`
+      is for the pod and stays
+
+### 20c. The HUD copy
+
+- [ ] **A `compact` flag on `StatusMap`, not a second class** — two would drift. No title, no
+      legend, a `PAPER` backing panel (it sits over the lit world), tighter margins, **labels only
+      on rooms carrying a blob**, and pixel floors on the label size and the thinnest stroke
+- [ ] Bottom-left, 460 × 260 at `(60, -340)`–`(520, -80)`. Scale works out at 70.8 px/unit: blobs
+      13.5 px radius, station rings 10.3, player dot 5.3 — and the bridge stubs at **2.3 px**,
+      which is the one marginal number and the reason for the floor
+- [ ] Visible only with a problem on it, out of the pod, not leaning into a screen, run not ended.
+      No toggle key: the readout grows as things go wrong (17e)
+
+### 20d. The honest problem, stated up front
+
+- [ ] **If the HUD map ships, the bridge display becomes set dressing** — anything it tells you,
+      the corner of your eye already did. The resolution is an onboarding arc: the bridge is the
+      only place the ship's shape is NAMED (every room, the legend, the rooms that are fine), and
+      the HUD is stripped to marks. The bridge teaches the map; the HUD uses it
+- [ ] If that does not hold up in play, the lever is the HUD: make the corner map appear only once
+      the player has read the bridge display once. One boolean
+
+### 20e. Build order — and if time runs out, build the BRIDGE one
+
+- [ ] **Phase 1 — one collector.** `scripts/game/ship_status.gd` takes `collect_problems()` and
+      the three urgency statics off `ComputerTerminal`. No visible change
+- [ ] **Phase 2 — `pages` as data.** Console set to `[NAV]`. The plan is briefly nowhere, which is
+      why Phase 3 follows immediately
+- [ ] **Phase 3 — the deck plan on the bridge.** Adopt the bank, measure the panel, fit the quad
+      and the `ViewPoint`, fix the reading pitch. Independently shippable, and the one that
+      changes where a decision gets made
+- [ ] **Phase 4 — compact mode**, measured at HUD size in isolation
+- [ ] **Phase 5 — the HUD corner.** Also independently shippable
+
+### 20f. Verification — run the measurements FIRST
+
+- [ ] `tests/smoke_status_displays.gd`: one collector feeding all three, never disagreeing
+      (*mutation: give the HUD its own and confirm it fails*); `[NAV]`-only and `[STATUS]`-only
+      screens behave; **ship-alignment** (map-up transformed by the quad's basis points along −Z),
+      if the panel is flat or sloped; the `ViewPoint` is aft of the bank with a negative, non-zero
+      pitch; **the display rides with its host** when the decor node is moved or rescaled; the
+      reading position is standable (`smoke_navigation` route); HUD rect intersects none of
+      `Oxygen`, `Arrival`, `SystemList`, `StasisPanel`, computed from the real controls
+- [ ] `tests/capture_status_displays.gd`: the bank from its own `ViewPoint` — the plan sitting ON
+      the panel rather than floating above or sunk into it, upright and in frame. **This is what
+      settles the measurement**, so the offset is tuned against it rather than guessed. Plus the
+      HUD map at real 1920 × 1080 — blobs above a pixel floor, blobs on different rooms not
+      touching, the 2.3 px stubs still drawn, labels only on blobbed rooms. Keep the PNGs
+- [ ] **Frame cost**, budget ~0.5 ms/frame. If it disappoints, redraw at **20–30 Hz instead of
+      60** across all three — the fastest pulse on the page is 2.2 Hz — before cutting anything

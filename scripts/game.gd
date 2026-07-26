@@ -138,7 +138,9 @@ func _ready() -> void:
 	_build_supplies()
 	_wire_audio()
 	_wire_room_voice()
-	_computer.bind(_run)
+	# The ship and the player are what the damage plan needs on top of the nav plot: which room
+	# each fault is in, and which room the player is in. Same `room_at()` call RoomVoice makes.
+	_computer.bind(_run, $Ship as RoomBuilder, _player)
 	_computer.opened.connect(_open_nav_screen)
 	_nav_screen.closed.connect(_close_nav_screen)
 	_run.run_ended.connect(_on_run_ended)
@@ -409,6 +411,15 @@ func _exit_tree() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Turning the console's page. `left`/`right` rather than a new input action, because the
+	# player is frozen while reading (_set_player_active(false) above) and their strafe keys are
+	# therefore doing nothing — so this needs no binding of its own and no project.godot edit.
+	if _nav_phase == NavPhase.READING \
+			and (event.is_action_pressed("left") or event.is_action_pressed("right")):
+		_computer.flip_page()
+		get_viewport().set_input_as_handled()
+		return
+
 	if not event.is_action_pressed("interact"):
 		return
 	# Waking up. The player's own Interactor is switched off in stasis, so Game is the
@@ -440,6 +451,8 @@ func _open_nav_screen() -> void:
 	_set_player_active(false)
 	_player.velocity = Vector3.ZERO
 	_refresh_reticle()
+	# The list would otherwise sit straight across the screen being leaned into. See HUD.
+	_hud.set_list_visible(false)
 
 	var view := _computer.view_transform()
 	await _glide_player(view.origin, view.basis.get_euler().y, 0.0, NAV_MOVE_TIME)
@@ -452,6 +465,10 @@ func _open_nav_screen() -> void:
 func _close_nav_screen() -> void:
 	if _nav_phase != NavPhase.READING:
 		return
+	# Hand the console back to its own judgement. A player who flipped to the nav plot for a
+	# glance has not asked for the damage plan to stay off for the rest of the run.
+	_computer.clear_manual_page()
+	_hud.set_list_visible(true)
 	_nav_phase = NavPhase.LEAVING
 	if _run.finished:
 		_nav_phase = NavPhase.AWAY

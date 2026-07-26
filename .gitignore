@@ -24,3 +24,5 @@ mono_crash.*.json
 # tracks, so the eight that were committed were also `git rm --cached`ed to untrack them
 # (they stay on disk). Without that they carry on appearing as modified in every status.
 .DS_Store
+*.blend1
+*.blend1

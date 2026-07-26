@@ -137,6 +137,8 @@ func _run() -> void:
 	_check("door material uses vertex colour as albedo", material.vertex_color_use_as_albedo)
 	_check("the chamfer tint is darker than plain white", SlidingDoor.BEVEL_TINT.v < 1.0)
 
+	_check_doorway_chamfers(builder, thickness)
+
 	if _failures.is_empty():
 		print("DOOR BEVEL TEST PASS")
 		quit(0)
@@ -145,3 +147,68 @@ func _run() -> void:
 			push_error(failure)
 		print("DOOR BEVEL TEST FAIL")
 		quit(1)
+
+
+## The 45° cuts at the top corners of a DOORWAY opening — distinct from the panel bevel above,
+## which is on the doors themselves.
+##
+## The one that matters is the depth check. A doorway's panels slide through the middle of the
+## wall, so a chamfer taking the full skin (as a window's does) would have the panel grinding
+## through solid geometry every time the door opened. Nothing about that is visible in a still.
+func _check_doorway_chamfers(builder: RoomBuilder, panel_thickness: float) -> void:
+	var skin: float = builder.wall_thickness * 0.5
+	var panel_half := panel_thickness * 0.5
+
+	# The two rooms share only the x = 4 wall, so the Z-spanning doorway is cut through BOTH
+	# skins and the X-spanning one — which opens onto nothing — through a single skin. Both cases
+	# in one scene, which is why they are asserted by name.
+	var by_axis := {}
+	for opening in builder.doorways:
+		by_axis[opening.axis] = opening
+	_check(
+		"the shared doorway is cut through two skins (%d)" % builder.opening_skins(by_axis[Doorway.Axis.Z].id),
+		builder.opening_skins(by_axis[Doorway.Axis.Z].id) == 2
+	)
+	_check(
+		"the outer doorway is cut through one (%d)" % builder.opening_skins(by_axis[Doorway.Axis.X].id),
+		builder.opening_skins(by_axis[Doorway.Axis.X].id) == 1
+	)
+
+	var chamfers := builder.get_tree().get_nodes_in_group(RoomBuilder.GROUP_CHAMFER)
+	_check(
+		"both doorways are chamfered on every side (%d, want 6)" % chamfers.size(),
+		chamfers.size() == 6
+	)
+
+	var floor_level := 0
+	var clears_panel := 0
+	var within_skin := 0
+	for node in chamfers:
+		var piece: MeshInstance3D = node
+		var aabb: AABB = piece.global_transform * piece.get_aabb()
+		var opening: Doorway = by_axis[Doorway.Axis.X if absf(aabb.get_center().z + 4.0) < 0.4 else Doorway.Axis.Z]
+		var spans_x := opening.axis == Doorway.Axis.X
+
+		# A doorway reaches the floor, so it must be chamfered at the TOP ONLY. A cut at floor
+		# level would be a moulding across the threshold.
+		if aabb.position.y > builder.doorway_height * 0.5:
+			floor_level += 1
+
+		# Through-wall extent, as a signed offset from the wall line.
+		var wall_line: float = (opening.position.y if spans_x else opening.position.x) * builder.tile_size
+		var lo: float = (aabb.position.z if spans_x else aabb.position.x) - wall_line
+		var hi: float = lo + (aabb.size.z if spans_x else aabb.size.x)
+		# Entirely on one side, clear of the slab the panels sweep through.
+		if (lo >= panel_half - EPSILON) or (hi <= -panel_half + EPSILON):
+			clears_panel += 1
+		# ...and inside the wall, not poking out of the far face.
+		if lo >= -skin - EPSILON and hi <= skin + EPSILON:
+			within_skin += 1
+
+	# Counted against how many chamfers there actually ARE, not against the 6 expected above, so
+	# each of these fails on its own terms. Against a hardcoded 6, building the threshold corners
+	# as well would have left this green: six of the twelve would still have been at the top.
+	var n := chamfers.size()
+	_check("doorway chamfers are at the top, not the threshold (%d/%d)" % [floor_level, n], floor_level == n)
+	_check("doorway chamfers clear the sliding panels (%d/%d)" % [clears_panel, n], clears_panel == n)
+	_check("doorway chamfers stay inside the wall (%d/%d)" % [within_skin, n], within_skin == n)

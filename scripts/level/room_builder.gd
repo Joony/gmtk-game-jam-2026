@@ -38,6 +38,22 @@ const GROUP_LIGHT := &"room_lights"
 const GROUP_DOOR := &"room_door"
 const GROUP_LIGHT_PANEL := &"room_light_panels"
 const GROUP_WINDOW_GLASS := &"space_window_glass"
+const GROUP_CHAMFER := &"opening_chamfer"
+
+## Albedo multiplier on a chamfer's 45° face, applied as vertex colour. The interior is lit by
+## SHADOWLESS omnis (see _build_light), and under that an angled face picks up almost no shading
+## contrast against the wall it was cut from — a geometrically correct chamfer renders as a flat
+## continuation of the wall and the whole feature is invisible. SlidingDoor.BEVEL_TINT exists for
+## exactly the same reason. Only the hypotenuse is tinted; the end caps stay wall-coloured,
+## because they ARE wall.
+const CHAMFER_TINT := Color(0.78, 0.79, 0.82)
+## How far each chamfer is pushed into the surrounding sill/lintel/jamb, so the faces that meet
+## them are not decided by exact float equality between two independently-computed positions.
+## Same trick as SlidingDoor.SEAM_OVERLAP.
+const CHAMFER_OVERLAP := 0.001
+## Gap left between a doorway's chamfers and the slab its sliding panels move through, so the two
+## cannot graze even if the panel thickness is retuned. See _build_chamfers.
+const PANEL_CLEARANCE := 0.005
 
 @export var tile_size: float = 1.0
 @export var wall_thickness: float = 0.15
@@ -73,6 +89,10 @@ const GROUP_WINDOW_GLASS := &"space_window_glass"
 @export var light_range: float = 9.0
 ## Emissive housings under each fixture, so the lights are visibly the source.
 @export var build_light_panels: bool = true
+## Leg length of the 45° cut at each corner of an opening, so a window reads as a chamfered
+## porthole and a doorway as a chamfered frame rather than a plain rectangular hole. One knob for
+## both, because the point of it is that the ship's openings look like a set. 0 disables it.
+@export var opening_chamfer: float = 0.12
 
 ## Confine each room's lights to that room's own surfaces, using one visual layer per room.
 ##
@@ -106,6 +126,12 @@ var doorways: Array[Doorway] = []
 
 ## room id -> visual layer mask. Empty when confine_lights_to_rooms is off.
 var _room_layers: Dictionary = {}
+
+## opening id -> {"room": Room, "inward": Vector2}. Recorded while building walls, because that is
+## the only place that knows which room's skin an opening was cut through — and hence which
+## colour, which visual layer, and which SIDE of the wall line the chamfers belong on. `room_at()`
+## cannot answer it: an opening sits exactly on the room boundary, where the test is ambiguous.
+var _opening_walls: Dictionary = {}
 
 var _materials: Dictionary = {}
 var _built_root: Node3D = null
@@ -156,6 +182,7 @@ func clear() -> void:
 		_built_root.free()
 	_built_root = null
 	_materials.clear()
+	_opening_walls.clear()
 
 
 ## Build every room and doorway added so far. Safe to call again — it rebuilds.
@@ -188,6 +215,8 @@ func build() -> Node3D:
 	for opening in doorways:
 		if opening.fit_window:
 			_build_window(opening)
+		# Doorways get chamfered too, so every opening on the ship reads the same way.
+		_build_chamfers(opening)
 	return _built_root
 
 
@@ -258,6 +287,213 @@ func _build_window(opening: Doorway) -> void:
 	# "WindowGlass_door_-5.0_2.0" is not the name it ends up with.
 	glass.add_to_group(GROUP_WINDOW_GLASS)
 	_built_root.add_child(glass)
+
+
+## How many wall skins an opening was cut through: 1 for a window (exterior wall, one room) and 2
+## for a doorway between two rooms, each of which builds its own half-thickness side. This is also
+## the answer to "is this opening on an exterior wall", which nothing checked before.
+func opening_skins(opening_id: String) -> int:
+	var entries: Array = _opening_walls.get(opening_id, [])
+	return entries.size()
+
+
+## Cut the square corners off an opening: a small right-triangular prism dropped into each corner
+## of the void, its hypotenuse facing the room, so a window reads as a chamfered porthole and a
+## doorway as a chamfered frame.
+##
+## ADDITIVE, not subtractive. The wall-splitting maths that produces the sill, lintel and jambs is
+## untouched — the hole simply gets a few small solids in its corners. Carving the corners out of
+## the wall pieces instead would mean teaching _create_wall_piece about non-box geometry.
+##
+## No collision. A window's glass box already spans the whole opening, and a doorway's chamfers
+## are at head height in the corners, where nothing needs stopping.
+##
+## THREE THINGS A DOORWAY DOES DIFFERENTLY, all handled here rather than in a second routine:
+##
+## 1. It reaches the floor, so it has two corners, not four. A chamfer at floor level would read
+##    as a moulding nobody asked for.
+## 2. It is cut through BOTH neighbouring rooms' skins, so it gets a set of chamfers per side,
+##    each in that room's own colour and on that room's own visual layer.
+## 3. A sliding panel occupies the MIDDLE of the wall depth. See `near` below.
+func _build_chamfers(opening: Doorway) -> void:
+	if opening_chamfer < 0.01:
+		return
+	var entries: Array = _opening_walls.get(opening.id, [])
+	if entries.is_empty():
+		return
+
+	var top: float = opening.resolved_top(doorway_height)
+	var height := top - opening.sill
+	var span := opening.width * tile_size
+	if height <= 0.01 or span <= 0.01:
+		return
+	# Clamp so a small opening cannot close up into a diamond. The binding case is the bathroom's
+	# 1.0 x 1.0m portholes; at 0.3 the cuts still leave 40% of every edge as a flat run.
+	var leg := minf(opening_chamfer, 0.3 * minf(span, height))
+	if leg < 0.01:
+		return
+
+	# The depth slab the prisms occupy, measured inward from the wall line. A window gets the whole
+	# skin. A DOORWAY cannot: its two panels sit centred on the wall line and slide sideways
+	# through exactly this region, so a full-depth chamfer would have the panel grinding through
+	# the corner solid every time the door opened. The chamfer is confined to the part of the skin
+	# the panel can never reach, which is why doors were scoped out of the first pass.
+	var skin := wall_thickness * 0.5
+	var near := 0.0
+	if opening.fit_door and build_doors:
+		near = minf(door_thickness, wall_thickness * 0.7) * 0.5 + PANEL_CLEARANCE
+	if skin - near < 0.005:
+		push_warning(
+			"RoomBuilder: opening '%s' has no room for a chamfer — the door panel fills the wall."
+			% opening.id
+		)
+		return
+	var half_depth := (skin - near) * 0.5
+
+	# A doorway's corners are the two at the top; a window's are all four.
+	var corners: Array[Vector2] = [Vector2(1, 1), Vector2(-1, 1)]
+	if opening.sill > 0.01:
+		corners.append_array([Vector2(1, -1), Vector2(-1, -1)])
+
+	var at := grid_to_world(opening.position.x, opening.position.y)
+	var along := Vector3.RIGHT if opening.axis == Doorway.Axis.X else Vector3.BACK
+
+	for entry in entries:
+		var room: Room = entry["room"]
+		var inward: Vector2 = entry["inward"]
+		var through := Vector3(inward.x, 0.0, inward.y)
+		# Centred in the slab, exactly as _create_wall_piece offsets its skin. Get this wrong and
+		# the chamfer does not error — it just floats proud of the wall face, or hides behind it.
+		var origin := Vector3(at.x, 0.0, at.y) + through * ((near + skin) * 0.5)
+		var material := _chamfer_material(room)
+
+		for corner in corners:
+			var mesh := MeshInstance3D.new()
+			mesh.name = "Chamfer_%s_%s_%d_%d" % [opening.id, room.id, int(corner.x), int(corner.y)]
+			mesh.position = origin
+			mesh.mesh = _chamfer_mesh(
+				along, through, span * 0.5, top if corner.y > 0.0 else opening.sill,
+				leg, half_depth, corner
+			)
+			mesh.material_override = material
+			# Without this the chamfer lands on layer 1 and is lit by EVERY room's fixtures — a
+			# subtly wrong-coloured corner that also refuses to turn red with the wall in ALERT.
+			mesh.layers = room_layer(room.id)
+			mesh.add_to_group(GROUP_CHAMFER)
+			_built_root.add_child(mesh)
+
+
+## One corner prism. `u` runs along the opening (signed by corner.x), `v` is world height (the
+## corner sits at `y_corner`, and corner.y says whether that is the lintel or the sill/floor).
+##
+## Built in the opening's own axes rather than in X/Z, so one routine covers both orientations —
+## the same approach as SlidingDoor._build_panel_mesh, whose section-walking idiom this follows.
+func _chamfer_mesh(
+	along: Vector3,
+	through: Vector3,
+	half_span: float,
+	y_corner: float,
+	leg: float,
+	half_depth: float,
+	corner: Vector2
+) -> ArrayMesh:
+	var su := corner.x
+	var sv := corner.y
+	var o := CHAMFER_OVERLAP
+
+	# The right triangle, walked in order: along the sill/lintel face, along the jamb face, then
+	# back down the hypotenuse. The two leg faces are pushed `o` into the surrounding wall.
+	var section: Array[Vector2] = [
+		Vector2(su * (half_span - leg), y_corner + sv * o),
+		Vector2(su * (half_span + o), y_corner + sv * o),
+		Vector2(su * (half_span + o), y_corner - sv * leg),
+	]
+	# Index of the edge section[i] -> section[i + 1] that IS the 45° face — the only one the
+	# player can see, and the only one tinted. Pushing both legs out by the same `o` shifts this
+	# edge outward very slightly but leaves it at exactly 45°.
+	const CHAMFER_EDGE := 2
+
+	var centroid := (section[0] + section[1] + section[2]) / 3.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	for i in section.size():
+		var from := section[i]
+		var to := section[(i + 1) % section.size()]
+		var a := along * from.x + Vector3.UP * from.y
+		var b := along * to.x + Vector3.UP * to.y
+		# Outward normal: perpendicular to the edge in the opening's plane, pointing away from the
+		# section's centroid. The centroid test is needed because the section is NOT centred on the
+		# mesh origin, so SlidingDoor's "same way as the midpoint" shortcut does not apply here.
+		var mid := (from + to) * 0.5 - centroid
+		var normal := (b - a).cross(through).normalized()
+		if normal.dot(along * mid.x + Vector3.UP * mid.y) < 0.0:
+			normal = -normal
+		var color := CHAMFER_TINT if i == CHAMFER_EDGE else Color.WHITE
+		_add_quad(
+			st,
+			a - through * half_depth, b - through * half_depth,
+			b + through * half_depth, a + through * half_depth,
+			normal, color
+		)
+
+	# End caps: small triangles flush with the wall's two faces. Untinted, so they read as wall.
+	for front in [true, false]:
+		var offset := through * (half_depth if front else -half_depth)
+		var normal := through if front else -through
+		var fan: Array[Vector3] = []
+		for point in section:
+			fan.append(along * point.x + Vector3.UP * point.y + offset)
+		_add_tri(st, fan[0], fan[1], fan[2], normal, Color.WHITE)
+
+	st.generate_tangents()
+	return st.commit()
+
+
+## Emit one triangle, wound to face `normal`. The winding cannot be fixed at the call sites:
+## three of the four corners are MIRRORED in u, v or both, which reverses the section's outline
+## and turns those prisms inside out — backface-culled to a dark hole. Godot treats CLOCKWISE as
+## front-facing, so a correctly wound triangle's geometric normal points AWAY from the face
+## normal; when it doesn't, swap two vertices. (Copied from SlidingDoor, which hit this first.
+## Lifting the pair into a shared helper would mean touching a working, tested door mid-jam.)
+func _add_tri(
+	st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, normal: Vector3, color: Color
+) -> void:
+	if (b - a).cross(c - a).dot(normal) > 0.0:
+		var swap := b
+		b = c
+		c = swap
+	for v in [a, b, c]:
+		st.set_normal(normal)
+		st.set_color(color)
+		# The material is untextured, so UVs only need to exist for tangent generation.
+		st.set_uv(Vector2(v.x + v.z, -v.y))
+		st.add_vertex(v)
+
+
+func _add_quad(
+	st: SurfaceTool,
+	a: Vector3, b: Vector3, c: Vector3, d: Vector3,
+	normal: Vector3, color: Color
+) -> void:
+	_add_tri(st, a, b, c, normal, color)
+	_add_tri(st, a, c, d, normal, color)
+
+
+## The room's wall material, but reading vertex colour — which is what lets the 45° face be tinted
+## while the end caps stay wall-coloured. A separate material because turning vertex colour on for
+## the walls themselves would affect every box they build.
+func _chamfer_material(room: Room) -> StandardMaterial3D:
+	var key := "chamfer_" + room.id
+	if _materials.has(key):
+		return _materials[key]
+	var material := StandardMaterial3D.new()
+	material.albedo_color = room.wall_color
+	material.roughness = 0.95
+	material.metallic = 0.0
+	material.vertex_color_use_as_albedo = true
+	_materials[key] = material
+	return material
 
 
 
@@ -423,6 +659,13 @@ func _create_wall(segment: Dictionary, room: Room, material: StandardMaterial3D,
 	# An opening splits its segment into up to two pieces: wall below (a window's sill)
 	# and wall above (the lintel). A doorway has sill 0, so only the lintel is built.
 	var opening: Doorway = segment["opening"]
+	# The chamfer builder runs later and needs this room's colour, layer and inward direction. An
+	# ENTRY PER SIDE, not one per opening: a doorway is cut through both neighbours' skins and
+	# needs a set of chamfers in each, in that room's own colour. A window is on an exterior wall,
+	# so it collects exactly one.
+	if not _opening_walls.has(opening.id):
+		_opening_walls[opening.id] = []
+	_opening_walls[opening.id].append({"room": room, "inward": inward})
 	var bottom: float = opening.sill
 	var top: float = opening.resolved_top(doorway_height)
 	if bottom > 0.01:

@@ -26,6 +26,7 @@ const CANISTER_SCENE := preload("res://scenes/props/canister.tscn")
 const POWER_CELL_SCENE := preload("res://scenes/props/power_cell.tscn")
 const FOOD_CRATE_SCENE := preload("res://scenes/props/food_crate.tscn")
 const SILO_SCENE := preload("res://scenes/props/silo.tscn")
+const REPAIR_PANEL_SCENE := preload("res://scenes/props/repair_panel.tscn")
 
 ## Where the dressed-in props live, so the table below can name them by their own names.
 @export var decor_root: NodePath = ^"../Decor"
@@ -72,6 +73,9 @@ const SILOS := [
 		# through a stretch is what eats it fastest.
 		"drain_per_day": 0.11,
 		"stops_the_drive": true,
+		# The only tank whose emptiness is felt the second it happens: the ship stops. Every
+		# other one is a supply run to schedule, and the need it feeds carries the countdown.
+		"empty_is_critical": true,
 		"warn_at": 0.35,
 		"vo_line": &"power_off",
 		"service_text": "Slot the cell in",
@@ -101,23 +105,59 @@ const SILOS := [
 		# lamp are bigger and sit in the machine's own frame — which is why adoption now takes
 		# the decor node's rotation as well as its position: this one is turned to face out of
 		# the wall it stands against.
+		# THE MACHINE IS COUNTED IN SLOTS, not in an abstract fraction, because you can see
+		# them: nine pigeonholes behind the glass, and the model carries an empty for each.
+		# `use_amount` is one ninth so a purchase is exactly one item, and a food crate is
+		# worth three. It starts with three in it — one cake, one can, one plant.
 		"id": &"food",
 		"display_name": "VENDING",
 		"decor": ^"MessVending",
 		"mode": Silo.Mode.SUPPLY,
 		"accepts": &"food",
-		"level": 1.0,
-		"use_amount": 0.25,
-		"warn_at": 0.3,
+		"level": 3.0 / 9.0,
+		"use_amount": 1.0 / 9.0,
+		# Two items left. Below a third of a machine there is not enough in it to matter.
+		"warn_at": 2.0 / 9.0,
 		"vo_line": &"ate_food",
 		"use_text": "Get something to eat",
 		"service_text": "Load the crate in",
-		# 2.4m wide x 1.8m of machine above the floor x 1.3m deep, at the 0.6 the mess dresses
-		# it at. It sinks 0.6m into the floor, so the box covers only what is above it.
-		"size": Vector3(2.4, 1.8, 1.3),
-		"offset": Vector3(0.0, 0.9, 0.05),
-		# On the front, which is local +Z — the face the decor node is turned to present.
-		"lamp_offset": Vector3(0.0, 1.5, 0.75),
+		# Shows what is in it, in the model's own slot1..slot9 empties. See VendingStock.
+		"stock": true,
+		# The one silo that can BREAK. It is a machine with moving parts, not a tank, so it
+		# gets an ordinary Malfunction with an ordinary repair hatch: a spare part or a hammer
+		# bodge, a row in the HUD fault list, the same repair sounds as everything else.
+		"fault": {
+			"system_name": "VENDING MACHINE",
+			"fault_text": "dispenser jammed",
+			# Genuinely random, unlike every other fault on the ship, which fires at a fixed
+			# point in the voyage. A vending machine packing up is comic rather than
+			# structural — there is nothing to learn the timing of and no reason to make it
+			# learnable, so it just happens somewhere in the middle third of the crossing.
+			"fire_between": Vector2(62.0, 30.0),
+			# Costs no drive. It is not a ship system; it is the thing standing between the
+			# player and lunch, and hunger is the clock it actually presses on.
+			"speed_penalty": 0.0,
+			# A short bodge, and that is the whole trade the hammer offers here: the fault is
+			# cheap to patch and comes back soon, so the spare part is worth spending on a
+			# machine you are going to keep needing.
+			"bodge_distance": 9.0,
+			"patch_text": "Thump the dispenser",
+			"fit_text": "Fit a spare dispenser motor",
+			# A service hatch on the machine's front, below the keypad and just proud of the
+			# face — outside the silo's own collider, so the ray reaches it. Half size: the
+			# ship's standard panel is 0.9 x 1.1m and would swallow the machine.
+			"panel_at": Vector3(0.84, 0.42, 0.735),
+			"panel_scale": 0.5,
+		},
+		# 2.4m wide x 2.4m tall x 1.29m deep, at the 0.6 the mess dresses it at. The model's
+		# origin is at its base, so the box sits entirely above the floor.
+		"size": Vector3(2.4, 2.4, 1.29),
+		"offset": Vector3(0.0, 1.2, 0.045),
+		# On the KEYPAD panel to the right of the glass, not on the glass: the machine now shows
+		# what is in it, and a lamp in the middle of the window was covering a pigeonhole. The
+		# panel is the `Cube` mesh, model x 1.0..1.8 and y 1.3..2.7, which at 0.6 is x 0.6..1.08
+		# and y 0.78..1.62 — this sits above its buttons and just proud of its face.
+		"lamp_offset": Vector3(0.84, 1.45, 0.70),
 	},
 	{
 		# The head. Its own prop rather than an adoption, because the bathroom's decorative
@@ -172,6 +212,7 @@ const FOOD_CRATES := [
 
 var _silos: Array[Silo] = []
 var _canisters: Array[Consumable] = []
+var _stocks: Array[VendingStock] = []
 
 
 func _ready() -> void:
@@ -185,6 +226,12 @@ func build() -> void:
 			old.queue_free()
 	_silos.clear()
 	_canisters.clear()
+	# Not freed with the silos: a stock's items live inside the DECOR model's slot empties, so
+	# they outlive the silo body they were built from unless they are cleared here.
+	for stock in _stocks:
+		if is_instance_valid(stock):
+			stock.clear()
+	_stocks.clear()
 
 	for row in SILOS:
 		var silo := _build_silo(row)
@@ -211,9 +258,11 @@ func _build_silo(row: Dictionary) -> Silo:
 	var adopting := row.has("decor")
 	var at := Vector3.ZERO
 	var facing := Basis.IDENTITY
+	# Kept in scope past the branch: a vending machine's pigeonholes are empties inside this
+	# node, so the stock display below needs it too.
+	var host: Node3D = null
 	if adopting:
 		var decor := get_node_or_null(decor_root)
-		var host: Node3D = null
 		if decor != null:
 			host = decor.get_node_or_null(row["decor"]) as Node3D
 		if host == null:
@@ -252,8 +301,8 @@ func _build_silo(row: Dictionary) -> Silo:
 	# quietly reset to the generic defaults. The toilet is entirely its own scene; its row here
 	# is just where it stands.
 	for key in ["display_name", "mode", "accepts", "level", "use_amount", "drain_per_day",
-			"stops_the_drive", "warn_at", "vo_line", "use_text", "service_text",
-			"block_when_exhausted", "lamp_offset"]:
+			"stops_the_drive", "empty_is_critical", "warn_at", "vo_line", "use_text",
+			"service_text", "block_when_exhausted", "lamp_offset"]:
 		if row.has(key):
 			silo.set(key, row[key])
 
@@ -263,7 +312,56 @@ func _build_silo(row: Dictionary) -> Silo:
 	body.global_transform = Transform3D(facing, at)
 	if row.has("yaw"):
 		body.rotation.y = deg_to_rad(row["yaw"])
+
+	# A machine that shows what is left in it. Bound to the DECOR node, because the pigeonholes
+	# are empties inside that model — an adopted silo has no geometry of its own to hang them on.
+	if row.get("stock", false) and host != null:
+		var stock := VendingStock.new()
+		stock.name = "Stock"
+		silo.add_child(stock)
+		stock.bind(silo, host)
+		_stocks.append(stock)
+
+	if row.has("fault"):
+		silo.bind_malfunction(_build_fault(silo, row["fault"]))
 	return silo
+
+
+## A Malfunction standing where the silo does, with a repair hatch on it. Built rather than
+## placed for the same reason as everything else here, and collected by RunState the same way
+## every scene-placed fault is — it joins the `malfunctions` group in its own _ready().
+##
+## A CHILD of the silo, so the hatch's offset is expressed in the machine's own frame and the
+## whole thing travels if the prop is ever moved.
+func _build_fault(silo: Silo, spec: Dictionary) -> Malfunction:
+	var fault := Malfunction.new()
+	fault.name = "Fault_%s" % silo.silo_id
+	fault.system_name = spec.get("system_name", "SYSTEM")
+	fault.fault_text = spec.get("fault_text", "fault detected")
+	fault.severity = spec.get("severity", Malfunction.Severity.DEGRADING)
+	fault.speed_penalty = spec.get("speed_penalty", 0.0)
+	fault.bodge_distance = spec.get("bodge_distance", 25.0)
+	fault.vo_line = spec.get("vo_line", &"")
+
+	# `fire_between` is million-miles-remaining, counting DOWN, so x is the earlier end.
+	var window: Vector2 = spec.get("fire_between", Vector2.ZERO)
+	if window != Vector2.ZERO:
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		fault.fire_at_distance = rng.randf_range(minf(window.x, window.y), maxf(window.x, window.y))
+	else:
+		fault.fire_at_distance = spec.get("fire_at_distance", 0.0)
+
+	var panel: Node = REPAIR_PANEL_SCENE.instantiate()
+	var point := panel as RepairPoint
+	point.patch_text = spec.get("patch_text", "Patch it")
+	point.fit_text = spec.get("fit_text", "Fit a spare part")
+	fault.add_child(panel)
+	# Parented BEFORE the fault joins the tree, so Malfunction._ready() finds and binds it.
+	silo.add_child(fault)
+	(panel as Node3D).position = spec.get("panel_at", Vector3.ZERO)
+	(panel as Node3D).scale = Vector3.ONE * float(spec.get("panel_scale", 1.0))
+	return fault
 
 
 ## The interaction half of a silo with no model of its own, for adopting a decor prop.

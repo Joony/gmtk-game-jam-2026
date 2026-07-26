@@ -214,14 +214,29 @@ func _need_color(need: Need) -> Color:
 ## what to bring, so the row says both.
 func _silo_line(silo: Silo) -> String:
 	if silo.is_exhausted():
-		return "! %s — EMPTY, needs %s" % [silo.display_name, silo.accepts]
+		return "%s %s — EMPTY, needs %s" % [
+			"!" if _silo_is_critical(silo) else "~", silo.display_name, silo.accepts
+		]
 	return "~ %s — %d%%, needs %s" % [
 		silo.display_name, int(round(silo.headroom() * 100.0)), silo.accepts
 	]
 
 
 func _silo_color(silo: Silo) -> Color:
-	return COLOR_CRIT if silo.is_exhausted() else COLOR_WARN
+	return COLOR_CRIT if _silo_is_critical(silo) else COLOR_WARN
+
+
+## AN EMPTY TANK IS A WARNING, NOT A FAULT. Nothing is broken and there is nothing to repair —
+## the answer is a walk to the cargo bay — so it must not sit in the list wearing the same red
+## "!" as a ruptured coolant line. An empty vending machine reading like a hull breach teaches
+## the player to distrust the colour, and then the coolant line does not land either.
+##
+## The silo says which of the two it is (`empty_is_critical`) rather than the HUD guessing.
+## An earlier version of this asked whether the tank stopped the DRIVE, which is the wrong
+## question: a jammed vending machine does not touch the drive and still kills you, just
+## slower. What separates them is WHEN — see the field's own note.
+func _silo_is_critical(silo: Silo) -> bool:
+	return silo.empty_is_critical and silo.is_exhausted()
 
 
 ## One broken system's line. Split out because a bleeding fault re-texts every frame from
@@ -236,6 +251,11 @@ func _fault_line(malfunction: Malfunction) -> String:
 			int(round(malfunction.speed_decay * 100.0)),
 			int(round(malfunction.speed_penalty * 100.0)),
 		]
+	# A fault that costs no drive says nothing about drive. Not every system is a ship system:
+	# the vending machine jamming is a real problem, but "(-0% drive)" reads as a bug in the
+	# readout rather than as a fault with no speed cost.
+	if malfunction.speed_penalty <= 0.0:
+		return "! %s — %s" % [malfunction.system_name, malfunction.fault_text]
 	return "! %s — %s  (-%d%% drive)" % [
 		malfunction.system_name,
 		malfunction.fault_text,
@@ -261,6 +281,19 @@ func _make_line(text: String, color: Color) -> Label:
 	label.add_theme_font_size_override("font_size", 30)
 	_system_list.add_child(label)
 	return label
+
+
+## Hide the fault list while the player is leaning into the nav console.
+##
+## Not cosmetic: the console screen fills the middle of the view when the camera walks up to it,
+## and the list runs straight across it — the damage plan's LIFE SUPPORT blob was underneath
+## "! LIFE SUPPORT — EMPTY, NEEDS O2". Losing the list for those few seconds costs nothing,
+## because the page it is covering is the same information laid out on the ship.
+##
+## The two CLOCKS stay up. Reading the console costs air like everything else, and hiding the
+## gauge that says how much would be hiding the price of the thing the player is doing.
+func set_list_visible(shown: bool) -> void:
+	_system_list.visible = shown
 
 
 func _on_stasis_changed(in_stasis: bool) -> void:
