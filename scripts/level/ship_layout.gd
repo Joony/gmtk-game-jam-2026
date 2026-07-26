@@ -112,9 +112,9 @@ func _add_fore_rooms() -> void:
 
 	# Bathroom and janitor's closet, hung off the bridge's aft wall either side of the spine
 	# and stopping a metre short of it, so all three have hull between them.
-	add_room(Rect2i(-9, -12, 7, 7), {
+	add_room(Rect2i(-9, -12, 7, 5), {
 		"id": "bathroom",
-		"height": 2.4,
+		"height": 3.4,
 		"floor_color": Color(0.32, 0.34, 0.35),
 		"wall_color": Color(0.56, 0.58, 0.59),
 		"ceiling_color": Color(0.44, 0.46, 0.47),

@@ -108,21 +108,73 @@ func _run() -> void:
 		is_equal_approx(fixed.active_speed_penalty(), 0.0)
 	)
 
-	# --- A DEGRADING fault is unchanged ------------------------------------
-	# The ramp is the critical faults' character. A degrading one stays a flat toll you clear,
-	# so that the two severities read as different KINDS of problem and not just two sizes.
+	# --- Ramping is about the FAULT, not about its severity -----------------
+	# This used to read "the ramp is the critical faults' character", and severity was what
+	# decided whether a fault bled or charged one flat toll. Two unrelated ideas tied together:
+	# severity is whether the ship-wide red alert trips, and the nav computer (TODO 21b) ramps
+	# from -5% to -10% without being critical at all. That combination was unrepresentable.
+	#
+	# What decides it now is whether the fault HAS a ramp — somewhere to start from, or
+	# somewhere to climb to. A degrading fault with a decay rate bleeds like any other.
 	var minor := _lone_fault(false, 0.1)
 	minor.break_now()
-	_check(
-		"a degrading fault charges its whole penalty at once (%.3f)"
+	_check("a degrading fault with a decay rate ramps too (%.3f)"
 			% minor.active_speed_penalty(),
-		absf(minor.active_speed_penalty() - minor.speed_penalty) < 0.001
-	)
-	minor.repair(false, 50.0)
-	_check(
-		"and a patch clears it completely (%.3f)" % minor.active_speed_penalty(),
-		is_equal_approx(minor.active_speed_penalty(), 0.0)
-	)
+		minor.ramps() and is_equal_approx(minor.active_speed_penalty(), 0.0))
+	minor.advance(50.0, 2.0)
+	_check("bleeding as time passes (%.3f)" % minor.active_speed_penalty(),
+		minor.active_speed_penalty() > 0.1)
+
+	# ...and one with NO ramp at all still charges its whole penalty the moment it fires, which
+	# is what every fault did before there was a ramp to have.
+	var flat := _lone_fault(false, 0.0)
+	flat.break_now()
+	_check("a fault with no ramp charges everything at once (%.3f)"
+			% flat.active_speed_penalty(),
+		not flat.ramps()
+			and absf(flat.active_speed_penalty() - flat.speed_penalty) < 0.001)
+	flat.repair(false, 50.0)
+	_check("and a patch clears it completely (%.3f)" % flat.active_speed_penalty(),
+		is_equal_approx(flat.active_speed_penalty(), 0.0))
+
+	# --- An initial effect: a fault costs something the instant it fires -----
+	# Without one a ramping fault is free on the frame it breaks — klaxon, HUD row, drive still
+	# at 100% — which reads as nothing having happened.
+	var opener := _lone_fault(false, 0.05)
+	opener.initial_speed_penalty = 0.05
+	opener.speed_penalty = 0.10
+	opener.break_now()
+	_check("it costs its initial figure straight away (%.3f)"
+			% opener.active_speed_penalty(),
+		is_equal_approx(opener.active_speed_penalty(), 0.05))
+	opener.advance(50.0, 0.6)
+	var before_bodge := opener.active_speed_penalty()
+	_check("and climbs from there (%.3f)" % before_bodge, before_bodge > 0.05)
+
+	# THE BODGE RULE. A hammer freezes the loss where it stands and never hands it back: break
+	# at -5%, let it climb to -7%, bodge it, and the drive stays down 7% until a real part goes
+	# in. Buying time, not power.
+	opener.repair(false, 50.0)
+	_check("a bodge freezes the loss where it stands (%.3f vs %.3f)"
+			% [opener.active_speed_penalty(), before_bodge],
+		is_equal_approx(opener.active_speed_penalty(), before_bodge))
+	opener.repair(true, 50.0)
+	_check("only a fitted part gives it back (%.3f)" % opener.active_speed_penalty(),
+		is_equal_approx(opener.active_speed_penalty(), 0.0))
+
+	# --- A bodge brings the fault back sooner --------------------------------
+	# `bodge_recurrence` is a RATE, not a second distance, so the two numbers cannot drift
+	# apart and leave a bodge outlasting a proper repair.
+	var recurring := _lone_fault(false, 0.0)
+	recurring.bodge_distance = 21.0
+	recurring.bodge_recurrence = 3.5
+	recurring.break_now()
+	recurring.repair(false, 50.0)
+	_check("a patch is still holding most of the way through (%.2f)"
+			% recurring.patch_margin(45.0), recurring.patch_margin(45.0) > 0.0)
+	recurring.advance(43.0, 0.0)
+	_check("but gives out at a THIRD of the full interval, not the whole of it",
+		recurring.is_active and not recurring.is_patched)
 
 	# --- In the real run: stasis is not a free ride ------------------------
 	# The ramp runs on the SHIP's clock, so the pod's time scale carries into it. Measured
@@ -146,10 +198,15 @@ func _run() -> void:
 	drive.break_now()
 	await process_frame
 	var full := run.speed_fraction()
+	# Measured against the FAULT'S OWN numbers, not against a literal ship speed. This used to
+	# assert `speed_fraction() > 0.9`, which quietly meant "and nothing else is broken" — and
+	# the run now opens on the nav computer (TODO 21b), so two initial penalties together
+	# landed on exactly 0.900 and the test failed for a reason that had nothing to do with it.
 	_check(
-		"breaking it does not cost the whole penalty at once (%.3f, decay %.4f)"
-			% [full, drive.speed_decay],
-		full > 0.9
+		"breaking it costs its INITIAL figure, not its maximum (%.3f of %.3f, ship at %.3f)"
+			% [drive.speed_decay, drive.speed_penalty, full],
+		is_equal_approx(drive.speed_decay, drive.initial_speed_penalty)
+			and drive.speed_decay < drive.speed_penalty
 	)
 
 	# Awake: the ramp is slow enough that the walk to a panel is not a death sentence...
@@ -184,19 +241,20 @@ func _run() -> void:
 	_check("the ship has a hammer", hammer != null)
 	if hammer != null:
 		_check("the hammer is a repair tool", hammer.is_in_group(&"repair_tools"))
-		# The janitor's closet, off the corridor's starboard side. Asserted as a WORLD BOX
-		# rather than against ship_layout's numbers, so moving the room without moving the
-		# hammer (or the reverse) fails here instead of leaving it sealed inside a wall.
+		# THE BRIDGE, not the janitor's closet it used to live in. The opening tutorial (TODO
+		# 18) wants the hammer beside the fault the run starts on, so picking it up is how you
+		# learn the tool exists — and the bridge is the hub every trip passes through.
+		#
+		# Asserted against the ROOM rather than a hand-written world box: a box copied out of
+		# ship_layout is a second copy of the room's coordinates, and the two drifted apart the
+		# moment the hammer moved. room_at() reads the rects the geometry was built from.
+		var ship := game.get_node("Ship") as RoomBuilder
 		var at := hammer.global_position
 		_check(
-			"the hammer is in the janitor's closet (%.1f, %.1f)" % [at.x, at.z],
-			at.x > 3.2 and at.x < 5.8 and at.z > -11.8 and at.z < -9.2
+			"the hammer is in the bridge (%.1f, %.1f -> %s)"
+				% [at.x, at.z, ship.room_at(at)],
+			ship.room_at(at) == "bridge"
 		)
-		var closet_found := false
-		for room in (game.get_node("Ship") as RoomBuilder).rooms:
-			if room.id == "janitor_closet":
-				closet_found = true
-		_check("the ship has a janitor's closet", closet_found)
 
 	if _failures.is_empty():
 		print("DRIVE DECAY TEST PASS")

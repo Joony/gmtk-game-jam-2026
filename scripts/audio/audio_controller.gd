@@ -73,6 +73,9 @@ const VOICE_LINES := {
 	&"life_support": "res://assets/audio/voiceover/CD_LifeSupportFailing.mp3",
 	&"nav_off": "res://assets/audio/voiceover/CD_NavOff.mp3",
 	&"power_off": "res://assets/audio/voiceover/CD_PowerOff.mp3",
+	# Said once, the first time the player fixes a critical failure — the computer telling
+	# them the emergency is over and they can go back to sleep.
+	&"return_to_cryo": "res://assets/audio/voiceover/CD_ReturnToCryo.mp3",
 	&"pipes_engine": "res://assets/audio/voiceover/CD_PipesBroken_Engine.mp3",
 	&"need_oil": "res://assets/audio/voiceover/CD_NeedOil.mp3",
 	# Recorded and registered, but nothing plays them yet. Left in so wiring one up later is

@@ -14,8 +14,11 @@
 ; it needs no rotation). The model ships a nested StaticBody3D collider (the .blend `-col` mesh);
 ; its layers are zeroed like the crate's so the RigidBody's own box below is the only collider.
 
+; MEASURED against the plug model (tests/diag_prop_bounds.gd): the plug is 0.33 x 0.33 x 0.39m.
+; This box was 0.63 x 0.27 x 0.63 — nearly twice as wide as the thing you can see, and shorter
+; than it. Plugs therefore rested inside walls and each other and were shoved apart hard.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.63, 0.27, 0.63)
+size = Vector3(0.33, 0.33, 0.39)
 
 [node name="PowerCable" type="Node3D"]
 

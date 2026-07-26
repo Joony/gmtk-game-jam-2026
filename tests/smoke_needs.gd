@@ -148,15 +148,13 @@ func _test_consumable() -> void:
 
 func _test_lamp() -> void:
 	var silo := _make_silo(&"vend", Silo.Mode.SUPPLY, &"food", 1.0, 1.0 / 9.0)
-	var lamp := silo.get_node_or_null("StatusLamp") as MeshInstance3D
+	var lamp := silo.get_node_or_null("IndicatorLight") as IndicatorLight
 	_check("a silo builds a lamp", lamp != null)
 	if lamp == null:
 		return
-	var material := lamp.material_override as StandardMaterial3D
-	_check("which is emissive, so it reads in a dark room",
-		material != null and material.emission_enabled)
 
-	_check("a full machine is green", material.albedo_color == Silo.LAMP_OK)
+	_check("a full machine is green", lamp.current_color() == Silo.LAMP_OK)
+	_check("and not flashing — nothing needs doing", not lamp.is_flashing())
 
 	# Running LOW is not one of the states. The useful question across a room is "must I bring
 	# something", which has a yes and a no; how urgent it is belongs on the HUD row.
@@ -164,11 +162,13 @@ func _test_lamp() -> void:
 	while silo.uses_left() > 1:
 		silo.use()
 	_check("one item left is still green (%d left)" % silo.uses_left(),
-		material.albedo_color == Silo.LAMP_OK)
+		lamp.current_color() == Silo.LAMP_OK)
 
 	silo.use()
 	_check("empty turns it orange", silo.is_exhausted()
-		and material.albedo_color == Silo.LAMP_WARN)
+		and lamp.current_color() == Silo.LAMP_WARN)
+	_check("still not flashing — an empty tank is a walk, not an emergency",
+		not lamp.is_flashing())
 
 	# A fault outranks an empty shelf: the part is the thing you have to fetch first.
 	var fault := Malfunction.new()
@@ -177,20 +177,21 @@ func _test_lamp() -> void:
 	silo.bind_malfunction(fault)
 	fault.break_now(false)
 	_check("broken turns it red", silo.is_broken()
-		and material.albedo_color == Silo.LAMP_CRIT)
+		and lamp.current_color() == Silo.LAMP_CRIT)
+	_check("AND flashes, which is what separates 'now' from 'eventually'", lamp.is_flashing())
 
 	# It will not take a crate while broken — out of order is not the same as empty, and the
 	# mechanism that would hold the stock is the thing that failed.
 	_check("a broken machine refuses a refill", not silo.service(_make_consumable(&"food", 1.0)))
-	_check("and stays red", material.albedo_color == Silo.LAMP_CRIT)
+	_check("and stays red", lamp.current_color() == Silo.LAMP_CRIT)
 
 	# Repairing reveals the problem underneath rather than clearing both at once: the machine
 	# works again and is still empty, so the lamp steps red -> orange, not red -> green.
 	fault.repair(true)
 	_check("fixing it steps back to ORANGE, because it is still empty",
-		material.albedo_color == Silo.LAMP_WARN)
+		lamp.current_color() == Silo.LAMP_WARN and not lamp.is_flashing())
 	_check("and now the crate goes in", silo.service(_make_consumable(&"food", 1.0)))
-	_check("which finally gets it to green", material.albedo_color == Silo.LAMP_OK)
+	_check("which finally gets it to green", lamp.current_color() == Silo.LAMP_OK)
 
 
 # --- Silo, the SUPPLY half --------------------------------------------------

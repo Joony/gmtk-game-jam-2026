@@ -22,10 +22,12 @@
 ; different from the scenery around it.
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_canister"]
-; The model is a 0.80m drum; a cylinder rather than a box so a dropped can does not catch its
-; corners on door frames.
-radius = 0.4
-height = 0.94
+; A cylinder rather than a box so a dropped can does not catch its corners on door frames.
+; MEASURED against the model (tests/diag_prop_bounds.gd): the drum is 0.40m across and 0.90m
+; tall, not the 0.80m the old radius described. A collider twice the width of the can is why
+; canisters sat inside shelving and each other and were flung apart on the first tick.
+radius = 0.2
+height = 0.9
 
 ; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
 ; this body's velocity while standing on it.

@@ -42,10 +42,13 @@ func is_open() -> bool:
 
 
 func refresh() -> void:
-	if _terminal == null:
+	# A screen with one page has nowhere to flip to, so it does not advertise a key that would do
+	# nothing — `other_page_name()` returns "" and the prompt is just the way out.
+	var other := "" if _terminal == null else _terminal.other_page_name()
+	if other == "":
 		_hint.text = "[E] STEP AWAY"
 		return
-	_hint.text = "[E] STEP AWAY     [A/D] %s" % _terminal.other_page_name()
+	_hint.text = "[E] STEP AWAY     [A/D] %s" % other
 
 
 func _on_page_changed(_page: int) -> void:

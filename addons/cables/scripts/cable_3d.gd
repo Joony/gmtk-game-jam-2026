@@ -1252,7 +1252,11 @@ func _process(_delta: float) -> void:
 ## ahead of the physics, so its render pin leads points[0]/points[last]).
 func _render_polyline() -> PackedVector3Array:
 	var count := points.size()
-	var fraction := Engine.get_physics_interpolation_fraction()
+	# The rope does its own interpolation, so it has to honour the tree's setting too.
+	# With interpolation off (the web build — see scripts/web_tuning.gd) the fraction is a
+	# value sampled slower than it cycles, and lerping by it drags the rope back into the
+	# previous tick by an arbitrary amount every frame. Draw this tick's real shape instead.
+	var fraction := Engine.get_physics_interpolation_fraction() if is_physics_interpolated() else 1.0
 	var pos := PackedVector3Array()
 	pos.resize(count)
 	for i in count:

@@ -124,9 +124,9 @@ const GROUP_SILO := &"silos"
 ## silo holds, and thirds and ninths do not survive binary arithmetic intact.
 const EPSILON := 0.0001
 
-const LAMP_OK := Color(0.24, 0.90, 0.40)
-const LAMP_WARN := Color(1.00, 0.62, 0.10)
-const LAMP_CRIT := Color(1.00, 0.16, 0.12)
+const LAMP_OK := IndicatorLight.COLOR_OK
+const LAMP_WARN := IndicatorLight.COLOR_WARN
+const LAMP_CRIT := IndicatorLight.COLOR_CRIT
 
 ## A fault that takes this silo out of service while it is active, or null. The vending machine
 ## is the one that has one: it is a machine with moving parts, not a tank.
@@ -138,14 +138,30 @@ const LAMP_CRIT := Color(1.00, 0.16, 0.12)
 var malfunction: Malfunction = null
 
 var _consumed: bool = false
-var _lamp_material: StandardMaterial3D = null
+var _lamp: IndicatorLight = null
+## The hammer-versus-part dispatch and its prompt wording, borrowed rather than reimplemented.
+## Logic only: no geometry, no light, never a ray target — the MACHINE is what you walk up to.
+## See ShipFaults._build_fault().
+var _repair: RepairPoint = null
 
 
 func _ready() -> void:
-	super()  # Interactable._ready: register in the interactables group
+	setup()
+
+
+## Everything _ready() does, callable on its own.
+##
+## Needed because a silo is usually not built — it is a prop already standing in the scene that
+## has this script ATTACHED to it at runtime (see ShipSupplies). Godot does not re-run _ready()
+## after set_script() on a node that is already in the tree, so without a public entry point the
+## adopted tank would never join its group, never clamp its level and never grow a lamp.
+##
+## Idempotent, so calling it on a silo that came up the ordinary way is harmless.
+func setup() -> void:
+	add_to_group(&"interactables")  # what Interactable._ready() does
 	add_to_group(GROUP_SILO)
 	level = clampf(level, 0.0, 1.0)
-	if show_lamp:
+	if show_lamp and _lamp == null:
 		_build_lamp()
 	_refresh_lamp()
 
@@ -182,6 +198,11 @@ func is_pressing() -> bool:
 ## spare part or the hammer.
 func is_broken() -> bool:
 	return malfunction != null and malfunction.is_active
+
+
+## Running on a bodge: still worth a spare part, so the machine stays a repair target.
+func is_patched() -> bool:
+	return malfunction != null and malfunction.is_patched
 
 
 ## Put this silo out of service whenever `fault` is active.
@@ -267,6 +288,11 @@ func consumed_last_item() -> bool:
 func get_interaction_type(held_item: Node3D = null) -> InteractionType:
 	if not is_enabled:
 		return InteractionType.DISABLED
+	# Broken, the machine IS the repair point — so a hammer or a spare part has to route here
+	# rather than being dropped. There is no hatch bolted to the front of it any more: one prop,
+	# one prompt, and which prompt depends on whether the thing is working.
+	if _is_repairable(held_item):
+		return InteractionType.USE_ITEM
 	return InteractionType.USE_ITEM if _servicer(held_item) != null else InteractionType.ACTIVATE
 
 
@@ -277,8 +303,9 @@ func get_interaction_type(held_item: Node3D = null) -> InteractionType:
 func can_act_on(held_item: Node3D = null) -> bool:
 	if not is_enabled:
 		return false
-	if is_broken():
-		return false
+	if is_broken() or is_patched():
+		# Lit only for the things that actually fix it.
+		return _is_repairable(held_item)
 	if held_item != null:
 		return _servicer(held_item) != null and headroom() < 1.0
 	return not is_exhausted() or not block_when_exhausted
@@ -287,8 +314,15 @@ func can_act_on(held_item: Node3D = null) -> bool:
 func get_interaction_text(held_item: Node3D = null) -> String:
 	# BEFORE the servicing branch, so a player who has carried a crate all the way here is told
 	# the machine is out of order rather than being offered a press that would do nothing.
-	if is_broken():
-		return "%s: %s" % [display_name, malfunction.fault_text]
+	#
+	# Holding the means to fix it, the prompt is the REPAIR — the machine is the repair point
+	# now, so naming the fault at someone already carrying a hammer would be describing the
+	# problem to the one person who has come to solve it.
+	if is_broken() or is_patched():
+		if _is_repairable(held_item):
+			return _repair.get_interaction_text(held_item)
+		if is_broken():
+			return "%s: %s" % [display_name, malfunction.fault_text]
 	if _servicer(held_item) != null:
 		if headroom() >= 1.0:
 			return "%s: nothing to top up" % display_name
@@ -310,6 +344,11 @@ func interact() -> void:
 
 
 func use_with_item(item: Node3D) -> void:
+	if _is_repairable(item):
+		_repair.use_with_item(item)
+		_consumed = _repair.consumed_last_item()
+		used_with_item.emit(self, item)
+		return
 	var canister := _servicer(item)
 	if canister == null:
 		return
@@ -318,7 +357,21 @@ func use_with_item(item: Node3D) -> void:
 
 
 func can_use_with_item(item: Node3D) -> bool:
-	return _servicer(item) != null
+	return _is_repairable(item) or _servicer(item) != null
+
+
+## Is the held thing a hammer or a spare part, and is there anything here to use it on?
+func _is_repairable(item: Node3D) -> bool:
+	if _repair == null or item == null:
+		return false
+	if not (is_broken() or is_patched()):
+		return false
+	return _repair.can_use_with_item(item)
+
+
+## Give this silo a fault to be repaired at, so the prop itself is the repair point.
+func bind_repair(point: RepairPoint) -> void:
+	_repair = point
 
 
 # --- internals --------------------------------------------------------------
@@ -352,45 +405,26 @@ func _set_level(value: float) -> void:
 		exhausted.emit(self)
 
 
-## A lamp rather than a liquid level in the tank's own glass, which is what the art invites.
-## CD_Silo_Base_v1 has no separate liquid mesh to drive — the level in the window is part of
-## the model — so honouring it would need either a new mesh from the modeller or one built
-## here and lined up by hand against geometry that is rotated inside the .blend. A lamp is
-## legible from across a dark room, which is the thing that actually mattered.
+## The lamp is built by IndicatorLight, which mounts on the model's own `Indicator` empty when
+## there is one — the silos now ship with one — and falls back to a quad at `lamp_offset`.
 ##
-## Built in code and unshaded, the same way BatteryCube builds its charge bars, so it works on
-## an adopted decor prop as well as on a spawned one.
+## A lamp rather than a liquid level in the tank's own glass, which is what the art invites:
+## CD_Silo_Base_v1 has no separate liquid mesh to drive, so honouring it would need either a
+## new mesh from the modeller or one built here and lined up by hand against geometry that is
+## rotated inside the .blend. A lamp is legible from across a dark room, which is the thing
+## that actually mattered.
 func _build_lamp() -> void:
-	var lamp := MeshInstance3D.new()
-	lamp.name = "StatusLamp"
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.16, 0.16, 0.16)
-	lamp.mesh = mesh
-	_lamp_material = StandardMaterial3D.new()
-	_lamp_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lamp.material_override = _lamp_material
-	lamp.position = lamp_offset
-	add_child(lamp)
+	_lamp = IndicatorLight.attach(self, lamp_offset)
 
 
-## Green unless there is something to do about it, and only two things ever are:
-##
-##   RED     out of order — a spare part or the hammer
-##   ORANGE  empty        — a canister or a crate
-##   GREEN   fine
-##
-## Three states and no gradient. An amber "getting low" tier used to sit in here and it was
-## the wrong shape for a lamp across a room: the useful question is "do I need to bring
-## something", which has a yes and a no. How URGENT it is belongs on the HUD row, which has
-## room for a number.
 func _refresh_lamp() -> void:
-	if _lamp_material == null:
+	if _lamp == null:
 		return
 	var color := LAMP_OK
 	if is_broken():
 		color = LAMP_CRIT
 	elif is_exhausted():
 		color = LAMP_WARN
-	_lamp_material.albedo_color = color
-	_lamp_material.emission_enabled = true
-	_lamp_material.emission = color
+	# Flashes only when the silo is BROKEN, not when it is merely empty. Empty is a walk to
+	# the cargo bay; broken is a repair. See IndicatorLight.
+	_lamp.set_state(color, is_broken())

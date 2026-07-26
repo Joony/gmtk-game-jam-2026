@@ -19,9 +19,14 @@
 ; uses CD_Battery_v1, which is 6.250 x 8.837 x 6.250 units with its origin at the base, scaled
 ; to a 0.70m cell you can just about get your arms round.
 
+; MEASURED against the model, not assumed: tests/diag_prop_bounds.gd. The comment above dates
+; from when CD_PowerCell was 8.837 units tall; it is 2.65 units now, so at the 0.0792 scale
+; below the cell you actually see is 0.16 x 0.21 x 0.16 m. The collider was still describing
+; the old 0.70m cell — 3.3x the mesh — which is why cells sat interpenetrating shelves and the
+; floor and got flung apart by the solver.
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_cell"]
-radius = 0.25
-height = 0.7
+radius = 0.08
+height = 0.21
 
 ; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
 ; this body's velocity while standing on it.
@@ -38,10 +43,13 @@ interaction_text = "Pick up power cell"
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("CylinderShape3D_cell")
 
-; 0.0792 = 0.70m / 8.837 units. Dropped half its height, because the model's origin is at its
-; base and Carry would otherwise hold the cell dangling from underneath.
+; Dropped half its height, because the model's origin is at its base and Carry would otherwise
+; hold the cell dangling from underneath. That drop must be half of the REAL height: the model
+; is 2.65 units, so at 0.0792 the cell is 0.21m and the drop is 0.105. It was -0.35 — half of
+; the 0.70m the cell has not been since CD_PowerCell was re-authored — which parked the mesh a
+; quarter-metre below its own collider.
 [node name="Model" parent="." instance=ExtResource("2_model")]
-transform = Transform3D(0.0792, 0, 0, 0, 0.0792, 0, 0, 0, 0.0792, 0, -0.35, 0)
+transform = Transform3D(0.0792, 0, 0, 0, 0.0792, 0, 0, 0, 0.0792, 0, -0.105, 0)
 
 ; CD_Battery_v1 ships a StaticBody3D on its Socket mesh. Inside a RigidBody that is a second
 ; collider the physics engine drags around, fighting this body's own shape — and it does not

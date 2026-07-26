@@ -199,6 +199,12 @@ func _run() -> void:
 				panel = child
 		if panel == null:
 			continue
+		# Only real PANELS. A fault repaired at a screen or on a model carries a RepairPoint
+		# with no geometry of its own — it exists purely for the hammer-versus-part dispatch,
+		# and the terminal is the thing the player actually walks up to. Asking whether a
+		# logic-only node is mounted the right way round is asking about nothing.
+		if _collider_under(panel) == null:
+			continue
 		var normal := panel.global_transform.basis.z
 		var from := panel.global_position
 		var ahead := PhysicsRayQueryParameters3D.create(from, from + normal * 0.9)
@@ -212,3 +218,14 @@ func _run() -> void:
 	for failure in _failures:
 		print("   FAILED: %s" % failure)
 	quit(1 if _failures.size() > 0 else 0)
+
+
+## The physics body under a repair point, or null for a logic-only one.
+static func _collider_under(node: Node) -> CollisionObject3D:
+	if node is CollisionObject3D:
+		return node as CollisionObject3D
+	for child in node.get_children():
+		var found := _collider_under(child)
+		if found != null:
+			return found
+	return null

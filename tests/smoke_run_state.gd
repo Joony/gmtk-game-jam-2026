@@ -310,8 +310,14 @@ class _Runner:
 
 	func _test_patch_expires_and_refires() -> void:
 		print("[a patch buys distance, then gives out at the same panel]")
+		# bodge_recurrence 1.0 pins the patch window to bodge_distance exactly, so this test
+		# stays about "a patch buys distance and then gives out" and not about the recurrence
+		# rate — which has its own test in smoke_drive_decay.
 		var ctx: Dictionary = suite.build_run({"total_distance": 100.0}, [
-			{"system_name": "A", "speed_penalty": 0.2, "bodge_distance": 10.0},
+			{
+				"system_name": "A", "speed_penalty": 0.2,
+				"bodge_distance": 10.0, "bodge_recurrence": 1.0,
+			},
 		])
 		var run: RunState = ctx["run"]
 		var fault: Malfunction = ctx["faults"][0]
@@ -677,20 +683,37 @@ class _Runner:
 		suite.check(missing_fix == 0, "every malfunction is fixable (repair panel or power feed)")
 		suite.check(missing_part == 0, "every named spare part exists in the scene")
 
-		# Spares must be SCARCER than the faults, or fitting one is free and the patch
-		# route is strictly worse — which is what the balance simulation showed.
+		# Spares must be SCARCER than the REPAIRS A CROSSING DEMANDS, or fitting one is free
+		# and the patch route is strictly worse.
+		#
+		# This used to compare against the number of fault NODES, which was right when each
+		# fired once and stayed fixed. They recur now (TODO 21b), so a ship with seven faults
+		# asks for forty-odd repairs — and thirteen spares against seven nodes read as
+		# "plentiful" while being nowhere near enough for the run that actually happens.
 		var spares := suite.root.get_tree().get_nodes_in_group(&"spare_parts")
 		suite.check(spares.size() > 0, "spare parts are placed (got %d)" % spares.size())
-		suite.check(spares.size() < faults.size(),
-			"there are fewer spares (%d) than faults (%d), so which to fix properly is a choice"
-				% [spares.size(), faults.size()])
+		var repairs_needed := 0
+		for node in faults:
+			var fault := node as Malfunction
+			repairs_needed += 1
+			if fault.refire_every > 0.0:
+				repairs_needed += int(run.total_distance / fault.refire_every)
+		suite.check(spares.size() < repairs_needed,
+			"fewer spares (%d) than the repairs a crossing asks for (%d), so which to fix "
+				% [spares.size(), repairs_needed]
+				+ "properly stays a choice")
 
-		# Four pods in a plus, but only one of them is yours.
+		# The cryo bay is dressed by hand now, so how MANY pods stand in it is a decision for
+		# whoever is placing them and not something to pin here — the count used to be four in
+		# a plus, and asserting it just meant the suite went red every time the room was
+		# redecorated. What still matters is the invariant underneath: exactly one pod is
+		# yours, and any others are scenery that must never offer a prompt. Five identical
+		# interactable pods would be five identical wrong answers.
 		var pods: Array = []
 		for node in suite.root.get_tree().get_nodes_in_group(&"interactables"):
 			if node is StasisPod:
 				pods.append(node)
-		suite.check(pods.size() == 4, "four cryo pods are placed (got %d)" % pods.size())
+		suite.check(pods.size() >= 1, "at least one cryo pod is placed (got %d)" % pods.size())
 		var player_pods := 0
 		for pod in pods:
 			if (pod as StasisPod).is_player_pod:

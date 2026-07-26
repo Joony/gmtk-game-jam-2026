@@ -15,6 +15,16 @@ var _failures: Array[String] = []
 
 
 func _init() -> void:
+	# A WATCHDOG, which this suite was the only one without — and the omission cost real time:
+	# when it started hanging it hung forever instead of failing, so the whole run stopped
+	# rather than reporting which assertion had gone. Every other suite here has one.
+	#
+	# PROCESS mode, because this test pauses the tree on purpose and a plain timer stops with
+	# it — a watchdog that pauses alongside the thing it is watching cannot fire.
+	var watchdog := create_timer(60.0, true, false, true)
+	watchdog.timeout.connect(func() -> void:
+		push_error("reticle pause test timed out")
+		quit(1))
 	_run.call_deferred()
 
 
@@ -76,7 +86,7 @@ func _run() -> void:
 	_check("reticle restored after leaving the pod", game._reticle.visible)
 
 	# --- At the nav console: frozen in place reading, so the reticle is hidden there too.
-	game._open_nav_screen()
+	game._open_nav_screen(game.get_node("Computer"))
 	var reading := false
 	for _i in 300:
 		await process_frame

@@ -3,8 +3,8 @@ extends SceneTree
 #
 # smoke_needs.gd owns the component logic in isolation. This owns the WIRING — that a run
 # actually has a life-support silo standing where the player can see one, canisters in the
-# cargo bay to charge it with, a CO2 clock that starts when the scrubber fails, and a death
-# that says what killed you.
+# cargo bay, everything carryable resting on the floor rather than in the air, and an engine
+# core whose running dry stops the ship.
 #
 # It leans on game.tscn deliberately, unlike smoke_needs: the whole question here is whether
 # the pieces find each other inside the real scene, which is exactly what a hand-built fixture
@@ -84,14 +84,32 @@ func _run() -> void:
 		% [supplies.silos().size(), ShipSupplies.SILOS.size()],
 		supplies.silos().size() == ShipSupplies.SILOS.size())
 
-	var silo := run.silo_by_id(&"life_support")
-	_check("RunState found the life-support silo by id", silo != null)
-	if silo == null:
+	# The life-support tank is an OxygenSilo now, not a Silo (TODO 21e): it holds a CANISTER
+	# you can see rather than a 0..1 level, and it refills the run's own air rather than
+	# clearing a countdown. So it is not in the silo group and is not looked up by id.
+	var tank := supplies.oxygen_silo()
+	_check("the ship has an oxygen tank", tank != null)
+	if tank == null:
 		return _finish()
-	_check("which is in life support, not floating in the hull (%s)"
-		% ship.room_at(silo.global_position),
-		ship.room_at(silo.global_position) == "life_support")
-	_check("and it is full to start with (%.2f)" % silo.level, silo.level >= 1.0)
+	_check("in life support, not floating in the hull (%s)"
+		% ship.room_at(tank.global_position),
+		ship.room_at(tank.global_position) == "life_support")
+	# It starts with a SPENT canister in the cradle — the bottle whoever was awake last used —
+	# so the object the player will be swapping is in front of them before it matters.
+	_check("with a spent canister already in it (%s)"
+		% ("none" if tank.fitted() == null else tank.fitted().kind),
+		tank.fitted() != null and tank.fitted().kind == tank.spent_kind)
+	# And it is IN the cradle, not on the floor beside it. A canister is a RigidBody3D, so a
+	# local offset is ignored — the physics server owns the transform and puts it straight back.
+	var cradle: Node3D = tank.find_child("Socket", true, false)
+	if cradle != null:
+		# Its BASE on the cradle, not its origin: a canister prop centres its mesh on its body
+		# so it hangs right when carried, so dropping the origin onto the shelf buries half of
+		# it. What matters is where the bottom of the thing you can see ends up.
+		var base := _lowest_visible_point(tank.fitted())
+		_check("standing ON the cradle, not sunk into it (base %+.3f vs %+.3f)"
+			% [base, cradle.global_position.y],
+			absf(base - cradle.global_position.y) < 0.08)
 
 	var cans := supplies.canisters()
 	_check("there are canisters to fetch (%d)" % cans.size(), cans.size() >= 2)
@@ -105,8 +123,8 @@ func _run() -> void:
 			in_cargo += 1
 	_check("and they are in the cargo bay (%d of %d)" % [in_cargo, cans.size()],
 		in_cargo == cans.size())
-	_check("stocked with what the scrubber takes (%s)" % cans[0].kind,
-		cans[0].matches(silo.accepts))
+	_check("stocked with what the tank takes (%s)" % cans[0].kind,
+		cans[0].matches(tank.accepts))
 
 	# --- everything you can pick up is actually ON THE FLOOR ------------------
 	# Two shipped bugs came out of this check and neither was visible in a screenshot. Model
@@ -127,174 +145,51 @@ func _run() -> void:
 			% [supply.kind, body.global_position.y],
 			ship.room_at(body.global_position) != "")
 
-	# --- the CO2 clock is not running yet ------------------------------------
-	var co2: Need = null
-	for need in run.needs():
-		if need.id == &"co2":
-			co2 = need
-	_check("the run has a CO2 need", co2 != null)
-	if co2 == null:
-		return _finish()
-	_check("which is NOT in play while the scrubber is fine", not co2.active)
-	_check("so nothing is on the HUD yet", run.pressing_needs().is_empty())
+	# --- CO2 is PARKED --------------------------------------------------------
+	# This suite used to walk the CO2 countdown end to end from here: the scrubber breaking,
+	# the clock ticking awake and stopping in stasis, the HUD row, the silo clearing it, and
+	# CO2 NARCOSIS. All of it is gone for now, not because it broke but because CO2 is waiting
+	# on a silo of its own that has not been modelled (TODO 21f) — the life-support tank holds
+	# OXYGEN now. Put this back when the tank exists; the mechanism it tested is untouched and
+	# still covered by smoke_needs.
+	_check("the CO2 need really is parked, not half-wired",
+		run.need_by_id(&"co2") == null)
 
-	# The scrubber's old job was to slow the drive and make you breathe harder. Per 17b it now
-	# starts this countdown instead, and until game.tscn can be edited the run strips those
-	# effects at load. Both would otherwise apply at once.
-	var scrubber: Malfunction = null
+	# --- the drive's power ----------------------------------------------------
+	# Fuel used to be a consumable slotted into a silo. It is a BATTERY ON A CABLE now
+	# (TODO 21c): the engine core runs flat, and you charge a battery at the bay's wall socket
+	# and run a cable into the engine. So there is no fuel tank to find — there is a fault.
+	var core: Malfunction = null
 	for node in game.get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
-		if (node as Malfunction).system_name == "O2 SCRUBBER":
-			scrubber = node
-	_check("the O2 SCRUBBER is still in the ship", scrubber != null)
-	if scrubber == null:
-		return _finish()
-	_check("and no longer costs drive (%.2f)" % scrubber.speed_penalty,
-		is_zero_approx(scrubber.speed_penalty))
-	_check("nor makes you breathe harder (%.2f)" % scrubber.oxygen_drain_multiplier,
-		is_equal_approx(scrubber.oxygen_drain_multiplier, 1.0))
+		if (node as Malfunction).system_name == "ENGINE CORE":
+			core = node
+	_check("the ship has an engine core fault", core != null)
+	if core != null:
+		_check("in the engine room (%s)" % ship.room_at(core.global_position),
+			ship.room_at(core.global_position) == "engine_room")
+		_check("with an inlet to feed it",
+			core.get_parent().find_child("CoreInlet", true, false) != null)
+		# It STOPS the ship rather than slowing it — the one fault that bypasses the speed
+		# floor the rest of them share.
+		core.break_now()
+		await _frames(2)
+		_check("a depleted core stops the ship dead (%.3f)" % run.speed_fraction(),
+			is_zero_approx(run.speed_fraction()))
+		_check("and it is a critical failure, so the klaxon goes", core.is_critical())
+		core.repair(true, 50.0)
+		await _frames(2)
+		_check("feeding it gets the ship moving again (%.3f)" % run.speed_fraction(),
+			run.speed_fraction() > 0.5)
 
-	# --- breaking it starts the clock ----------------------------------------
-	scrubber.break_now(false)
-	await _frames(2)
-	_check("breaking the scrubber starts the CO2 countdown", co2.active)
-
-	# --- it runs while you are awake -----------------------------------------
-	co2.remaining = 30.0
-	await _frames(20)
-	_check("and it runs down while you are out of the pod (%.2f)" % co2.remaining,
-		co2.remaining < 30.0)
-
-	# ...and NOT in the pod. The one rule 17e is emphatic about: sleeping through a long haul
-	# is the correct play and must not kill you.
-	run.enter_stasis()
-	await _frames(2)
-	var asleep := co2.remaining
-	await _frames(30)
-	_check("but stops dead in stasis (%.3f -> %.3f)" % [asleep, co2.remaining],
-		is_equal_approx(asleep, co2.remaining))
-	run.exit_stasis()
-	await _frames(2)
-
-	# --- the HUD row appears only once it is pressing -------------------------
-	# satisfy() rather than writing `remaining`: the row is driven by a latch that only a
-	# genuine reset clears, and poking the number behind it would test nothing.
-	co2.satisfy()
-	await _frames(2)
-	_check("a fresh countdown is not on the HUD", run.pressing_needs().is_empty())
-	co2.advance(co2.seconds * (1.0 - co2.warn_at) + 1.0)
-	_check("crossing the warning line puts it there", run.pressing_needs().size() == 1)
-
-	# --- using the silo clears it, and costs a charge -------------------------
-	var before := silo.level
-	var pressing := co2.fraction()
-	_check("the silo can be used", silo.use())
-	await _frames(2)
-	# Not `== 1.0`: the clock is running again the moment it is reset, so a frame later it is
-	# already fractionally down. What matters is that it jumped back up.
-	_check("which resets the countdown (%.2f -> %.2f)" % [pressing, co2.fraction()],
-		co2.fraction() > pressing + 0.4)
-	_check("and it is off the HUD again", run.pressing_needs().is_empty())
-	_check("and costs a charge (%.2f -> %.2f)" % [before, silo.level], silo.level < before)
-
-	# --- and a canister recharges the silo ------------------------------------
-	while silo.use():
-		pass
-	_check("four charges empties it", silo.is_exhausted())
-	var can: Consumable = cans[0]
-	_check("a fetched canister recharges it", silo.service(can))
-	_check("the silo has air again (%.2f)" % silo.level, silo.level > 0.0)
-	_check("and you are left holding an empty (%s)" % can.kind, can.kind == &"empty")
-	_check("which the game does not take off you", not silo.consumed_last_item())
-
-	# --- the drive's fuel tank ------------------------------------------------
-	# The sixth system, and the only one that runs down without the player doing anything.
-	var tank := run.silo_by_id(&"power")
-	_check("the ship has a fuel tank", tank != null)
-	if tank != null:
-		_check("in the engine room, not floating in the hull (%s)"
-			% ship.room_at(tank.global_position),
-			ship.room_at(tank.global_position) == "engine_room")
-		_check("it takes power cells", tank.accepts == &"battery")
-		_check("and it burns fuel on its own (%.2f/day)" % tank.drain_per_day,
-			tank.drain_per_day > 0.0)
-
-		var cells := 0
-		for supply in supplies.canisters():
-			if supply.kind == &"battery" and ship.room_at(supply.global_position) == "cargo_bay":
-				cells += 1
-		_check("with spare cells in the cargo bay (%d)" % cells, cells >= 2)
-
-		# THE RUN ITSELF BURNS IT, which is the wiring that matters and the thing calling
-		# tank.advance() by hand cannot show. Measured as fuel-per-SHIP-DAY rather than
-		# per-frame, so it does not depend on the headless frame rate — and because ship days
-		# are what already carry the pod's 24x time scale, proving the rate is per-day is also
-		# what proves that sleeping burns fuel faster.
-		var burn := tank.drain_per_day
-		tank.drain_per_day = 20.0  # loud enough to measure over a handful of frames
-		var days_before := run.days_elapsed
-		var level_before := tank.level
-		await _frames(30)
-		var days := run.days_elapsed - days_before
-		var burned := level_before - tank.level
-		tank.drain_per_day = burn
-		_check("the run burns fuel as it travels (%.4f over %.4f days)" % [burned, days],
-			days > 0.0 and burned > 0.0)
-		_check("at exactly its per-day rate (%.2f/day, want 20.00)"
-			% (burned / maxf(days, 0.00001)),
-			absf(burned / maxf(days, 0.00001) - 20.0) < 0.5)
-
-		# Emptying it stops the ship. Not to a dead zero — the run has a speed floor precisely
-		# so a stalled drive is not an unwinnable run you still have to sit through — but it
-		# has to land ON that floor rather than shrug.
-		var cruising := run.speed_fraction()
-		_check("the ship is moving to begin with (%.2f)" % cruising, cruising > 0.5)
-		tank.advance(100.0)
-		_check("running the tank dry (%.2f)" % tank.level, tank.is_exhausted())
-		_check("stops the drive (%.2f -> %.2f)" % [cruising, run.speed_fraction()],
-			is_equal_approx(run.speed_fraction(), run.min_speed_fraction))
-		_check("and it is on the HUD", run.pressing_silos().has(tank))
-
-		# ...and a cell from the cargo bay gets it going again.
-		var cell := _make_cell(game)
-		_check("a fuel cell restarts it", tank.service(cell))
-		_check("and the ship moves again (%.2f)" % run.speed_fraction(),
-			run.speed_fraction() > run.min_speed_fraction)
-
-	# --- running out is lethal, and says so -----------------------------------
-	# The whole point of the CO2 need: it is the one NEW way to die (17b), and the end screen
-	# has only ever known how to say "OUT OF AIR".
-	_check("the run is still going", not run.finished)
-	co2.remaining = 0.05
-	await _frames(30)
-	_check("letting CO2 run out ends the run", run.finished)
-	var summary := run.summary()
-	_check("named for what actually killed you (%s)" % summary.get("end_title", ""),
-		summary.get("end_title", "") == "CO2 NARCOSIS")
-	_check("with air still in the tank, so it was not suffocation (%.1f)"
-		% run.oxygen_remaining, run.oxygen_remaining > 0.0)
-
-	# --- a fault that is ALREADY broken when the run opens ---------------------
-	# The other way a need can begin. A `starts_broken` fault never fires `broke` — RunState
-	# breaks it before connecting the signal, deliberately, so the cold open is silent — so a
-	# need triggered by one has to be picked up at collection time instead.
-	#
-	# Restarting the finished run is how this gets exercised, and it is worth doing for its own
-	# sake: `finished` has to be cleared before the needs are spawned or a second run opens
-	# with its need switched off. That ordering was wrong until this test caught it.
-	scrubber.starts_broken = true
+	# --- a restarted run rebuilds cleanly --------------------------------------
+	# Worth keeping even with CO2 parked: `finished` has to be cleared BEFORE the needs are
+	# spawned, or a second run opens with its opening need switched off — only on the second
+	# run, which is the worst kind of bug. This is the test that caught that ordering.
 	run.running = false
 	run.start()
 	await _frames(2)
-	var reborn: Need = null
-	for need in run.needs():
-		if need.id == &"co2":
-			reborn = need
-	_check("a restarted run gets a fresh CO2 need", reborn != null and reborn != co2)
-	if reborn != null:
-		_check("which is in play from the off, because the scrubber is already broken",
-			reborn.active)
-		_check("and full (%.2f)" % reborn.fraction(), reborn.fraction() > 0.9)
 	_check("the restarted run is not still marked finished", not run.finished)
+	_check("and it rebuilt its silos (%d)" % run.silos().size(), run.silos().size() >= 3)
 
 	_finish()
 

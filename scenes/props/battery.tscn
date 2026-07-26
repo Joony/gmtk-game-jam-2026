@@ -1,0 +1,54 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/battery_cube.gd" id="1_battery"]
+[ext_resource type="Script" uid="uid://do670hc7umfj7" path="res://addons/cables/scripts/cable_socket.gd" id="2_socket"]
+[ext_resource type="PackedScene" path="res://scenes/props/socket_receptacle.tscn" id="3_receptacle"]
+[ext_resource type="PackedScene" uid="uid://bcxp08n1qigli" path="res://3D-Models/CD_Battery_v1.blend" id="4_model"]
+
+; The modelled battery, replacing the grey box `battery_cube.tscn` draws for itself. Same script
+; and therefore the same behaviour — charge, drain, the flow model read off the cable graph, and
+; the emissive charge bars BatteryCube builds from its own collision box.
+;
+; This is the ship's fuel now (TODO 21c): the engine core runs flat, and you carry one of these
+; to the engine bay, plug it into a live wall socket to charge, then run a cable from it into
+; the engine. Not a Consumable slotted into a Silo — that was the earlier model and it is gone.
+;
+; CD_Battery_v1 is 2.00 x 2.65 x 2.00 units with its origin at the BASE, dressed at 0.3 to match
+; the one already placed in the engine room -> a 0.60 x 0.80 x 0.60 m battery, near enough the
+; 0.8 m cube it replaces that the balance carries over.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_battery"]
+size = Vector3(0.6, 0.795, 0.6)
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it.
+[node name="Battery" type="RigidBody3D"]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_battery")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_battery")
+
+; Dropped half its height: the model's origin is at its base, and a carried battery held by its
+; underside hangs wrong. 0.3975 = half of 2.65 units x 0.3.
+[node name="Model" parent="." instance=ExtResource("4_model")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, -0.3975, 0)
+
+; ON TOP, where the model puts its socket disc (2.50..2.65 units, so 0.375 m up in body space
+; once the mesh is centred). The cube's port was on a side face because a box has no obvious
+; top; this model does, so the cable goes in the way the art says it should.
+; Rotated -90 about X so the socket's facing (+Z, the convention wall_socket.tscn states) points
+; STRAIGHT UP out of the disc. Left unrotated it faced sideways out of the battery's flank,
+; which is nothing — the plug went in through solid model.
+[node name="Port" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.375, 0)
+script = ExtResource("2_socket")
+receptacle_scene = ExtResource("3_receptacle")
+
+; The .blend ships a StaticBody3D on its Socket mesh. Inside a RigidBody that is a second
+; collider the engine drags around — it launched the old power cells 21 m through the hull.
+[node name="StaticBody3D" parent="Model/Socket" index="0"]
+collision_layer = 0
+collision_mask = 0

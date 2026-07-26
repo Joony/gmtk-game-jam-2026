@@ -44,6 +44,35 @@ signal used_with_item(interactable: Interactable, item: Node3D)
 
 func _ready() -> void:
 	add_to_group(&"interactables")
+	_silence_model_colliders()
+
+
+# A `.blend` mesh named with the `-col` suffix imports as a StaticBody3D + CollisionShape3D.
+# That is right for scenery and wrong inside a RigidBody3D: it is a second collider, on the
+# world layer, that the engine drags around with the body — so props shove each other and the
+# walls, spin, and fly off.
+#
+# The prop scenes disable it with a layer override on the instanced child. The editor DROPS
+# THAT OVERRIDE when the scene is opened and saved: it ate pickup_crate.tscn's on 2026-07-26,
+# taking the Model's 0.4 scale with it (a 2m crate on a 0.8m collider), and the file's own
+# comment says it had happened at least once before.
+#
+# So the override is no longer the only line of defence. This re-applies it at runtime for
+# every carryable, where "carryable" means the Interactable IS the rigid body — a static panel
+# whose `-col` body is its actual collider is untouched.
+func _silence_model_colliders() -> void:
+	# Via an untyped local: GDScript's analyser knows the *script* extends Node3D and rejects
+	# `self is RigidBody3D` outright, even though the node it is attached to is one.
+	var this: Node = self
+	if not (this is RigidBody3D):
+		return
+	for node in find_children("*", "StaticBody3D", true, false):
+		var static_body := node as StaticBody3D
+		if static_body.collision_layer == 0 and static_body.collision_mask == 0:
+			continue
+		push_warning("[Interactable] %s: disabling a `-col` StaticBody3D inside the rigid body (%s). The scene's layer override has been lost — see scenes/props/pickup_crate.tscn." % [name, static_body.name])
+		static_body.collision_layer = 0
+		static_body.collision_mask = 0
 
 
 func can_interact(_held_item: Node3D = null) -> bool:

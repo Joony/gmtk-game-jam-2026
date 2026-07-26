@@ -15,8 +15,15 @@
 ; scene with the same group and no code change.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hammer"]
-; Slightly fatter than the head so a dropped hammer does not wedge itself into a corner.
-size = Vector3(0.24, 0.66, 0.24)
+; The hammer's own bounds, MEASURED in the body's frame (tests/diag_prop_bounds.gd) rather
+; than guessed: 0.29 x 0.61 x 0.33 with the Model's 90-degree yaw already applied. The old
+; 0.24 x 0.66 x 0.24 claimed to be "slightly fatter than the head" and was the opposite —
+; narrower than the claw by 4-9cm, so the head visibly sank into whatever it was dropped on,
+; while standing 5cm taller than the hammer so it rested on nothing.
+;
+; Still a box, not the hammer's silhouette: a dropped tool that cannot wedge its claw into a
+; corner is worth more here than an accurate handle.
+size = Vector3(0.29, 0.61, 0.33)
 
 ; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not
 ; inherit this body's velocity while standing on it.

@@ -53,6 +53,14 @@ const GROUP_MALFUNCTION := &"malfunctions"
 ## would ignore stasis entirely, and sleeping through a failing drive is exactly the play this
 ## has to punish — the ship's clock runs at `stasis_time_scale` in the pod, so it does.
 @export var speed_decay_per_day: float = 0.0
+## What this costs the INSTANT it fires, before any time has passed. `speed_penalty` is where
+## the bleed ends up; this is where it starts.
+##
+## Without it a ramping fault is free on the frame it breaks, which reads as nothing having
+## happened — the klaxon goes, the HUD lists a system, and the drive is still at 100%. A fault
+## should cost something immediately and cost more the longer it is left, so the player feels
+## both the event and the delay.
+@export_range(0.0, 1.0) var initial_speed_penalty: float = 0.0
 ## Multiplies the oxygen drain while active — the scrubber fault's whole point. 1.0 = no effect.
 @export var oxygen_drain_multiplier: float = 1.0
 
@@ -69,6 +77,34 @@ const GROUP_MALFUNCTION := &"malfunctions"
 ## not seconds, so that time spent in stasis burns through it too — otherwise patching then
 ## sleeping would be strictly free and the choice would evaporate.
 @export var bodge_distance: float = 25.0
+## How much MORE OFTEN a bodged system fails than a properly repaired one. The patch holds
+## `bodge_distance / bodge_recurrence`, so at 3.5 a bodge buys under a third of the interval a
+## fitted part would.
+##
+## Expressed as a rate rather than as a second distance on purpose: the two numbers are then
+## tied together, and tuning how long a system lasts cannot silently leave its bodge holding
+## longer than its proper repair.
+@export var bodge_recurrence: float = 3.5
+
+## While this is active the drive reads ZERO — not the usual floor. Only the engine core.
+##
+## `RunState.min_speed_fraction` exists so that a PILE-UP of ordinary faults cannot strand the
+## player at a dead stop they can never dig out of. A depleted core is not that: it is one
+## fault, with one fix, and the ship genuinely has no power. Flooring it at 6% would have the
+## drive still turning with nothing driving it.
+@export var halts_drive: bool = false
+
+## Distance (million miles) between recurrences once this has been dealt with. 0 = it fires
+## once and stays fixed.
+##
+## A run with four one-shot faults settles into long stretches of nothing: you sleep, you
+## arrive. One recurring fault is what keeps the loop turning — and because it counts DISTANCE
+## rather than time, it lands hardest in stasis, when the ship covers ground fastest. Being
+## woken by it is the game.
+@export var refire_every: float = 0.0
+
+## Distance at which the next recurrence is due, or 0 when nothing is scheduled.
+var _refire_at: float = 0.0
 ## Oxygen (seconds) spent the moment you patch this. The "spend a resource" branch.
 @export var bodge_oxygen_cost: float = 0.0
 ## Oxygen (seconds) recovered by a PROPER fix only. Rewards the fetch.
@@ -109,6 +145,9 @@ func break_now(was_patch_failure: bool = false) -> void:
 	is_active = true
 	is_patched = false
 	has_ever_fired = true
+	# maxf, not assignment: a patch that gives out re-breaks a fault whose decay is already
+	# above the initial figure, and a bodge is never allowed to hand speed back.
+	speed_decay = maxf(speed_decay, initial_speed_penalty)
 	break_count += 1
 	_patch_expires_at = 0.0
 	_refresh_points()
@@ -118,7 +157,14 @@ func break_now(was_patch_failure: bool = false) -> void:
 ## Fix it. `permanent` distinguishes a fitted spare part from a patch.
 ## `distance_remaining` sets when a patch will give out; ignored for a proper fix.
 func repair(permanent: bool, distance_remaining: float = -1.0) -> void:
-	if not is_active:
+	# A PATCHED system can still be properly repaired, and that is the whole point of the bodge
+	# rule. A hammer freezes the loss where it stands and never hands it back, so a bodged
+	# system is a system running permanently down on power — and the player has to be able to
+	# walk up with a spare part and clear it. Without this the only way out was to wait for the
+	# patch to fail, which turns "buy time" into "lose that speed for good".
+	#
+	# The hammer itself still needs something actually broken: you cannot bodge a bodge.
+	if not is_active and not (is_patched and permanent):
 		return
 	var distance := distance_remaining if distance_remaining >= 0.0 else _distance_now
 	is_active = false
@@ -128,7 +174,9 @@ func repair(permanent: bool, distance_remaining: float = -1.0) -> void:
 	# every time and makes the spare worth the walk.
 	if permanent:
 		speed_decay = 0.0
-	_patch_expires_at = maxf(distance - bodge_distance, 0.0) if is_patched else 0.0
+	if refire_every > 0.0:
+		_refire_at = maxf(distance - refire_every, 0.0)
+	_patch_expires_at = maxf(distance - _bodged_interval(), 0.0) if is_patched else 0.0
 	_refresh_points()
 	repaired.emit(self, permanent)
 
@@ -139,7 +187,7 @@ func repair(permanent: bool, distance_remaining: float = -1.0) -> void:
 func advance(distance_remaining: float, days: float = 0.0) -> void:
 	_distance_now = distance_remaining
 	if is_active:
-		if severity == Severity.CRITICAL and speed_decay_per_day > 0.0:
+		if speed_decay_per_day > 0.0:
 			speed_decay = minf(speed_decay + speed_decay_per_day * days, speed_penalty)
 		return
 	if not has_ever_fired and fire_at_distance > 0.0 and distance_remaining <= fire_at_distance:
@@ -150,6 +198,13 @@ func advance(distance_remaining: float, days: float = 0.0) -> void:
 	# read it as fresh bad luck.
 	if is_patched and distance_remaining <= _patch_expires_at:
 		break_now(true)
+		return
+	# A recurring fault coming back. NOT flagged as a patch failure — the last repair was
+	# honest work and did hold; this is the system wearing out again, and the run summary
+	# should not blame the player for it.
+	if refire_every > 0.0 and _refire_at > 0.0 and distance_remaining <= _refire_at:
+		_refire_at = 0.0
+		break_now(false)
 
 
 ## Speed cost right now, which is two different things depending on how bad the fault is.
@@ -167,9 +222,24 @@ func advance(distance_remaining: float, days: float = 0.0) -> void:
 ## the spare part was only ever for the second failure. Now the walk to fetch the part costs
 ## real speed while you make it, and the patch's price is that you never get that speed back.
 func active_speed_penalty() -> float:
-	if severity == Severity.CRITICAL and speed_decay_per_day > 0.0:
+	if ramps():
 		return speed_decay
 	return speed_penalty if is_active else 0.0
+
+
+## Does this fault grow, rather than charging one flat toll? True when it has somewhere to
+## start from or somewhere to climb to.
+##
+## Used to be keyed on `severity == CRITICAL`, which tied two unrelated ideas together: whether
+## a fault trips the ship-wide red alert, and whether its cost ramps. The nav computer ramps and
+## is not critical; that combination was unrepresentable.
+func ramps() -> bool:
+	return speed_decay_per_day > 0.0 or initial_speed_penalty > 0.0
+
+
+## How far a patch on this holds. See bodge_recurrence.
+func _bodged_interval() -> float:
+	return bodge_distance / maxf(bodge_recurrence, 0.0001)
 
 
 func active_oxygen_multiplier() -> float:

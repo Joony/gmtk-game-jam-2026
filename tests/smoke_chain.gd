@@ -75,83 +75,18 @@ func _run() -> void:
 		_stock(supplies, &"beer") >= 2)
 	_check("and empties (%d)" % _stock(supplies, &"empty"), _stock(supplies, &"empty") >= 2)
 
-	var thirst := run.need_by_id(&"thirst")
-	var bladder := run.need_by_id(&"bladder")
-	var septic := run.need_by_id(&"overflow")
-	_check("the run has thirst, bladder and a septic countdown",
-		thirst != null and bladder != null and septic != null)
-	if thirst == null or bladder == null or septic == null:
-		return _finish()
-
-	# --- link 0: thirst arrives on a schedule, not at minute zero -------------
-	# The staggering (17d). Six live needs do not fit in 240 seconds of air; needs that turn up
-	# on different days do.
-	_check("thirst is not waiting for you when you wake up", not thirst.active)
-	_check("nor is the bladder", not bladder.active)
-	_check("nor the septic tank", not septic.active)
-
-	run.days_elapsed = thirst.starts_after_days + 0.1
-	await _frames(2)
-	_check("it arrives once the voyage has gone on long enough", thirst.active)
-	_check("but the bladder still has no reason to exist", not bladder.active)
-
-	# --- link 1: drinking clears the thirst and starts the bladder ------------
-	var beer_before := beer.level
-	_check("there is beer in the silo", beer.use())
-	await _frames(2)
-	_check("drinking clears the thirst (%.2f)" % thirst.fraction(), thirst.fraction() > 0.9)
-	_check("and costs a measure (%.2f -> %.2f)" % [beer_before, beer.level],
-		beer.level < beer_before)
-	_check("AND STARTS THE BLADDER — this is the chain", bladder.active)
-
-	# A second beer must not silently re-arm a bladder that is already running, or the second
-	# beer would be free.
-	bladder.advance(30.0)
-	var pressing := bladder.remaining
-	beer.use()
-	await _frames(2)
-	_check("a second drink does not reset the bladder (%.1f -> %.1f)"
-		% [pressing, bladder.remaining], bladder.remaining <= pressing)
-
-	# --- link 2: using the toilet clears the bladder and fills the tank -------
-	var tank_before := toilet.level
-	_check("the toilet can be used", toilet.use())
-	await _frames(2)
-	_check("which clears the bladder (%.2f)" % bladder.fraction(), bladder.fraction() > 0.9)
-	_check("and fills the tank (%.2f -> %.2f)" % [tank_before, toilet.level],
-		toilet.level > tank_before)
-
-	# --- link 3: a full tank is a countdown to a bad end ----------------------
-	_check("no septic countdown while there is room", not septic.active)
-	while not toilet.is_exhausted():
-		toilet.use()
-	await _frames(2)
-	_check("filling it starts the septic countdown", septic.active)
-	_check("which is on the HUD immediately — there is no gentle phase",
-		run.pressing_needs().has(septic))
-	_check("and it is the lethal one", septic.lethal)
-	# The toilet does NOT refuse you once full. The overflow is the consequence.
-	_check("a full toilet still accepts you", toilet.use())
-
-	# --- link 4: the way out is a walk to the cargo bay -----------------------
-	var empty_can := _make(game, "canister", &"empty")
-	_check("an empty canister pumps it out", toilet.service(empty_can))
-	await _frames(2)
-	_check("which stops the septic countdown", not septic.active)
-	_check("and takes it off the HUD", not run.pressing_needs().has(septic))
-	_check("leaving you holding the consequence (%s)" % empty_can.kind,
-		empty_can.kind == &"shit")
-
-	# ...and an air canister you have already spent becomes one of those empties, which is the
-	# loop closing on itself.
-	var air := _make(game, "canister", &"o2")
-	var life := run.silo_by_id(&"life_support")
-	if life != null:
-		while life.use():
-			pass
-		life.service(air)
-		_check("a spent air canister becomes an empty for the toilet (%s)" % air.kind,
-			air.kind == &"empty" and air.matches(toilet.accepts))
+	# --- THE CHAIN IS PARKED --------------------------------------------------
+	# This suite used to walk it end to end: thirst arrives on a schedule, drinking starts the
+	# bladder, the toilet fills the septic tank, a full tank is a lethal countdown, and empties
+	# from the cargo bay are the way out. Thirst has been removed, so nothing starts any of it,
+	# and the beer silo / septic tank are out of scope (TODO 21 scope note).
+	#
+	# None of it was deleted — the needs, the waste silo and the canister cycle all still exist
+	# and are still covered by smoke_needs, which builds its own fixtures. Put this back when
+	# thirst does.
+	_check("thirst really is gone, not half-wired", run.need_by_id(&"thirst") == null)
+	_check("so the bladder is dormant, not running",
+		run.need_by_id(&"bladder") == null or not run.need_by_id(&"bladder").active)
 
 	# --- hunger: the sixth system, and the proof that none of this is special-cased ----
 	# TODO 17e worried hunger had "an extra hop" — hungry, vending machine, food crate. It does
@@ -170,22 +105,20 @@ func _run() -> void:
 		_check("which the cargo bay stocks (%d)" % _stock(supplies, &"food"),
 			_stock(supplies, &"food") >= 2)
 
-		_check("hunger arrives later than thirst (%.0f vs %.0f days)"
-			% [hunger.starts_after_days, thirst.starts_after_days],
-			hunger.starts_after_days > thirst.starts_after_days)
+		_check("hunger arrives well into the voyage rather than at minute zero (%.0f days)"
+			% hunger.starts_after_days, hunger.starts_after_days > 5.0)
 		run.days_elapsed = hunger.starts_after_days + 0.1
 		await _frames(2)
 		_check("and it does arrive", hunger.active)
 
-		# The machine stands against a wall and is TURNED to face out of it, unlike every tank
-		# on the ship. Adoption has to take the decor prop's rotation as well as its position or
-		# the collider and lamp — which are described in the machine's own frame — get laid out
-		# across a machine standing side-on to them.
-		var decor: Node3D = game.get_node("Decor/MessVending")
-		_check("the functional machine faces the way the prop does (%.2f)"
-			% vending.global_transform.basis.z.dot(decor.global_transform.basis.z.normalized()),
-			vending.global_transform.basis.z.dot(
-				decor.global_transform.basis.z.normalized()) > 0.99)
+		# THE PROP IS THE SILO. Not a body standing invisibly beside it: adoption attaches the
+		# script to the dressed-in machine itself, so the thing the player can see is the thing
+		# they can use, with no second collider to fight and no alignment to keep. It also
+		# means Interactor's walk UP from whatever the ray hits lands on a real Interactable —
+		# which is what stopped working when the tanks were redressed with a model that brings
+		# its own collision.
+		_check("the functional machine IS the dressed-in prop",
+			vending == game.get_node("Decor/MessVending"))
 
 		# Run it down FIRST. Eating while already full proves nothing — the earlier version of
 		# this assertion passed with hunger wired to a silo that does not exist.
@@ -344,33 +277,11 @@ func _run() -> void:
 		hunger.stop()
 		await _frames(2)
 
-	# --- an unmet need costs you walking speed --------------------------------
-	# 17e: only CO2 and the tank kill you; everything else makes the rest of the run harder.
-	# The currency here is seconds outside the pod, so a fifth off your speed is a fifth more
-	# air on every future trip.
-	var player: CharacterBody3D = game.get_node("Player")
-	var full_speed: float = player.max_speed
-	_check("you start at full speed (%.2f)" % full_speed, full_speed > 0.0)
-	bladder.advance(bladder.seconds + 1.0)
-	await _frames(2)
-	_check("an expired bladder slows you down (%.2f -> %.2f)" % [full_speed, player.max_speed],
-		player.max_speed < full_speed)
-	toilet.use()
-	await _frames(2)
-	_check("and dealing with it gives the speed back (%.2f)" % player.max_speed,
-		is_equal_approx(player.max_speed, full_speed))
-
-	# --- and if you leave it, it goes off -------------------------------------
-	while not toilet.is_exhausted():
-		toilet.use()
-	await _frames(2)
-	_check("the run is still going", not run.finished)
-	septic.remaining = 0.05
-	await _frames(30)
-	_check("letting the tank go ends the run", run.finished)
-	var summary := run.summary()
-	_check("with the least dignified death in the game (%s)" % summary.get("end_title", ""),
-		summary.get("end_title", "") == "SEPTIC")
+	# --- what an unmet need costs, and the septic ending -----------------------
+	# Both parked with the chain: the walking-speed penalty was measured on the bladder and the
+	# ending on the septic countdown, and neither starts now that thirst is gone. The mechanism
+	# is intact — Need.movement_penalty and the lethal path are still there and still covered by
+	# smoke_needs — so this comes back when thirst does.
 
 	_finish()
 

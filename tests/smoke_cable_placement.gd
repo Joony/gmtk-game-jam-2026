@@ -100,13 +100,19 @@ func _run() -> void:
 	var player := game.get_node("Player")
 	_check("the player carries the cable_ignore group", player.is_in_group(&"cable_ignore"))
 
-	var ship_cable := game.get_node_or_null("PowerCable")
-	_check("game.tscn contains a PowerCable", ship_cable != null)
-	if ship_cable != null:
-		var ship_fixed := ship_cable.get_node("FixedPlug") as CablePlug
-		var ship_cab := ship_cable.get_node("Cable") as Cable3D
-		_check("the ship cable's fixed end is seated", ship_fixed.is_seated())
-		_check("the ship cable is powered from its source", ship_cab.powered)
+	# The engine bay used to ship a cable permanently plugged between a wall socket and the aux
+	# power device, and this asserted it was seated and live. Both ends of that are gone
+	# (TODO 21c): the bay now holds one powered wall socket, the socket on the engine, a LOOSE
+	# cable on the floor and the battery — the player makes the connection, it is not made for
+	# them. What is still worth asserting is that the loose cable is there to be picked up.
+	var loose := game.get_node_or_null("LooseCable")
+	_check("game.tscn leaves a loose cable in the engine bay", loose != null)
+	if loose != null:
+		var ends := 0
+		for child in loose.get_children():
+			if child is CablePlug:
+				ends += 1
+		_check("with both ends free to carry (%d plugs)" % ends, ends == 2)
 
 	if _failures.is_empty():
 		print("CABLE PLACEMENT TEST PASS")

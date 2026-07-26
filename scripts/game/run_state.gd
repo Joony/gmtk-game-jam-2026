@@ -98,45 +98,24 @@ signal run_ended(won: bool, summary: Dictionary)
 ## edit inside game.tscn. Until the lock lifts, the need names the fault that starts it and
 ## `neutralise` strips the effects it is replacing — one dictionary to delete afterwards.
 const NEEDS := [
-	{
-		"id": &"co2",
-		"display_name": "CO2",
-		# 150 awake seconds against a 240s air budget: long enough that one charge of the
-		# scrubber covers a real excursion, short enough that ignoring it is a decision.
-		"seconds": 150.0,
-		"warn_at": 0.55,
-		"lethal": true,
-		"fatal_title": "CO2 NARCOSIS",
-		"fatal_text": "You stopped being able to think straight, then you stopped.",
-		"silo_id": &"life_support",
-		"starts_with": "O2 SCRUBBER",
-		"neutralise": {"speed_penalty": 0.0, "oxygen_drain_multiplier": 1.0},
-	},
+	# CO2 is PARKED, not deleted. It gets a silo of its own that has not been modelled yet
+	# (TODO 21f), and until then the countdown fires a warning the player can do nothing about
+	# — the life-support tank now holds oxygen, not scrubber capacity. Put the row back when
+	# the tank exists.
 	# --- the chain (TODO 17c) ------------------------------------------------
 	# Drink the beer -> you need the toilet -> the tank fills -> it will go off unless you walk
 	# empties to it. The only place in the game where SOLVING a problem is what CREATES the
 	# next one, which is why 17c says to cut around it rather than through it if time runs out.
-	{
-		"id": &"thirst",
-		"display_name": "THIRST",
-		"seconds": 200.0,
-		"warn_at": 0.5,
-		# The only need that arrives on a schedule. Six days in, so the opening of a run is
-		# about the ship rather than about the player's body.
-		"starts_after_days": 6.0,
-		"silo_id": &"beer",
-		"triggers": &"bladder",
-		"movement_penalty": 0.2,
-	},
-	{
-		"id": &"bladder",
-		"display_name": "BLADDER",
-		"seconds": 120.0,
-		"warn_at": 0.5,
-		# No schedule and no fault: this one exists ONLY because you dealt with the last one.
-		"silo_id": &"crap",
-		"movement_penalty": 0.35,
-	},
+	# THE CHAIN IS PARKED. Thirst, bladder and the septic countdown are all out for now — the
+	# beer silo, the toilet and the septic tank are out of scope (TODO 21 scope note) and
+	# thirst was the countdown that reached into them.
+	#
+	# Bladder and overflow had to go WITH thirst rather than being left declared: a need starts
+	# itself unless something else claims it, and `_is_chained()` decides that by looking for
+	# another row whose `triggers` names it. Delete thirst on its own and the bladder stops
+	# being chained to anything, so it quietly went live at minute zero with nothing to clear
+	# it. Nothing is deleted from the components — Need, the waste Silo and the canister cycle
+	# are all intact and still covered by smoke_needs. Put these three back together.
 	{
 		# Hunger. Last of the six and the least novel, which is exactly why it is worth having:
 		# it needed no new script, no new field and no special case — a need, a silo in a room,
@@ -152,20 +131,6 @@ const NEEDS := [
 		"starts_after_days": 11.0,
 		"silo_id": &"food",
 		"movement_penalty": 0.25,
-	},
-	{
-		"id": &"overflow",
-		"display_name": "SEPTIC TANK",
-		# Short, and lethal. Once the tank is full the run has a hard deadline measured in
-		# walks to the cargo bay, which is the shape the whole section was aiming for.
-		"seconds": 90.0,
-		"warn_at": 1.0,  # on the HUD from the moment it starts — there is no gentle phase
-		"lethal": true,
-		"fatal_title": "SEPTIC",
-		"fatal_text": "The tank let go. They will not be putting that on the plaque.",
-		# Started by the tank filling rather than by a clock, and stopped again the moment
-		# somebody pumps it down.
-		"starts_with_silo": &"crap",
 	},
 ]
 
@@ -273,6 +238,8 @@ func start() -> void:
 func _process(delta: float) -> void:
 	if not running or finished:
 		return
+	# FIRST, before the oxygen multiplier reads the fault list two lines down.
+	_drop_freed()
 
 	# Faults that make you breathe harder do NOT apply in the pod: it is a sealed system,
 	# and the scrubber fault's pressure should be on excursions, not on sleeping through it.
@@ -612,6 +579,23 @@ func _on_need_expired(need: Need) -> void:
 	_end(false)
 
 
+## Drop any fault or silo whose node has gone. Adopted silos live inside the scene's own prop
+## tree — and a suite that clears the set dressing (smoke_cable_drag frees Decor, so furniture
+## cannot decide a cable test) takes their faults with it. Holding a freed Malfunction turns
+## every speed and oxygen calculation into "Nonexistent function on base 'previously freed'".
+func _drop_freed() -> void:
+	var live_faults: Array[Malfunction] = []
+	for malfunction in _malfunctions:
+		if is_instance_valid(malfunction):
+			live_faults.append(malfunction)
+	_malfunctions = live_faults
+	var live_silos: Array[Silo] = []
+	for silo in _silos:
+		if is_instance_valid(silo):
+			live_silos.append(silo)
+	_silos = live_silos
+
+
 ## Faults active right now, for the HUD.
 func active_malfunctions() -> Array[Malfunction]:
 	var out: Array[Malfunction] = []
@@ -638,6 +622,12 @@ func eta_days() -> float:
 func speed_fraction() -> float:
 	var penalty := 0.0
 	for malfunction in _malfunctions:
+		if not is_instance_valid(malfunction):
+			continue
+		# A dead engine core is not a penalty to add up with the others — it is the drive
+		# having no power at all, so it short-circuits the floor the rest share.
+		if malfunction.halts_drive and malfunction.is_active:
+			return 0.0
 		penalty += malfunction.active_speed_penalty()
 	# An empty fuel tank is a total penalty rather than a hard zero, so it lands on the SAME
 	# min_speed_fraction floor every other total does. A drive frozen at exactly nothing is an
@@ -682,7 +672,8 @@ func _update_speed() -> void:
 func _oxygen_multiplier() -> float:
 	var worst := 1.0
 	for malfunction in _malfunctions:
-		worst = maxf(worst, malfunction.active_oxygen_multiplier())
+		if is_instance_valid(malfunction):
+			worst = maxf(worst, malfunction.active_oxygen_multiplier())
 	return worst
 
 

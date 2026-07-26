@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
+[ext_resource type="PackedScene" uid="uid://j8sclpeqng8b" path="res://3D-Models/CD_Screw_v1.blend" id="2_model"]
+
+; A screw — one of the three spare parts (TODO 21d). Fungible: any of the three fixes any
+; part-or-bodge fault, because `RepairPoint.required_part_group` matches on the `spare_parts`
+; group and not on a name. Scarcity is what makes "which repairs are worth it" the decision;
+; naming a part per fault would turn that into an inventory hunt instead.
+;
+; Sized from the measured model rather than guessed: CD_Screw_v1 is 1.20 x 1.81 x 1.20
+; units, scaled to a 0.28m longest edge, with the mesh dropped so it sits centred on the
+; body. A collider that does not match its mesh is what makes props rest inside shelves and get
+; flung apart by the solver — see tests/diag_prop_bounds.gd.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_part"]
+size = Vector3(0.186, 0.280, 0.186)
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it.
+[node name="SpareScrew" type="RigidBody3D" groups=["spare_parts"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_interactable")
+interaction_type = 0
+interaction_text = "Pick up screw"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_part")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.1547, 0, 0, 0, 0.1547, 0, 0, 0, 0.1547, 0, -0.1199, 0)

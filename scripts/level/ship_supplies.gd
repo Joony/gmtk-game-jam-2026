@@ -23,10 +23,11 @@ extends Node3D
 # that is a warning, not a silent hole: smoke_supplies asserts every declared silo landed.
 
 const CANISTER_SCENE := preload("res://scenes/props/canister.tscn")
-const POWER_CELL_SCENE := preload("res://scenes/props/power_cell.tscn")
 const FOOD_CRATE_SCENE := preload("res://scenes/props/food_crate.tscn")
 const SILO_SCENE := preload("res://scenes/props/silo.tscn")
-const REPAIR_PANEL_SCENE := preload("res://scenes/props/repair_panel.tscn")
+const REPAIR_SCRIPT := preload("res://scripts/game/repair_point.gd")
+const OXYGEN_SILO_SCRIPT := preload("res://scripts/game/oxygen_silo.gd")
+const SILO_SCRIPT := preload("res://scripts/game/silo.gd")
 
 ## Where the dressed-in props live, so the table below can name them by their own names.
 @export var decor_root: NodePath = ^"../Decor"
@@ -35,56 +36,9 @@ const REPAIR_PANEL_SCENE := preload("res://scenes/props/repair_panel.tscn")
 ## SPAWNED there with its own model.
 const SILOS := [
 	{
-		"id": &"life_support",
-		"display_name": "LIFE SUPPORT",
-		"decor": ^"LifeSilo1",
-		"mode": Silo.Mode.SUPPLY,
-		"accepts": &"o2",
-		"level": 1.0,
-		# Four charges from full. The number the player is actually budgeting against, so it
-		# wants to be small enough to count on one hand.
-		"use_amount": 0.25,
-		"use_text": "Clear your head",
-		"service_text": "Charge the scrubber",
-		# Roughly the tank, in metres, offset back toward its body — CD_Silo_Base_v1 is a
-		# 0.9m x 3.4m tank whose pipework runs behind the origin.
-		"size": Vector3(1.0, 2.4, 1.8),
-		"offset": Vector3(0.0, 1.2, 0.5),
-	},
-	{
-		# The drive's fuel tank. Spawned rather than adopted: the engine room's model was pulled
-		# (its animation was broken — see the log) and its only decor is four wall pipes, so
-		# there is nothing standing there to take over.
-		#
-		# Standing off the aft wall rather than against one, because every wall in this room is
-		# already spoken for: DRIVE REGULATOR owns the port wall, MAIN DRIVE the aft, COOLANT
-		# LOOP the starboard, and each of them needs 0.9m of clear air in front of the panel —
-		# which is what smoke_navigation caught the first placement doing to MAIN DRIVE.
-		"id": &"power",
-		"display_name": "DRIVE FUEL",
-		"at": Vector3(-19.5, 0.0, 5.5),
-		"mode": Silo.Mode.SUPPLY,
-		"accepts": &"battery",
-		"level": 1.0,
-		"use_amount": 0.0,  # nothing to "use" — you do not sip fuel, the engine burns it
-		# The one silo that empties on its own, on the SHIP's clock. 0.11/day against a ~31-day
-		# crossing is a tank that will not survive the trip on its own: roughly nine days a
-		# cell, so three or four runs to the cargo bay across a full voyage, and sleeping
-		# through a stretch is what eats it fastest.
-		"drain_per_day": 0.11,
-		"stops_the_drive": true,
-		# The only tank whose emptiness is felt the second it happens: the ship stops. Every
-		# other one is a supply run to schedule, and the need it feeds carries the countdown.
-		"empty_is_critical": true,
-		"warn_at": 0.35,
-		"vo_line": &"power_off",
-		"service_text": "Slot the cell in",
-	},
-	{
-		# The beer silo in the mess. Adopts the tank already dressed in there.
 		"id": &"beer",
 		"display_name": "BEER",
-		"decor": ^"MessSilo",
+		"decor": ^"CD_Silo_Base_v1_3",
 		"mode": Silo.Mode.SUPPLY,
 		"accepts": &"beer",
 		"level": 1.0,
@@ -93,8 +47,6 @@ const SILOS := [
 		"vo_line": &"no_beer",
 		"use_text": "Have a drink",
 		"service_text": "Load a beer canister",
-		"size": Vector3(1.0, 2.4, 1.8),
-		"offset": Vector3(0.0, 1.2, 0.5),
 	},
 	{
 		# The vending machine in the mess. A Silo like every other, which is the point: TODO
@@ -143,11 +95,6 @@ const SILOS := [
 			"bodge_distance": 9.0,
 			"patch_text": "Thump the dispenser",
 			"fit_text": "Fit a spare dispenser motor",
-			# A service hatch on the machine's front, below the keypad and just proud of the
-			# face — outside the silo's own collider, so the ray reaches it. Half size: the
-			# ship's standard panel is 0.9 x 1.1m and would swallow the machine.
-			"panel_at": Vector3(0.84, 0.42, 0.735),
-			"panel_scale": 0.5,
 		},
 		# 2.4m wide x 2.4m tall x 1.29m deep, at the 0.6 the mess dresses it at. The model's
 		# origin is at its base, so the box sits entirely above the floor.
@@ -167,7 +114,10 @@ const SILOS := [
 		# Everything about it is in the prop scene, so this row is only where it stands.
 		"id": &"crap",
 		"scene": "res://scenes/props/toilet.tscn",
-		"at": Vector3(-7.0, 0.0, -5.7),
+		# The bathroom was shortened at some point — Rect2i(-9, -12, 7, 5), so it runs z -12
+		# to -7, not -5. The toilet was at -5.7 and had fallen clean out of the room into the
+		# hull, which nothing notices until a test asks which room it is in.
+		"at": Vector3(-7.0, 0.0, -7.7),
 		# Yawed to face the door, which is in the aft wall at (-3.5, -12).
 		"yaw": 180.0,
 	},
@@ -177,9 +127,17 @@ const SILOS := [
 ## its aft-starboard corner beside the crates, which is where the decorative canisters already
 ## are — so the room reads the same and the walk is the measured 67.1 m the balance assumes.
 const CANISTERS := [
+	# EIGHT air canisters, not three. Each is worth 150 s against a 240 s budget and the round
+	# trip costs most of a minute, so a run that goes wrong burns through them — and running
+	# out of air because the hold was empty is a dead end rather than a decision.
 	{"kind": &"o2", "at": Vector3(25.6, 0.5, 5.2)},
 	{"kind": &"o2", "at": Vector3(25.6, 0.5, 6.1)},
 	{"kind": &"o2", "at": Vector3(24.8, 0.5, 5.6)},
+	{"kind": &"o2", "at": Vector3(25.6, 0.5, 7.0)},
+	{"kind": &"o2", "at": Vector3(24.8, 0.5, 7.4)},
+	{"kind": &"o2", "at": Vector3(24.0, 0.5, 7.7)},
+	{"kind": &"o2", "at": Vector3(25.4, 0.5, 8.3)},
+	{"kind": &"o2", "at": Vector3(24.2, 0.5, 8.8)},
 	{"kind": &"beer", "at": Vector3(24.8, 0.5, 6.5)},
 	{"kind": &"beer", "at": Vector3(24.0, 0.5, 5.9)},
 	# Empties, for pumping the septic tank out. Deliberately FEWER than there are beers: every
@@ -190,17 +148,22 @@ const CANISTERS := [
 	{"kind": &"empty", "at": Vector3(23.3, 0.5, 6.2)},
 ]
 
-## Fuel cells, a little further into the room so they are a separate errand rather than
-## something you sweep up on the same trip as the air.
-## On a 0.9m grid, comfortably clear of the 0.5m cell, so they stand in a row rather than
-## climbing on each other. A cell resting on another cell is not a bug, but it makes the
-## "everything is on the floor" check in smoke_supplies unable to tell stacked from floating —
-## and that check is what caught these being launched through the hull in the first place.
-const POWER_CELLS := [
-	Vector3(21.2, 0.5, 6.4),
-	Vector3(22.1, 0.5, 6.4),
-	Vector3(21.2, 0.5, 7.3),
-	Vector3(22.1, 0.5, 7.3),
+## Spare parts in the hold. The ship now throws about forty critical faults across a crossing
+## and a fitted part is CONSUMED, so five spares between the closet and the bridge was a couple
+## of hours of play at most — after which every fault could only ever be bodged, and the choice
+## the whole repair economy is built on stopped existing.
+##
+## Still deliberately fewer than the faults. Scarce enough that "is this one worth a part?" is a
+## real question; not so scarce that the answer is always no.
+const SPARES := [
+	{"scene": "res://scenes/props/spare_spring.tscn", "at": Vector3(17.2, 0.4, 4.2)},
+	{"scene": "res://scenes/props/spare_screw.tscn", "at": Vector3(17.9, 0.4, 4.6)},
+	{"scene": "res://scenes/props/spare_gear.tscn", "at": Vector3(16.6, 0.3, 5.0)},
+	{"scene": "res://scenes/props/spare_spring.tscn", "at": Vector3(17.5, 0.4, 5.6)},
+	{"scene": "res://scenes/props/spare_screw.tscn", "at": Vector3(16.8, 0.4, 6.2)},
+	{"scene": "res://scenes/props/spare_gear.tscn", "at": Vector3(18.1, 0.3, 6.0)},
+	{"scene": "res://scenes/props/spare_spring.tscn", "at": Vector3(26.4, 0.4, 10.5)},
+	{"scene": "res://scenes/props/spare_gear.tscn", "at": Vector3(25.6, 0.3, 11.1)},
 ]
 
 ## Food crates, further in again, beside the big decorative crates they are small versions of.
@@ -213,6 +176,9 @@ const FOOD_CRATES := [
 var _silos: Array[Silo] = []
 var _canisters: Array[Consumable] = []
 var _stocks: Array[VendingStock] = []
+var _oxygen: OxygenSilo = null
+## Loose props that are not Consumables — spare parts.
+var _props: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -225,6 +191,10 @@ func build() -> void:
 		if is_instance_valid(old):
 			old.queue_free()
 	_silos.clear()
+	for old in _props:
+		if is_instance_valid(old):
+			old.queue_free()
+	_props.clear()
 	_canisters.clear()
 	# Not freed with the silos: a stock's items live inside the DECOR model's slot empties, so
 	# they outlive the silo body they were built from unless they are cleared here.
@@ -237,10 +207,11 @@ func build() -> void:
 		var silo := _build_silo(row)
 		if silo != null:
 			_silos.append(silo)
+	_build_oxygen_silo()
 	for row in CANISTERS:
 		_canisters.append(_spawn(CANISTER_SCENE, row["kind"], row["at"]))
-	for at in POWER_CELLS:
-		_canisters.append(_spawn(POWER_CELL_SCENE, &"battery", at))
+	for row in SPARES:
+		_props.append(_spawn_prop(load(row["scene"]), row["at"]))
 	for at in FOOD_CRATES:
 		_canisters.append(_spawn(FOOD_CRATE_SCENE, &"food", at))
 
@@ -255,47 +226,37 @@ func canisters() -> Array[Consumable]:
 
 ## Build one row of SILOS, adopting a decor prop or spawning a tank of its own.
 func _build_silo(row: Dictionary) -> Silo:
-	var adopting := row.has("decor")
-	var at := Vector3.ZERO
-	var facing := Basis.IDENTITY
-	# Kept in scope past the branch: a vending machine's pigeonholes are empties inside this
-	# node, so the stock display below needs it too.
+	var silo: Silo = null
+	# The prop, when adopting. Kept past the branch because the vending machine's pigeonholes
+	# are empties inside it and the stock display needs them.
 	var host: Node3D = null
-	if adopting:
-		var decor := get_node_or_null(decor_root)
-		if decor != null:
-			host = decor.get_node_or_null(row["decor"]) as Node3D
+
+	if row.has("decor"):
+		host = _find_prop(row["decor"])
 		if host == null:
-			# Loud, because the silo simply not being there is the kind of failure a player
+			# Loud, because a silo simply not being there is the kind of failure a player
 			# experiences as "the game is broken" rather than as a missing prop.
-			push_warning("ShipSupplies: no decor node at %s/%s to host the %s silo"
-				% [decor_root, row["decor"], row["id"]])
+			push_warning("ShipSupplies: no prop named %s to make the %s silo out of"
+				% [row["decor"], row["id"]])
 			return null
-		at = host.global_position
-		# The ROTATION too, not just the position. The tanks all sit square, but the vending
-		# machine is turned to face out of its wall — and an adopted body's collider and lamp
-		# are described in the prop's own frame, so without this they would be laid out across
-		# a machine that is standing side-on to them.
-		facing = host.global_transform.basis.orthonormalized()
-	else:
-		at = row["at"]
-
-	# Three ways to get a body, in order of how much the row has to say:
-	#   a named `scene`  a prop that already knows what it is — the toilet
-	#   adopting         a bare body; the decor prop it stands on IS the model
-	#   otherwise        the generic tank, which brings its own model
-	var node: Node
-	if row.has("scene"):
+		# THE PROP BECOMES THE SILO. Not a body standing invisibly beside it, which is what
+		# this used to do and what stopped working the moment the tanks were redressed with a
+		# model that brings its own collision: Interactor walks UP from whatever the ray hits,
+		# so a hit on the prop's own collider found the prop — a plain Node3D — and gave up.
+		# Attaching the script to the prop itself means the thing the player can see IS the
+		# thing they can use, with no second collider to fight and nothing to keep aligned.
+		host.set_script(SILO_SCRIPT)
+		silo = host as Silo
+	elif row.has("scene"):
 		var scene: PackedScene = load(row["scene"])
-		node = scene.instantiate()
-	elif adopting:
-		node = _bare_silo_body(row)
+		var node: Node = scene.instantiate()
+		add_child(node)
+		silo = node as Silo
 	else:
-		node = SILO_SCENE.instantiate()
+		var node: Node = SILO_SCENE.instantiate()
+		add_child(node)
+		silo = node as Silo
 
-	var view: Node3D = node
-	var silo := view as Silo
-	silo.name = "Silo_%s" % row["id"]
 	silo.silo_id = row["id"]
 	# ONLY what the row actually says, so a prop scene that already configured itself is not
 	# quietly reset to the generic defaults. The toilet is entirely its own scene; its row here
@@ -306,15 +267,17 @@ func _build_silo(row: Dictionary) -> Silo:
 		if row.has(key):
 			silo.set(key, row[key])
 
-	add_child(node)
-	# AFTER add_child: a global transform on a node outside the tree is meaningless.
-	var body := node as Node3D
-	body.global_transform = Transform3D(facing, at)
-	if row.has("yaw"):
-		body.rotation.y = deg_to_rad(row["yaw"])
+	# An adopted prop is already standing where it belongs; only a spawned one needs placing.
+	if host == null:
+		var body := silo as Node3D
+		body.global_position = row["at"]
+		if row.has("yaw"):
+			body.rotation.y = deg_to_rad(row["yaw"])
+		silo.name = "Silo_%s" % row["id"]
+	else:
+		# Godot does not re-run _ready() after set_script() on a node already in the tree.
+		silo.setup()
 
-	# A machine that shows what is left in it. Bound to the DECOR node, because the pigeonholes
-	# are empties inside that model — an adopted silo has no geometry of its own to hang them on.
 	if row.get("stock", false) and host != null:
 		var stock := VendingStock.new()
 		stock.name = "Stock"
@@ -325,6 +288,22 @@ func _build_silo(row: Dictionary) -> Silo:
 	if row.has("fault"):
 		silo.bind_malfunction(_build_fault(silo, row["fault"]))
 	return silo
+
+
+## A prop by name, looked for under the decor root first and then at the scene root. Both are
+## real: the dressed-in furniture lives under Decor, but the silos and the engine are parented
+## straight to the game scene. Searching both means the table names a prop and does not have to
+## know where in the tree somebody happened to drop it.
+func _find_prop(prop_name: NodePath) -> Node3D:
+	var decor := get_node_or_null(decor_root)
+	if decor != null:
+		var found := decor.get_node_or_null(prop_name) as Node3D
+		if found != null:
+			return found
+	var root_node := get_parent()
+	if root_node != null:
+		return root_node.get_node_or_null(prop_name) as Node3D
+	return null
 
 
 ## A Malfunction standing where the silo does, with a repair hatch on it. Built rather than
@@ -352,29 +331,29 @@ func _build_fault(silo: Silo, spec: Dictionary) -> Malfunction:
 	else:
 		fault.fire_at_distance = spec.get("fire_at_distance", 0.0)
 
-	var panel: Node = REPAIR_PANEL_SCENE.instantiate()
-	var point := panel as RepairPoint
+	# A LOGIC-ONLY repair point, not the panel prop. A silo with a fault is repaired ON THE
+	# SILO — you swing the hammer at the vending machine, not at a service hatch bolted to the
+	# front of it — so this exists purely to own the hammer-versus-part dispatch and the prompt
+	# wording, and the machine borrows it. No geometry, no indicator, never a ray target.
+	var helper := Node3D.new()
+	helper.name = "RepairLogic"
+	helper.set_script(REPAIR_SCRIPT)
+	var point := helper as RepairPoint
+	point.show_indicator = false
 	point.patch_text = spec.get("patch_text", "Patch it")
 	point.fit_text = spec.get("fit_text", "Fit a spare part")
-	fault.add_child(panel)
+	fault.add_child(helper)
 	# Parented BEFORE the fault joins the tree, so Malfunction._ready() finds and binds it.
 	silo.add_child(fault)
-	(panel as Node3D).position = spec.get("panel_at", Vector3.ZERO)
-	(panel as Node3D).scale = Vector3.ONE * float(spec.get("panel_scale", 1.0))
+	point.setup()
+	point.bind(fault)
+	# Out of the interactables group entirely. It has no collider so a ray could never find it,
+	# but leaving it in the group means anything iterating "everything the player can touch"
+	# counts a repair point that does not exist as an object. The machine is the object.
+	point.remove_from_group(&"interactables")
+	point.is_enabled = false
+	silo.bind_repair(point)
 	return fault
-
-
-## The interaction half of a silo with no model of its own, for adopting a decor prop.
-func _bare_silo_body(row: Dictionary) -> Node:
-	var body := StaticBody3D.new()
-	body.set_script(load("res://scripts/game/silo.gd"))
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = row.get("size", Vector3.ONE)
-	shape.shape = box
-	shape.position = row.get("offset", Vector3.ZERO)
-	body.add_child(shape)
-	return body
 
 
 func _spawn(scene: PackedScene, kind: StringName, at: Vector3) -> Consumable:
@@ -386,3 +365,42 @@ func _spawn(scene: PackedScene, kind: StringName, at: Vector3) -> Consumable:
 	item.set_kind(kind)
 	(node as Node3D).global_position = at
 	return item
+
+
+## The life-support tank (TODO 21e). Adopted onto the silo prop in life support, like the
+## others — but with OxygenSilo rather than Silo, because it holds a canister you can see
+## rather than a number, and refills the run's own air rather than clearing a countdown.
+##
+## Starts with a full canister in the cradle, so the mechanic is legible before it is urgent:
+## the player sees the thing that has to be swapped long before they need to swap it.
+func _build_oxygen_silo() -> Node:
+	var host := _find_prop(^"CD_Silo_Base_v1_1")
+	if host == null:
+		push_warning("ShipSupplies: no CD_Silo_Base_v1_1 to make the oxygen tank out of")
+		return null
+	host.set_script(OXYGEN_SILO_SCRIPT)
+	var tank := host as OxygenSilo
+	tank.setup()
+	_oxygen = tank
+	# An EMPTY canister already in it. The ship does not start with free air in the cradle —
+	# it starts with the spent bottle from whoever was awake last, which is the object the
+	# player will be replacing, sitting in the place they will replace it.
+	tank.install_spent(_spawn(CANISTER_SCENE, &"empty", host.global_position))
+	return tank
+
+
+func oxygen_silo() -> OxygenSilo:
+	return _oxygen
+
+
+## A plain prop with no `kind` to set — a spare part rather than a consumable.
+func _spawn_prop(scene: PackedScene, at: Vector3) -> Node3D:
+	var node := scene.instantiate()
+	add_child(node)
+	var body := node as Node3D
+	body.global_position = at
+	return body
+
+
+func spares() -> Array[Node3D]:
+	return _props

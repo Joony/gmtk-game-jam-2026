@@ -96,7 +96,7 @@ func _go() -> void:
 	await _shot("01_console_in_the_room")
 
 	# Lean in, the way interacting does.
-	_game._open_nav_screen()
+	_game._open_nav_screen(_computer)
 	var glided := 0
 	while _game._nav_phase != _game.NavPhase.READING and glided < 300:
 		glided += 1

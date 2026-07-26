@@ -62,24 +62,38 @@ const COLOR_FIXED := Color(0.24, 0.90, 0.40)
 
 var malfunction: Malfunction = null
 
-var _status_material: StandardMaterial3D = null
+## Where to put the indicator on a prop that carries neither an `Indicator` empty nor a
+## `StatusLight` mesh, in metres from its origin.
+@export var indicator_offset: Vector3 = Vector3(0.0, 0.0, 0.1)
+## Off for a repair point used purely as LOGIC — the nav computer borrows one for its
+## hammer-versus-part dispatch and prompt wording while showing the fault on its own screen.
+## Without this the helper would hang a second light in mid-air beside the terminal.
+@export var show_indicator: bool = true
+
+var _indicator: IndicatorLight = null
 var _consumed: bool = false
 
 
 func _ready() -> void:
-	super()
+	setup()
+
+
+## Everything _ready() does, callable on its own — for a repair point that is a MODEL rather
+## than the panel prop. TODO 21a: when a system has geometry of its own, that geometry is the
+## thing you walk up to and fix, and a panel bolted beside it is the fallback for systems with
+## none. Adopting works by attaching this script to the model at runtime, and Godot does not
+## re-run _ready() after set_script() on a node already in the tree.
+##
+## Idempotent, so calling it on a panel that came up the ordinary way is harmless.
+func setup() -> void:
+	add_to_group(&"interactables")  # what Interactable._ready() does
 	interaction_type = InteractionType.USE_ITEM
 	if required_part != "" and accepted_item_names.is_empty():
 		accepted_item_names = [required_part]
-
-	var light := get_node_or_null(status_light_path) as MeshInstance3D
-	if light != null:
-		# Per-instance material: panels share a scene, so mutating the shared resource
-		# would light every panel in the ship the same colour.
-		_status_material = StandardMaterial3D.new()
-		_status_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		light.material_override = _status_material
-
+	if _indicator == null:
+		# Finds the model's own `Indicator` empty when there is one, and falls back to the
+		# panel prop's StatusLight mesh otherwise. See IndicatorLight.
+		_indicator = IndicatorLight.attach(self, indicator_offset)
 	if malfunction == null and get_parent() is Malfunction:
 		bind(get_parent() as Malfunction)
 	refresh()
@@ -93,25 +107,28 @@ func bind(target: Malfunction) -> void:
 ## every state change, so the panel can never show a stale colour.
 func refresh() -> void:
 	var broken := malfunction != null and malfunction.is_active
-	# A working panel stops being a ray target entirely — otherwise the reticle would
-	# keep offering prompts on the dozen panels you have already dealt with.
-	is_enabled = broken
 	var patched := malfunction != null and malfunction.is_patched
+	# A panel stays a ray target while PATCHED as well as while broken, because a bodge leaves
+	# the system permanently down on power and fitting a spare is how you get it back. Only a
+	# properly repaired panel goes quiet — otherwise the reticle would keep offering prompts on
+	# the dozen systems you have already dealt with.
+	is_enabled = broken or patched
 	_show(broken_nodes, broken)
 	_show(patched_nodes, patched)
 	_show(damaged_nodes, broken or patched)
 	_show(fixed_nodes, not broken and not patched)
 
-	if _status_material == null:
+	if _indicator == null:
 		return
 	var color := COLOR_FIXED
 	if broken:
 		color = COLOR_BROKEN
 	elif patched:
 		color = COLOR_PATCHED
-	_status_material.albedo_color = color
-	_status_material.emission_enabled = true
-	_status_material.emission = color
+	# A CRITICAL fault flashes. Colour alone says which of three states a system is in; the
+	# flash says whether it needs dealing with now, and that is the distinction that has to
+	# survive being seen out of the corner of your eye while walking past.
+	_indicator.set_state(color, malfunction != null and malfunction.is_critical())
 
 
 func _show(paths: Array[NodePath], visible_now: bool) -> void:
@@ -136,8 +153,20 @@ func can_act_on(_held_item: Node3D = null) -> bool:
 
 
 func get_interaction_text(held_item: Node3D = null) -> String:
-	if malfunction == null or not malfunction.is_active:
+	if malfunction == null:
 		return "%s: nominal" % _label()
+	# Running on a bodge: still down on power, and a spare part is the only way to get it back.
+	# Naming the number is what makes the offer worth taking — "nominal" here would have been a
+	# lie, and silence would have read as a panel with nothing left to do.
+	if not malfunction.is_active:
+		if not malfunction.is_patched:
+			return "%s: nominal" % _label()
+		var lost := ""
+		if malfunction.speed_decay > 0.0:
+			lost = "  (-%d%% drive)" % int(round(malfunction.speed_decay * 100.0))
+		if held_item != null and can_use_with_item(held_item) and not is_tool(held_item):
+			return "%s  (permanent)%s" % [fit_text, lost]
+		return "%s: bodged%s — needs a spare part" % [_label(), lost]
 	if is_tool(held_item):
 		# Say what the bodge LOCKS IN, not just that it is temporary. A critical fault keeps
 		# whatever speed it has already taken, and the player cannot weigh the two routes
@@ -170,11 +199,16 @@ func is_tool(item: Node3D) -> bool:
 
 func use_with_item(item: Node3D) -> void:
 	_consumed = false
-	if malfunction == null or not malfunction.is_active:
+	if malfunction == null:
+		return
+	# A bodged system takes a spare part but not another bodge — you cannot bodge a bodge.
+	if not malfunction.is_active and not malfunction.is_patched:
 		return
 	# The hammer bodges and is KEPT. One tool serves the whole ship, so it is never consumed
 	# — losing it to the first panel would strand the player with no patch route at all.
 	if is_tool(item):
+		if not malfunction.is_active:
+			return
 		malfunction.repair(false)
 		used_with_item.emit(self, item)
 		return

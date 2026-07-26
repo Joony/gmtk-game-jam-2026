@@ -434,6 +434,22 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
   `CD_Battery_v1` does) is a second collider the engine drags around — it launched the power
   cells **21 metres through the hull** on the first physics frame. Clear its
   `collision_layer`/`collision_mask`; see `pickup_crate.tscn` and `power_cell.tscn`.
+- **The editor silently deletes those layer overrides — and the Model's scale with them.**
+  2026-07-26: opening and saving `pickup_crate.tscn` dropped the `StaticBody3D` override block
+  entirely *and* reset the Model's `0.4` scale to `1`, giving a 2 m crate on a 0.8 m collider
+  with a live world-layer collider inside it. Every comment in the file went too. It presented
+  as "physics only broken in the web build", because the export re-reads the saved file from
+  disk while the running editor still holds the intact scene in memory — so the desktop session
+  looks fine. `git diff scenes/props/` is the fastest check; the good version was one
+  `git checkout HEAD --` away. `Interactable._silence_model_colliders()` now re-applies the
+  disable at runtime with a `push_warning`, so a lost override degrades to a log line rather
+  than props flying through the hull.
+- **Colliders and models drift apart when a `.blend` is re-authored.** The scene says
+  "0.0792 = 0.70m / 8.837 units"; the model is 2.65 units now, so the cell renders at 0.21 m
+  inside a 0.70 m collider — 3.3x — and props rest interpenetrating the world and get flung.
+  Found in the canister (2x too wide), both cable plugs (~2x) and the power cell.
+  `tests/diag_prop_bounds.gd` measures every prop's collider against its own mesh AABB and
+  names the offenders; run it after anyone touches a model.
 - **Prove a regression test can fail.** Several fixes here were mutation-tested — the code
   was deliberately re-broken to confirm the test goes red (the pod-refill rule, patch expiry,
   the instant-alarm switch, the missing-sound guard). A green test that cannot fail is not

@@ -91,6 +91,9 @@ var _intro_line_pending: bool = false
 var _room_voice: RoomVoice = null
 ## The silos and canisters, likewise built rather than placed. See _build_supplies().
 var _supplies: ShipSupplies = null
+## The readable screens that are not props of their own — the bridge deck plan. Built in code for
+## the same reason as the two above: `scenes/game.tscn` is locked. See ShipDisplays.
+var _displays: ShipDisplays = null
 ## The player's undamaged walking speed, so a need's penalty is always a fraction of THAT and
 ## never of an already-penalised number. See _apply_need_penalties().
 var _player_max_speed: float = 0.0
@@ -100,6 +103,9 @@ var _nav_phase: NavPhase = NavPhase.AWAY
 var _nav_return_position: Vector3 = Vector3.ZERO
 var _nav_return_yaw: float = 0.0
 var _nav_return_pitch: float = 0.0
+## Which screen the player is currently stood at. There is more than one on the ship now, and the
+## page flip and the manual-override reset both belong to whichever one they walked up to.
+var _reading: ComputerTerminal = null
 
 
 func _ready() -> void:
@@ -136,12 +142,23 @@ func _ready() -> void:
 	# BEFORE start_game(), because RunState.start() collects the silos by group and a silo
 	# that does not exist yet is a need with nothing that can clear it.
 	_build_supplies()
+	# Also before start_game(), and for a sharper reason: `starts_broken` is read there, and
+	# the fault plan is what decides which system carries it. Applied late, the run would open
+	# on whichever fault the scene happened to have the flag on.
+	_apply_fault_plan()
+	# The oxygen tank needs the run itself: it refills the air budget rather than clearing a
+	# countdown of its own. Bound here because RunState deliberately knows nothing about props.
+	if _supplies != null and _supplies.oxygen_silo() != null:
+		_supplies.oxygen_silo().bind(_run)
+		_hud.bind_oxygen(_supplies.oxygen_silo())
+		_computer.bind_oxygen(_supplies.oxygen_silo())
 	_wire_audio()
 	_wire_room_voice()
 	# The ship and the player are what the damage plan needs on top of the nav plot: which room
 	# each fault is in, and which room the player is in. Same `room_at()` call RoomVoice makes.
 	_computer.bind(_run, $Ship as RoomBuilder, _player)
 	_computer.opened.connect(_open_nav_screen)
+	_build_displays()
 	_nav_screen.closed.connect(_close_nav_screen)
 	_run.run_ended.connect(_on_run_ended)
 	_run_end.dismissed.connect(_on_run_end_dismissed)
@@ -161,6 +178,15 @@ func _ready() -> void:
 	# After start_game(), because RunState.enter_stasis() refuses to do anything until the
 	# run is actually running.
 	_wake_from_opening_stasis()
+	# Started here and NOT awaited, so it overlaps that opening stasis beat — the one stretch
+	# of the run where the player is sat still with nothing to do, which is precisely what
+	# makes it the place to spend a few hundred milliseconds of shader compilation. Position
+	# comes from the player rather than the camera rig: the rig is `top_level` and rewrites its
+	# transform in _process, so at _ready it has not been anywhere yet.
+	var prewarm := ShaderPrewarm.new()
+	add_child(prewarm)
+	prewarm.run(_player.global_position + Vector3(0.0, 1.5, 0.0),
+		(_camera.get_node("Camera3D") as Camera3D).fov)
 
 
 ## An unmet need slows you down. Applied here rather than in RunState, which deliberately knows
@@ -175,6 +201,16 @@ func _apply_need_penalties() -> void:
 	_player.max_speed = _player_max_speed * _run.player_speed_scale()
 
 
+## The drive fails (TODO 21b): what breaks, how hard, and where it is repaired. A table rather
+## than five sets of numbers scattered through game.tscn, because they are a balance table and
+## only mean anything read side by side. See ShipFaults.
+func _apply_fault_plan() -> void:
+	var faults := ShipFaults.new()
+	faults.name = "Faults"
+	add_child(faults)
+	faults.apply()
+
+
 ## The silos and the canisters (TODO 17). Built in code for the same reason RoomVoice is —
 ## `scenes/game.tscn` is locked — but also because a supply layout belongs in one readable
 ## table rather than scattered through a scene file. See ShipSupplies.
@@ -185,6 +221,23 @@ func _build_supplies() -> void:
 	_supplies = ShipSupplies.new()
 	_supplies.name = "Supplies"
 	add_child(_supplies)
+
+
+## The bridge deck plan. Built in code and hung off the terminal bank that is already dressed on
+## the bridge — see ShipDisplays for why that is a runtime job rather than a scene edit.
+##
+## On the bridge on purpose. The cryo bay has exactly one door, up the spine to the bridge, and
+## every other room hangs off the bridge — so every trip out crosses it, and it is where the
+## direction is actually chosen. A plan in the pod bay answers "which way do I walk" in the one
+## room where the question has not been asked yet.
+func _build_displays() -> void:
+	_displays = ShipDisplays.new()
+	_displays.name = "Displays"
+	add_child(_displays)
+	_displays.build()
+	if _displays.bridge_display != null:
+		_displays.bridge_display.bind(_run, $Ship as RoomBuilder, _player)
+		_displays.bridge_display.opened.connect(_open_nav_screen)
 
 
 ## The opening tutorial. The run starts on a fault that is ALREADY broken, and walking into
@@ -230,6 +283,34 @@ func _opening_fault() -> Malfunction:
 	return null
 
 
+## Latch for the return-to-cryo line, so it is said once and not on every repair.
+var _said_return_to_cryo: bool = false
+## Set when a critical fault is properly fixed; spent on the next systems_changed, once the
+## run has finished recomputing whether anything else is still broken.
+var _critical_just_fixed: bool = false
+
+
+func _on_any_repaired(malfunction: Malfunction, permanent: bool) -> void:
+	if permanent and malfunction.severity == Malfunction.Severity.CRITICAL:
+		_critical_just_fixed = true
+
+
+## Said only when the ship is genuinely clear — fixing one of three live criticals is not a
+## return to the pod, and being told to go back to sleep while the klaxon is still going would
+## read as the computer not paying attention.
+func _maybe_say_return_to_cryo() -> void:
+	if not _critical_just_fixed:
+		return
+	_critical_just_fixed = false
+	if _said_return_to_cryo or _run.finished:
+		return
+	for malfunction in _run.malfunctions():
+		if is_instance_valid(malfunction) and malfunction.is_critical():
+			return
+	_said_return_to_cryo = true
+	Audio.say(&"return_to_cryo")
+
+
 ## Every sound the run makes, in one place. Game already holds references to all of these
 ## and RunState already emits the events, so this is purely connections — none of the systems
 ## below had to learn that audio exists.
@@ -244,6 +325,13 @@ func _wire_audio() -> void:
 		# out of bed. Which line is the fault's own data — see Malfunction.vo_line.
 		if malfunction.vo_line != &"":
 			Audio.say(malfunction.vo_line))
+	# The first time a critical failure is properly dealt with, the computer tells the player
+	# the emergency is over and they can go back to sleep. ONCE per run: it is a beat, and a
+	# beat repeated on every repair becomes wallpaper. Only a fitted part counts — a bodge has
+	# not ended anything, it has postponed it.
+	_run.systems_changed.connect(_maybe_say_return_to_cryo)
+	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
+		(node as Malfunction).repaired.connect(_on_any_repaired)
 	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_ship_audio())
 	_run.systems_changed.connect(_update_ship_audio)
 	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void: Audio.stop_all())
@@ -414,9 +502,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Turning the console's page. `left`/`right` rather than a new input action, because the
 	# player is frozen while reading (_set_player_active(false) above) and their strafe keys are
 	# therefore doing nothing — so this needs no binding of its own and no project.godot edit.
-	if _nav_phase == NavPhase.READING \
+	if _nav_phase == NavPhase.READING and _reading != null \
 			and (event.is_action_pressed("left") or event.is_action_pressed("right")):
-		_computer.flip_page()
+		# A no-op on a single-page screen, which is what keeps this from needing to know which
+		# kind of screen the player is stood at.
+		_reading.flip_page()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -439,9 +529,10 @@ func _unhandled_input(event: InputEvent) -> void:
 ## in the room is the real one — a SubViewport rendering the same NavChart — so leaning in
 ## to read it keeps the player in the world, and the clock keeps running while they do.
 ## Freezing but NOT pausing is the point: checking your progress costs air like anything else.
-func _open_nav_screen() -> void:
+func _open_nav_screen(terminal: ComputerTerminal) -> void:
 	if not is_started or _run.finished or _nav_phase != NavPhase.AWAY or _pod_phase != PodPhase.OUT:
 		return
+	_reading = terminal
 	_nav_phase = NavPhase.APPROACHING
 	# Where to put the player back afterwards, including exactly where they were looking.
 	_nav_return_position = _player.global_position
@@ -454,20 +545,27 @@ func _open_nav_screen() -> void:
 	# The list would otherwise sit straight across the screen being leaned into. See HUD.
 	_hud.set_list_visible(false)
 
-	var view := _computer.view_transform()
-	await _glide_player(view.origin, view.basis.get_euler().y, 0.0, NAV_MOVE_TIME)
+	# THE PITCH COMES FROM THE MARKER, not from a hardcoded zero. Every readable thing on the ship
+	# used to be a wall-mounted CRT at eye height, so the reading pose was a yaw and nothing else —
+	# and that held right up until the deck plan landed on a waist-height console the camera has to
+	# look DOWN at. `_glide_player_to()` still passes 0.0, deliberately: that one is the pod.
+	var view := _computer.view_transform() if _reading == null else _reading.view_transform()
+	var pose := view.basis.get_euler()
+	await _glide_player(view.origin, pose.y, pose.x, NAV_MOVE_TIME)
 	if _nav_phase != NavPhase.APPROACHING:
 		return
 	_nav_phase = NavPhase.READING
-	_nav_screen.open(_computer)
+	_nav_screen.open(_reading if _reading != null else _computer)
 
 
 func _close_nav_screen() -> void:
 	if _nav_phase != NavPhase.READING:
 		return
-	# Hand the console back to its own judgement. A player who flipped to the nav plot for a
+	# Hand the screen back to its own judgement. A player who flipped to the nav plot for a
 	# glance has not asked for the damage plan to stay off for the rest of the run.
-	_computer.clear_manual_page()
+	if _reading != null:
+		_reading.clear_manual_page()
+	_reading = null
 	_hud.set_list_visible(true)
 	_nav_phase = NavPhase.LEAVING
 	if _run.finished:

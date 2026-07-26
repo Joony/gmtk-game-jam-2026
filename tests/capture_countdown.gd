@@ -70,7 +70,7 @@ func _go() -> void:
 	# The nav console, and the camera walking up to read it.
 	await _look_from(Vector3(4.9, 0.9, 5.0), -90.0)
 	await _shot("07_console")
-	_game._open_nav_screen()
+	_game._open_nav_screen(_game.get_node("Computer"))
 	# Long enough for the glide (NAV_MOVE_TIME) to finish.
 	await _frames(70)
 	await _shot("08_nav_reading")

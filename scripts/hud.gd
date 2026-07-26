@@ -36,6 +36,8 @@ var _system_lines: Array[Dictionary] = []
 ## schedule (every frame, since a need is a clock) and rebuilt off a different signal.
 var _need_lines: Array[Dictionary] = []
 var _oxygen_bar_style: StyleBoxFlat = null
+## The life-support tank, so the readout can call for a canister. See OxygenSilo.
+var _oxygen: OxygenSilo = null
 
 
 func _ready() -> void:
@@ -63,6 +65,18 @@ func bind(run: RunState) -> void:
 	_rebuild_needs()
 
 
+## Bound separately from the run: the tank is a prop, and RunState does not know about props.
+func bind_oxygen(silo: OxygenSilo) -> void:
+	_oxygen = silo
+	if silo != null and not silo.recharged.is_connected(_on_recharged):
+		silo.recharged.connect(_on_recharged)
+	_rebuild_needs()
+
+
+func _on_recharged(_seconds: float) -> void:
+	_rebuild_needs()
+
+
 func _process(delta: float) -> void:
 	if _run == null or not _run.running:
 		return
@@ -81,6 +95,8 @@ func _process(delta: float) -> void:
 	# tank is the same — it drains on the ship's clock, so it moves without anything happening.
 	for line in _need_lines:
 		var label := line["label"] as Label
+		if line.has("oxygen"):
+			continue  # fixed text; the air clock next to it is the number that moves
 		if line.has("need"):
 			var need: Need = line["need"]
 			label.text = _need_line(need)
@@ -189,6 +205,13 @@ func _rebuild_needs() -> void:
 		_need_lines.append({"need": need, "label": label})
 	# Silos share the row list rather than getting their own: a tank running low and a body
 	# clock running down are the same problem to the player — something needs fetching.
+	# OXYGEN LOW is a WARNING, not a fault — nothing is broken, the canister is spent and
+	# there is a fresh one in the cargo bay. It says what to do rather than what is wrong,
+	# because at under a minute of air the player has no time to work it out.
+	if _oxygen != null and _oxygen.is_low():
+		var label := _make_line("~ OXYGEN LOW — REPLACE O2 CANISTER", COLOR_WARN)
+		_system_list.move_child(label, 0)
+		_need_lines.append({"oxygen": _oxygen, "label": label})
 	for silo in _run.pressing_silos():
 		var label := _make_line(_silo_line(silo), _silo_color(silo))
 		_system_list.move_child(label, 0)
@@ -321,6 +344,9 @@ static func _clock(seconds: float) -> String:
 ## Days to arrival. Dashes when the ship is stopped dead, rather than an arrival date it
 ## cannot promise — and the same character count, so the row does not jump.
 static func _days(days: float) -> String:
+	# A dead drive never arrives, and the readout should say that rather than showing a row of
+	# dashes that reads as "no data". Same width as the digits it replaces so the panel does
+	# not reflow the moment the engine dies.
 	if is_inf(days) or is_nan(days):
-		return "---.-"
+		return "  ∞  "
 	return "%05.1f" % minf(maxf(days, 0.0), 999.9)

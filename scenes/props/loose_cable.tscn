@@ -8,8 +8,11 @@
 ; player carries either end to a socket and plugs it in (look + E, or nose it into snap range). Run
 ; one end to a wall SOURCE and the other to a device inlet to carry power the long way.
 
+; MEASURED against the plug model (tests/diag_prop_bounds.gd): the plug is 0.33 x 0.33 x 0.39m.
+; This box was 0.63 x 0.27 x 0.63 — nearly twice as wide as the thing you can see, and shorter
+; than it. Plugs therefore rested inside walls and each other and were shoved apart hard.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.63, 0.27, 0.63)
+size = Vector3(0.33, 0.33, 0.39)
 
 [node name="LooseCable" type="Node3D"]
 

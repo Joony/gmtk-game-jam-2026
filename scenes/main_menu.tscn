@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://duuhvlvcjcmnd"]
 
 [ext_resource type="Script" uid="uid://bndynw5c44qfj" path="res://scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="Texture2D" path="res://assets/title_logo.png" id="2_title"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_normal"]
 bg_color = Color(0.1, 0.1, 0.12, 1)
@@ -57,12 +58,13 @@ layout_mode = 2
 theme_override_constants/separation = 44
 alignment = 1
 
-[node name="Title" type="Label" parent="Center/VBox" unique_id=711997468]
+[node name="Title" type="TextureRect" parent="Center/VBox" unique_id=711997468]
+custom_minimum_size = Vector2(900, 504)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.1, 0.1, 1)
-theme_override_font_sizes/font_size = 160
-text = "PERPETUAL PICKLE"
-horizontal_alignment = 1
+size_flags_horizontal = 4
+texture = ExtResource("2_title")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Spacer" type="Control" parent="Center/VBox" unique_id=54882836]
 custom_minimum_size = Vector2(0, 30)

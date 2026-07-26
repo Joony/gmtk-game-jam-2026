@@ -1,0 +1,69 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/status_map.gd" id="1_map"]
+
+; The deck plan as a bare screen: a SubViewport rendering StatusMap onto a quad, and nothing
+; else. No case, no plinth, no collider — unlike computer.tscn, because this one is DROPPED ONTO
+; A MODEL that already has both. It is parented to the `Display` empty inside
+; CD_BridgeTerminals_v2 and inherits its position and facing from it, so the artist decides where
+; the screen is and this scene never has an opinion about it.
+;
+; Same two requirements as the console's screen, and both are still load-bearing: the SubViewport
+; must be a DIRECT CHILD of this scene's root for `viewport_path` to resolve, and the material
+; must be `resource_local_to_scene` or every instance would share one viewport.
+;
+; THE QUAD LIES FLAT, because the surface does. Every mesh face around the `Display` empty has
+; normal (0, 1, 0) at exactly the empty's own height — it marks the middle of a 2.16 x 2.38 m
+; upward-facing table top, not a wall panel. So this is a chart laid on a table, which is what the
+; feature was called before it was built.
+;
+; A QuadMesh faces its own +Z, so laying it flat is -90 degrees about X. That does two things at
+; once, and the second is the good one:
+;
+;   the quad's +Z (its face)     -> world +Y, so it faces up off the table;
+;   the quad's +Y (the map's up) -> world -Z, WHICH IS THE SHIP'S HEADING.
+;
+; So the diagram physically agrees with the ship: MESS really is on your left, CARGO really is
+; behind you. And because the reader can only stand aft of the table, the labels come out upright
+; from the one side there is to read it from. Both properties, one rotation.
+;
+; THE ROTATION IS SET IN CODE, in ShipDisplays._fit_screen(), and not here. A `.tscn` basis
+; literal is ROW-major (see docs/debugging-gotchas.md) — written from column vectors it silently
+; becomes the inverse rotation, which is exactly what happened first time: the chart faced DOWN
+; into the table and the bridge looked like it had no display at all.
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_plan"]
+viewport_path = NodePath("SubViewport")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plan"]
+resource_local_to_scene = true
+; Unshaded, or the bridge's own lighting washes a self-lit panel — and in ALERT mode it would
+; turn the whole page red, which is the one colour on it that has to mean something.
+shading_mode = 0
+albedo_texture = SubResource("ViewportTexture_plan")
+
+[sub_resource type="QuadMesh" id="QuadMesh_plan"]
+; 1.6:1, matching the 1024x640 viewport, so the drawing is never stretched. Sized to sit INSIDE
+; the measured 2.16 x 2.38 m top with bare table showing fore and aft — a chart on a table rather
+; than a screen filling a bezel. ShipDisplays.screen_width overrides it.
+size = Vector2(2.0, 1.25)
+
+[node name="DeckPlan" type="Node3D"]
+
+[node name="SubViewport" type="SubViewport" parent="."]
+disable_3d = true
+transparent_bg = false
+size = Vector2i(1024, 640)
+render_target_update_mode = 4
+
+[node name="StatusMap" type="Control" parent="SubViewport"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_map")
+
+[node name="Screen" type="MeshInstance3D" parent="."]
+mesh = SubResource("QuadMesh_plan")
+surface_material_override/0 = SubResource("StandardMaterial3D_plan")

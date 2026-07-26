@@ -21,6 +21,35 @@ godot --headless --path . --export-release "Web" build/web/index.html
 
 Output is ~38 MB, dominated by `index.wasm` (39 MB uncompressed; itch.io serves it gzipped).
 
+## Automated export + zip (2026-07-26)
+
+[tools/export_web.sh](../../tools/export_web.sh) does the whole thing: import → export →
+verify → zip. `tools/export_web.sh` for release, `--debug` for the debug template.
+
+```
+tools/export_web.sh
+  OK  build/gmtk-game-jam-2026-web.zip
+      25M zip, 20M pck, 38M wasm
+```
+
+The zip stores files at its root (`index.html`, not `web/index.html`) — itch.io requires that
+for an HTML project. Upload it there by hand; the script deliberately stops at the zip.
+
+**Three reasons this is a script and not a one-liner** — each one bit during the first run:
+
+1. **Godot exits 0 on a failed export.** A missing template or a broken resource prints an
+   error and still returns success. The script greps the output *and* asserts that
+   `index.html` / `index.wasm` / `index.pck` exist and are non-empty.
+2. **Assets must be imported first.** Without a warm `.godot/` cache, a headless export
+   produces a near-empty `.pck` and the game boots to a black screen. The `build/web/` that
+   was in the tree before this script existed had a **131 KB** `.pck` — i.e. an assetless
+   build that would have shipped broken. A correct one is ~20 MB, so the script warns loudly
+   below 1 MB.
+3. **`build/` lives inside the project.** Godot's scanner imported the PNGs a previous export
+   wrote there and bundled them into the *next* `.pck` (`.godot/imported/index.png-*.ctex`
+   proves it). Fixed at both ends: the script writes `build/.gdignore` (recreated each run
+   since `/build/` is gitignored), and `exclude_filter` now carries `build/*`.
+
 ## Verified in a real browser
 
 Served over HTTP and loaded at `http://localhost:8099`:
@@ -56,6 +85,29 @@ been observed working yet.
 Same caveat for the countdown: the hidden tab throttles `requestAnimationFrame` to near zero, so
 the intro appeared frozen at `10` and only advanced when a click briefly woke the tab. Timing is
 verified on desktop instead; re-check it in a visible tab when convenient.
+
+## Video playback on the web target — CONFIRMED (2026-07-26)
+
+The open question from step 13 (`VideoStreamTheora` on Web/Compatibility, which headless tests
+cannot vouch for) is answered: on a fresh `tools/export_web.sh` build served at :8099, START →
+the intro video renders and *decodes* (frames advance through the title text), it runs to
+`finished`, and the console shows `[SceneManager] changed scene to res://scenes/game.tscn`.
+The game then renders in-browser — HUD, oxygen clock, arrival counter, nebula and stars
+through the window.
+
+Aside, not a bug: in the automated pane the canvas fills a 325×1324 CSS-pixel viewport, so
+screenshots come out tall and narrow. That is the pane's shape plus `canvas_resize_policy=2`
+(adaptive), not the export.
+
+## Missing glyphs — found by the first real web build (2026-07-26)
+
+The first itch-ready export exposed a font bug that desktop had been hiding: the display font
+is a 66-glyph trial cut, and with no system fonts on the Web target every `:` `%` `!` `[` `]`
+`—` `·` rendered as a `.notdef` box. Fixed with an engine-font fallback and by turning system
+fallback off so desktop stops masking it — see [font-and-theme.md](font-and-theme.md).
+
+Worth remembering as a category: **anything the desktop OS provides for free is absent on the
+Web target.** Fonts are the one that bit; it is the same class of problem as system codecs.
 
 ## Still to do before submitting
 

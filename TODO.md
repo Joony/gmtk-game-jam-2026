@@ -190,12 +190,24 @@ more than action. Get this right before anything else in step 12:
 - [x] Export templates installed; build produced (~38 MB, mostly `index.wasm`)
 - [x] Loaded in a browser over HTTP: boots clean, WebGL2, font renders, buttons work,
       SceneManager transitions work, 3D scene renders
+- [x] **Export + zip automated**: [tools/export_web.sh](tools/export_web.sh) imports, exports,
+      verifies the artifacts (Godot exits 0 even on a failed export) and zips with `index.html`
+      at the archive root, which is what itch.io wants. It also caught that the `build/web/` in
+      the tree was assetless — a 131 KB `.pck` where a good one is ~20 MB — and that `build/`
+      being inside the project fed old export PNGs back into the next `.pck` (now blocked by
+      `build/.gdignore` + `exclude_filter`)
 - [x] **Pointer lock addressed** by the START prompt (step 7a below) — capture now happens inside
       a button `pressed` handler, which is the user gesture browsers require
 - [ ] **Confirm pointer lock in a normal browser tab.** The automated browser pane runs the page
       with `visibilityState: hidden`, where the browser refuses pointer lock to *any* code (a direct
       `canvas.requestPointerLock()` from the console fails with `WrongDocumentError`). Serve with
       `.claude/launch.json` (port 8099), open a real tab, click START, check mouse look.
+- [x] **Missing glyphs fixed** ([log](docs/features/font-and-theme.md)): the trial font maps only
+      66 codepoints and the Web target has no system fonts to cover the rest, so `:` `%` `!` `[` `]`
+      `—` `·` all rendered as boxes. `FontFallback` autoload attaches the engine's built-in font;
+      `allow_system_fallback=false` stops desktop from hiding the next one
+- [ ] **Swap in the licensed Abolition** (`.woff`/`.woff2` — Godot 4 imports both). Retires the
+      trial font's licence risk on a public build and closes most of the glyph gaps
 - [ ] Upload to itch.io and confirm it runs there (different headers/CDN than localhost)
 - [ ] Re-check when step 13 adds audio: browsers block audio until a user gesture — the START
       button is the natural place to initialise it
@@ -751,9 +763,11 @@ them to disk with `tests/forge_sounds.gd` to listen.
         to `assets/video/perpetual_pickle_intro.ogv` (1.15 MB, with audio) via ffmpeg.
       - The source `Perpetual Pickle Intro.mp4` (a collaborator's file) is left in the repo but is
         now dead weight; safe to `git rm` if nobody needs it as an editing master.
-- [ ] Re-run the web export from step 7 with the finished game before submitting — **and confirm
-      video playback works in the web export.** VideoStreamTheora on the Web/Compatibility target
-      is the one part of this flow the headless tests cannot vouch for.
+- [x] **Video playback confirmed in the web export** (2026-07-26): on a `tools/export_web.sh`
+      build, START plays the intro, frames decode and advance, it runs to `finished` and cuts to
+      `game.tscn`, which renders in-browser. VideoStreamTheora on Web/Compatibility works.
+- [ ] Re-run `tools/export_web.sh` once more against the *final* build immediately before
+      submitting, so the uploaded zip matches what's committed.
 
 ## 14. Ship feel & new systems
 
@@ -1877,3 +1891,212 @@ Full spec: [status-displays.md](docs/features/status-displays.md). One display, 
       touching, the 2.3 px stubs still drawn, labels only on blobbed rooms. Keep the PNGs
 - [ ] **Frame cost**, budget ~0.5 ms/frame. If it disappoints, redraw at **20–30 Hz instead of
       60** across all three — the fastest pulse on the page is 2.2 Hz — before cutting anything
+
+---
+
+## 21. Repair puzzles — the main mechanic (SPEC, not yet built)
+
+These puzzles *are* the game. Everything in 17 is a countdown that sends you for a consumable;
+this is the other half — a system breaks, it bleeds the drive, and you choose how to fix it.
+
+**SCOPE: oxygen, and the navigation/engine fails. Nothing else.** The beer silo, the vending
+machine and the septic tank stay exactly as they are — still 0..1 levels, still working, still
+tested — and are not touched by any of this. Neither is CO2, which gets its own silo later
+(21f). Four fails and one canister swap is the whole of section 21.
+
+That is a deliberate narrowing and it decides the build order: **21a → 21b → 21d → 21c → 21e**.
+The template first, because the other four items are configurations of it; spare parts before
+the battery, because three of the four fails need a part and only one needs a cable.
+
+### 21a. The puzzle template — build it once, configure it four times
+
+Every FAIL has the same shape, and the shape is already most of what `Malfunction` does:
+
+| | |
+| --- | --- |
+| **initial effect** | what it costs the moment it fires |
+| **maximum effect** | where it climbs to if ignored |
+| **growth** | it worsens over time, on the ship's clock (so stasis makes it worse) |
+| **bodge (hammer)** | **freezes the effect where it stands — never reverses it** — and the fault then recurs **3–4× more often** |
+| **spare part** | full fix, effect cleared to zero |
+| **indicator** | green normally; **red and FLASHING** when critical |
+
+The bodge rule is the heart of it and worth stating twice: *if the Nav Computer's maximum is
+-10%, it starts at -5%, and it has climbed to -7% when you hit it with the hammer, the drive
+stays down 7% until a real spare part goes in.* Bodging buys time, not power back.
+
+**Already supported** by `Malfunction`: `speed_penalty` is the maximum, `speed_decay_per_day` the
+growth, `speed_decay` the current value — and `repair(false)` already freezes `speed_decay`
+without reversing it, which is exactly the rule above. `RepairPoint` already dispatches hammer
+vs part off what is in your hands.
+
+**Built 2026-07-26 — the numbers half of the template:**
+
+- [x] **An initial effect.** `Malfunction.initial_speed_penalty`, seeded into `speed_decay` by
+      `break_now()` with a `maxf` so a patch giving out never hands speed back.
+- [x] **Bodge raises the recurrence rate.** `bodge_recurrence` (default 3.5); the patch holds
+      `bodge_distance / bodge_recurrence`. A RATE rather than a second distance, so tuning how
+      long a system lasts cannot silently leave its bodge outlasting its proper repair.
+- [x] **Ramping is decoupled from severity.** It used to be a CRITICAL-only behaviour, which
+      tied two unrelated ideas together — whether the ship-wide red alert trips, and whether
+      the cost ramps. The nav computer ramps and is not critical; that was unrepresentable.
+      `Malfunction.ramps()` now asks whether the fault HAS a ramp.
+- [x] **A spare part can clear a bodge**, which the spec's own wording requires ("the drive
+      loses 7% until you fix it with a real spare part") and which was NOT possible: a patched
+      fault is inactive, `repair()` refused to act on it, and the panel stopped being a ray
+      target. So a bodge meant losing that speed for good. Now a patched panel stays
+      interactable, names the number it is holding you down by, and takes a part — but not
+      another hammer. You cannot bodge a bodge.
+
+**Built 2026-07-26 — the presentation half:**
+
+- [x] **`IndicatorLight`** (`scripts/game/indicator_light.gd`), one light used by everything.
+      `RepairPoint` and `Silo` each had their own emissive-quad routine and a third was about
+      to appear for the engine and the nav computer. Mounts on the model's `Indicator` empty
+      when there is one, falls back to the panel prop's `StatusLight` mesh, and builds a quad
+      only if there is neither. Scale-compensated at every step, so it comes out metre-sized on
+      a prop dressed at 0.25 or 0.6.
+      (Named `IndicatorLight`, not `StatusIndicator` — Godot 4.7 already has one of those.)
+- [x] **Flashing on critical**, at 2 Hz on a sine, dipping to 25% rather than to black — a
+      light that goes fully out reads as a dead lamp on the half-cycle you glance at it.
+      Colour says which of three states; the flash says now-versus-eventually.
+- [x] **A MODEL can be the repair point.** `RepairPoint.setup()` mirrors `Silo.setup()`, so the
+      script can be attached to a dressed-in prop at runtime — `Interactor` walks UP from
+      whatever the ray hits, so the model's own collider resolves to it. The `RepairPanel` prop
+      is now the fallback for systems with no geometry of their own.
+- [x] `tests/smoke_indicator.gd` — short on purpose, covering only the two failures that are
+      SILENT: an adopted model with no `setup()` never offers a prompt, and an indicator sized
+      in local units comes out quarter-size but still lights up. Colours and flashing are
+      visible the moment you look at the thing, so they are not tested.
+
+### 21b. The four drive FAILs
+
+| # | System | Where | Repair | Initial | Max |
+|---|---|---|---|---|---|
+| 1 | **Nav Computer** | Bridge — the `Computer`, at (0.43, 0, -20.50) | part or bodge | -5% | -10% |
+| 2 | **Drive Regulator** | Engine room | part or bodge | -5% | -20% |
+| 3 | **Drive Coupler** | Engine room | part or bodge | -5% | -20% |
+| 4 | **Engine Core Depleted** | Engine room — the Engine | **a charged battery plugged in** | -100% | -100% |
+
+- [ ] **The Nav Computer starts broken**, and is the run's opening fault. It replaces NAV ARRAY,
+      which currently sits unrepaired in the CRYO BAY with no panel at all — the one failing
+      assertion in `smoke_run_state` right now (`every malfunction is fixable`)
+- [ ] Its repair point is the bridge **computer itself**, with the indicator added to it — not a
+      panel bolted beside it
+- [ ] **The computer already has an interaction, and the two must not fight.** Normally it is
+      "lean in and read the map" (`ComputerTerminal.interact()` → `opened` → NavScreen). When
+      the fault is critical the **map goes dark** and the same prop becomes a repair point:
+      hammer to bodge, spare part to fix
+  - So the prop needs ONE interactable that switches role on the fault's state, not two
+      competing ones — the same shape `Silo` already uses, where being broken takes the
+      ordinary use out of service and puts the repair in its place
+  - Decide what "read the map" does while it is broken: refuse with a reason (consistent with
+      the silos) rather than going silent, which reads as a prop the player misjudged
+- [ ] "Drive Coupler" replaces the current MAIN DRIVE ("injector coupling failed")
+
+### 21c. Engine Core — the battery puzzle
+
+Not a consumable and not a silo: **a cable carrying power from a battery into the drive.**
+
+- [x] **ENGINE CORE** as a `Malfunction` on the engine model: -100% initial and maximum, so it
+      stops the ship outright rather than slowing it. `RunState.min_speed_fraction` is what
+      keeps that survivable — verified dropping to the 0.06 floor and back to 0.95 when fed
+- [x] The Engine's `socket` empty gets a `CableSocket` **sink**, parented to the empty so it
+      tracks the model, and scale-compensated (the engine is dressed at 0.5)
+- [x] The Engine's `Indicator` empty gets the light — red and flashing while depleted
+- [x] `PoweredSocket` at (-18.06, 1.15, -1.92) is now a live **source** socket: the bay's
+      charging point
+- [x] `scenes/props/battery.tscn` — the modelled battery, same `BatteryCube` script and so the
+      same charge/drain/flow behaviour and the same emissive bars. Port **on top**, where the
+      model's own socket disc is; the cube's was on a side face because a box has no obvious
+      top. Replaces the bare model instance already dressed into the engine room
+- [x] Reuses `SocketPowerRepair` — the feed-the-inlet route already built for the aux-power
+      device — rather than inventing a second way to say the same thing
+- [ ] **`PoweredDevice` is now redundant** and still standing in the engine room at
+      (-22.8, 0, 2.2). It is the same idea with a grey box instead of the engine. Delete it,
+      or repurpose it as a second powered system somewhere that needs one
+
+### 21d. Spare parts
+
+- [x] Three kinds — **Spring, Screw, Gear** — as `scenes/props/spare_{spring,screw,gear}.tscn`,
+      in the `spare_parts` group. Sized from the MEASURED model bounds rather than guessed, so
+      each collider matches its mesh; added to `tests/diag_prop_bounds.gd`, which reports all
+      three at 0.99–1.00
+- [x] Placed: two in the **janitor's closet**, two in the **cargo bay**, and one **spring in the
+      bridge** beside the nav computer — the tutorial's "it should be around here somewhere",
+      now that the opening fault is there (21b). All five settle on the floor in the right room
+- [x] The three blue placeholder cylinders in the cryo bay are gone; they were three identical
+      untextured parts sat where no fault is
+- [x] **Fungible, and staying that way.** Any of the three fixes any part-or-bodge fault, via
+      `RepairPoint.required_part_group` matching the group rather than a name. Scarcity is what
+      makes "which repairs are worth it" the decision; naming a part per fault would turn that
+      into an inventory hunt. `required_part` still exists for a one-off if one is ever wanted
+
+### 21e. The O2 canister — life support becomes a SWAP, not a level
+
+**This is about OXYGEN, the run's own air budget — not about CO2.** CO2 keeps its countdown and
+gets a silo of its own once that model exists (21f); nothing here touches it.
+
+- [ ] The silo model carries `Socket` (where the canister attaches) and `Indicator`
+- [ ] Oxygen under a minute → fetch a fresh canister, **take the used one out and put the new
+      one in**
+- [ ] A used canister **switches to the `Canister_Empty` model**. It can be taken out of the
+      silo but **never put back in** — an empty is spent, and the swap is one-way
+- [ ] An indicator **on the canister** shows used or unused
+- [ ] The silo indicator is **green above a minute of oxygen, orange below**
+- [ ] `OXYGEN LOW — REPLACE O2 CANISTER` as a **warning** (not a fault) in the HUD, and on the
+      **ship map**
+
+### 21f. What this changes in what is already built
+
+Stated plainly, because 21 overlaps section 17 and the overlap has to be resolved deliberately
+rather than discovered halfway through.
+
+- [ ] **The life-support silo stops being a 0..1 level**, and becomes a socket holding one
+      canister. **Only that one.** The beer silo, the vending machine and the septic tank keep
+      their levels and are out of scope — so `Silo` has to support both shapes side by side
+      rather than being converted wholesale. A `Socket`-based silo is arguably a different
+      class; decide that when 21e is built, not before
+- [ ] **CO2 keeps its own countdown and gets its own silo — not yet modelled.** Settled: the
+      O2 canister in 21e feeds the run's OXYGEN, and CO2 is a separate system with a separate
+      tank that has not been added to the ship yet. So the existing CO2 `Need`, its warning row
+      and `CO2 NARCOSIS` all stay exactly as built; nothing there is redundant.
+  - The one concrete change: the CO2 need currently names `silo_id = &"life_support"`, because
+      that was the only tank going. When the CO2 silo arrives it points at that instead, and
+      life support goes back to being purely about oxygen. One field
+  - Until then, leave CO2 alone. It works, it is tested, and re-pointing it at a silo that does
+      not exist yet would only break it
+- [ ] **`power_cell.tscn` and the `power` silo are superseded** by 21c. The fuel-as-consumable
+      model goes; `Silo.drain_per_day` and `stops_the_drive` may go with it
+- [ ] **Two models changed size on reimport** and their props are now stale:
+      `CD_Battery_v1` 8.84 → 2.65 units tall (so `power_cell.tscn`'s 0.0792 scale is wrong), and
+      `CD_Canister_Air_v1` 4.68 → 4.49 (so `canister.tscn`'s centring offset is 1.8 cm out —
+      within the floor test's tolerance, which is why nothing went red)
+
+### 21g. Measured, so nobody has to re-derive it
+
+Model-space positions of the empties, and what they are in metres at the scale each prop is
+dressed at in `game.tscn`. **Re-measure in a RUNNING scene, never by instancing a `.blend`
+headlessly** (see `docs/debugging-gotchas.md`) — and reimport first, since several of these
+appeared only after the import cache was cleared.
+
+| Prop | Dressed at | Empty | Model units | Metres |
+|---|---|---|---|---|
+| `CD_Engine_v4.2` | 0.5 | `Indicator` | (0, 5.20, 0.90) | (0, 2.60, 0.45) |
+| | | `socket` | (0, 3.50, 2.30) | (0, 1.75, 1.15) |
+| `CD_Silo_Base_v1.1` | 0.25 | `Indicator` | (-1.50, 9.00, 0) | (-0.375, 2.25, 0) |
+| | | `Socket` | (0, 2.00, 0) | (0, 0.50, 0) |
+
+Sizes in model units: engine 7.76 x 10.00 x 7.76, silo 10.64 x 21.00 x 9.28, battery
+2.00 x 2.65 x 2.00, socket 3.75 x 3.75 x 0.50, air canister 2.00 x 4.49 x 2.00,
+spring 1.39 x 2.37 x 1.39, screw 1.20 x 1.81 x 1.20, gear 2.81 x 0.63 x 2.95.
+
+Scene nodes this needs: `Computer` (0.43, 0, -20.50), `CD_Engine_v4_2` (-19.5, 0, 4.5),
+`PoweredSocket` (-18.06, 1.15, -1.92), silos `CD_Silo_Base_v1_1` (22.5, 0, -16.5) life support,
+`_2` (-6.5, 0, -10) bathroom, `_3` (-17.5, 0, -12) mess.
+
+**Note on adoption:** these props bring their own collision, so a functional body standing
+*beside* one is invisible to the interaction ray — `Interactor` walks UP from whatever it hits.
+`ShipSupplies` now attaches the script to the prop itself. Anything hung off an adopted prop
+(indicator, socket, panel) is in that prop's LOCAL space, which is scaled — divide by the host
+scale so offsets can stay written in metres.

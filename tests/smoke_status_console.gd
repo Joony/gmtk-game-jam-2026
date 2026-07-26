@@ -21,6 +21,9 @@ var _checks: int = 0
 var _game: Node3D
 var _run: RunState
 var _computer: ComputerTerminal
+## The deck plan's own screen, on the bridge terminal bank. Since the pod bay console became
+## nav-only this is where every blob in this suite actually lands.
+var _bridge: ComputerTerminal
 var _ship: RoomBuilder
 
 
@@ -46,6 +49,7 @@ func _frames(n: int) -> void:
 ## assertion below a timing question.
 func _settle() -> void:
 	_computer._refresh()
+	_bridge._refresh()
 	await process_frame
 
 
@@ -57,7 +61,13 @@ func _go() -> void:
 
 	_run = _game.get_node("Run")
 	_computer = _game.get_node("Computer")
+	_bridge = _game.get_node("Displays").bridge_display
 	_ship = _game.get_node("Ship") as RoomBuilder
+	_check("the bridge deck plan got built", _bridge != null)
+	if _bridge == null:
+		print("STATUS CONSOLE TEST FAIL")
+		quit(1)
+		return
 
 	await _test_placement()
 	await _test_faults()
@@ -124,13 +134,13 @@ func _test_faults() -> void:
 		if fault != null and fault.is_active:
 			fault.repair(true, _run.distance_remaining)
 	await _settle()
-	var faults_now := _faults_in(_computer.collect_problems())
+	var faults_now := _faults_in(_bridge.collect_problems())
 	_check("with everything repaired there are no fault blobs (%d)" % faults_now.size(),
 		faults_now.is_empty())
 
 	drive.break_now()
 	await _settle()
-	var problems := _computer.collect_problems()
+	var problems := _bridge.collect_problems()
 	faults_now = _faults_in(problems)
 	_check("breaking a fault makes exactly one fault blob (%d)" % faults_now.size(),
 		faults_now.size() == 1)
@@ -156,17 +166,17 @@ func _test_faults() -> void:
 	drive.repair(false, _run.distance_remaining)
 	await _settle()
 	_check("a patched fault is running on a patch", drive.is_patched)
-	_check("...and has no blob (%d)" % _faults_in(_computer.collect_problems()).size(),
-		_faults_in(_computer.collect_problems()).is_empty())
+	_check("...and has no blob (%d)" % _faults_in(_bridge.collect_problems()).size(),
+		_faults_in(_bridge.collect_problems()).is_empty())
 
 	drive.break_now()
 	await _settle()
 	_check("a patch giving out puts the blob back",
-		_faults_in(_computer.collect_problems()).size() == 1)
+		_faults_in(_bridge.collect_problems()).size() == 1)
 	drive.repair(true, _run.distance_remaining)
 	await _settle()
 	_check("a proper repair clears it",
-		_faults_in(_computer.collect_problems()).is_empty())
+		_faults_in(_bridge.collect_problems()).is_empty())
 
 
 # --- silos and needs ---------------------------------------------------------
@@ -234,48 +244,59 @@ func _test_pages() -> void:
 		var fault := node as Malfunction
 		if fault != null and fault.is_active:
 			fault.repair(true, _run.distance_remaining)
-	# Everything the collector can see, quiet.
 	await _settle()
-	var clean := _computer.collect_problems().is_empty()
-	_check("the ship can be made clean for this section", clean)
-	if clean:
-		_check("a clean ship shows the nav plot",
-			_computer.page == ComputerTerminal.Page.NAV)
+	_check("the ship can be made clean for this section", _bridge.collect_problems().is_empty())
 
+	# ONE DISPLAY, ONE JOB. The pod bay console is the nav plot and the bridge bank is the deck
+	# plan, and neither can become the other — so "which screen am I looking at" is something the
+	# player reads rather than something they have to work out.
+	_check("the console shows the nav plot", _computer.page == ComputerTerminal.Page.NAV)
+	_check("...and only the nav plot", not _computer.has_page(ComputerTerminal.Page.STATUS))
+	_check("the bridge display shows the deck plan", _bridge.page == ComputerTerminal.Page.STATUS)
+	_check("...and only the deck plan", not _bridge.has_page(ComputerTerminal.Page.NAV))
+
+	# A single-page screen has nowhere to flip to, so left/right does nothing and the reading
+	# prompt does not advertise a key that would.
+	_computer.flip_page()
+	_bridge.flip_page()
+	_check("flipping the console does nothing", _computer.page == ComputerTerminal.Page.NAV)
+	_check("flipping the bridge display does nothing",
+		_bridge.page == ComputerTerminal.Page.STATUS)
+	_check("neither reports a page to flip to",
+		_computer.other_page_name() == "" and _bridge.other_page_name() == "")
+	_check("and neither counts as a manual override",
+		not _computer.is_page_manual() and not _bridge.is_page_manual())
+
+	# Each prompt names what is actually on its own glass.
+	_check("the console prompt names the nav plot",
+		_computer.get_interaction_text().to_lower().contains("nav plot"))
+	_check("the bridge prompt names the deck plan",
+		_bridge.get_interaction_text().to_lower().contains("deck plan"))
+
+	# A screen that cannot show the plan does not go looking for problems either.
 	var nav := _game.get_node("NavArray") as Malfunction
 	nav.break_now()
 	await _settle()
-	_check("something going wrong puts the damage plan up on its own",
-		_computer.page == ComputerTerminal.Page.STATUS)
-	_check("and the interaction prompt names the page that is actually up",
-		_computer.get_interaction_text().to_lower().contains("damage plan"))
-
-	# The manual override, and the fact that it is temporary.
-	_computer.flip_page()
-	_check("flipping shows the other page", _computer.page == ComputerTerminal.Page.NAV)
-	_check("and marks the choice as the player's", _computer.is_page_manual())
-	await _settle()
-	_check("a manual choice survives a refresh", _computer.page == ComputerTerminal.Page.NAV)
-	# Otherwise one glance at the nav plot would switch the console off for the rest of the run.
-	_computer.clear_manual_page()
-	_check("stepping away hands the console back to itself", not _computer.is_page_manual())
-	_check("...and it puts the damage back up",
-		_computer.page == ComputerTerminal.Page.STATUS)
-
-	_check("the prompt names the OTHER page to flip to",
-		_computer.other_page_name() == "NAV PLOT")
-
+	_check("the console still shows the nav plot with the ship on fire",
+		_computer.page == ComputerTerminal.Page.NAV)
+	# The guard is on the WORK, not on the collector: `_refresh()` skips collecting entirely on a
+	# screen with no STATUS page, and there is no map under the console to push to if it did.
+	_check("the console has no deck plan to draw on",
+		_computer.find_child("StatusMap", true, false) == null)
+	_check("while the bridge display has the fault",
+		_faults_in(_bridge.collect_problems()).size() == 1)
 	nav.repair(true, _run.distance_remaining)
 	await _settle()
-	_check("fixing the last problem returns it to the nav plot",
-		_computer.page == ComputerTerminal.Page.NAV)
 
 
 # --- you are here ------------------------------------------------------------
 
 func _test_player_marker() -> void:
 	var player: Node3D = _game.get_node("Player")
-	var map: StatusMap = _computer.get_node("SubViewport/StatusMap")
+	var map := _bridge.find_child("StatusMap", true, false) as StatusMap
+	_check("the bridge display has a map to mark", map != null)
+	if map == null:
+		return
 
 	# The cryo bay, where the console is bolted and where the player therefore is whenever they
 	# can read this.
@@ -310,7 +331,7 @@ func _faults_in(problems: Array[Dictionary]) -> Array[Dictionary]:
 
 func _warnings_for(room: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for problem in _computer.collect_problems():
+	for problem in _bridge.collect_problems():
 		if int(problem["kind"]) == StatusMap.Kind.WARNING and problem["room"] == room:
 			out.append(problem)
 	return out
