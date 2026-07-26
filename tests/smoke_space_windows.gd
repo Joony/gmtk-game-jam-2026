@@ -128,14 +128,20 @@ func _run() -> void:
 		_check("every opening is glazed (%d windows, %d glass)" % [window_count, glazing.size()], glazing.size() == window_count)
 
 		# --- The corners are cut at 45° -------------------------------------
-		var chamfers := get_nodes_in_group(RoomBuilder.GROUP_WINDOW_CHAMFER)
+		var chamfers := get_nodes_in_group(RoomBuilder.GROUP_CHAMFER)
+		# A window is cut through ONE skin and has four corners; a doorway reaches the floor so it
+		# has two, but is cut through BOTH neighbours' skins. Counted from the ship's own data
+		# rather than hardcoded, so adding an opening cannot quietly leave it unchamfered.
+		var expected := 0
+		for candidate3 in ship.doorways:
+			expected += ship.opening_skins(candidate3.id) * (4 if candidate3.sill > 0.01 else 2)
 		_check(
-			"every window has four chamfers (%d windows, %d chamfers)" % [window_count, chamfers.size()],
-			chamfers.size() == window_count * 4
+			"every opening is chamfered on every side (want %d, got %d)" % [expected, chamfers.size()],
+			expected > 0 and chamfers.size() == expected
 		)
 
 		var skin: float = ship.wall_thickness * 0.5
-		var leg: float = minf(ship.window_chamfer, 0.3 * minf(opening.width * ship.tile_size, top - opening.sill))
+		var leg: float = minf(ship.opening_chamfer, 0.3 * minf(opening.width * ship.tile_size, top - opening.sill))
 		var spans_x_opening := opening.axis == Doorway.Axis.X
 		var half_span: float = opening.width * 0.5 * ship.tile_size
 		# The four corners of THIS opening, as (distance along the wall, height).

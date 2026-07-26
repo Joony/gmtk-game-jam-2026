@@ -423,12 +423,17 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Field stretching removed — changing `cell_size` re-rolled the whole grid, so every speed
       change flickered. Near field brought in to 10–260m so its stars actually stream.
       Measured: 28% sky change per second at cruise, 0.0% re-roll on speed change.
-- [x] **45° corners on every window** ([log](docs/features/window-chamfers.md)) — four small
+- [x] **45° corners on every opening** ([log](docs/features/opening-chamfers.md)) — small
       triangular prisms dropped into each opening's corners, so a window reads as a chamfered
-      porthole instead of a rectangular hole. Additive, so the wall-splitting maths is untouched.
-      Tinted, because a 45° face under shadowless lighting is otherwise invisible — the same
-      lesson `SlidingDoor.BEVEL_TINT` already learned. `window_chamfer` (default 0.12m) sets the
-      leg, clamped so the 1m bathroom portholes can't close into a diamond.
+      porthole and a doorway as a chamfered frame. Additive, so the wall-splitting maths is
+      untouched. Tinted, because a 45° face under shadowless lighting is otherwise invisible —
+      the same lesson `SlidingDoor.BEVEL_TINT` already learned. `opening_chamfer` (default 0.12m)
+      sets the leg, clamped so the 1m bathroom portholes can't close into a diamond.
+- [x] Doorways too, in a second pass. Three differences, all real: a doorway has two corners not
+      four (it reaches the floor), is cut through BOTH neighbours' skins not one, and — the one
+      that made doors a follow-up rather than part of the first pass — its panels slide through
+      the middle of the wall, so the chamfer is confined to the outer 3cm of each skin where a
+      panel can never reach it. Asserted in `smoke_door_bevel`, three more mutations killed.
 - [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
       field to move against. One sample per ray; angular density so it fills the sky independently
       of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.
