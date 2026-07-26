@@ -127,6 +127,77 @@ func _run() -> void:
 				window_count += 1
 		_check("every opening is glazed (%d windows, %d glass)" % [window_count, glazing.size()], glazing.size() == window_count)
 
+		# --- The corners are cut at 45° -------------------------------------
+		var chamfers := get_nodes_in_group(RoomBuilder.GROUP_WINDOW_CHAMFER)
+		_check(
+			"every window has four chamfers (%d windows, %d chamfers)" % [window_count, chamfers.size()],
+			chamfers.size() == window_count * 4
+		)
+
+		var skin: float = ship.wall_thickness * 0.5
+		var leg: float = minf(ship.window_chamfer, 0.3 * minf(opening.width * ship.tile_size, top - opening.sill))
+		var spans_x_opening := opening.axis == Doorway.Axis.X
+		var half_span: float = opening.width * 0.5 * ship.tile_size
+		# The four corners of THIS opening, as (distance along the wall, height).
+		var corners: Array[Vector2] = []
+		var depth_ok := 0
+		var inside_ok := 0
+		var tinted := 0
+		var mine := 0
+		for node in chamfers:
+			var piece: MeshInstance3D = node
+			var aabb: AABB = piece.global_transform * piece.get_aabb()
+			# Only this opening's four.
+			var across: float = aabb.get_center().z if spans_x_opening else aabb.get_center().x
+			var centre_along: float = aabb.get_center().x if spans_x_opening else aabb.get_center().z
+			if absf(across - wall_line) > 0.4 or absf(centre_along - along) > half_span + 0.1:
+				continue
+			mine += 1
+			corners.append(Vector2(centre_along, aabb.get_center().y))
+
+			# Sits in the wall's depth slab, not floating proud of the face or buried behind it.
+			var depth: float = aabb.size.z if spans_x_opening else aabb.size.x
+			if absf(depth - skin) < 0.01:
+				depth_ok += 1
+
+			# Confined to a corner: within `leg` of both an end and the sill or the lintel, so no
+			# chamfer intrudes on the clear middle of the window.
+			var lo_along := centre_along - (aabb.size.x if spans_x_opening else aabb.size.z) * 0.5
+			var hi_along := centre_along + (aabb.size.x if spans_x_opening else aabb.size.z) * 0.5
+			var y_lo := aabb.position.y
+			var y_hi := aabb.position.y + aabb.size.y
+			var in_along := lo_along >= along + half_span - leg - 0.02 or hi_along <= along - half_span + leg + 0.02
+			var in_height := y_lo >= top - leg - 0.02 or y_hi <= opening.sill + leg + 0.02
+			if in_along and in_height:
+				inside_ok += 1
+
+			# The tint is not decoration: under shadowless lighting an untinted 45° face is
+			# invisible, so a chamfer that renders as flat wall is the feature silently not working.
+			var mat: StandardMaterial3D = piece.material_override
+			var colors: PackedColorArray = piece.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+			var has_tint := false
+			for c in colors:
+				if c != Color.WHITE:
+					has_tint = true
+			if mat != null and mat.vertex_color_use_as_albedo and has_tint:
+				tinted += 1
+
+		_check("the window's four chamfers were found (%d)" % mine, mine == 4)
+		_check("chamfers sit in the wall's depth slab (%d/4)" % depth_ok, depth_ok == 4)
+		_check("chamfers stay in the corners (%d/4)" % inside_ok, inside_ok == 4)
+		_check("chamfers tint their 45° face (%d/4)" % tinted, tinted == 4)
+
+		# Four DISTINCT corners — a mirroring bug would stack two in one place.
+		var distinct := 0
+		for i in corners.size():
+			var unique := true
+			for j in corners.size():
+				if i != j and corners[i].distance_to(corners[j]) < 0.05:
+					unique = false
+			if unique:
+				distinct += 1
+		_check("chamfers occupy four distinct corners (%d)" % distinct, distinct == corners.size())
+
 	# --- Motion drives the starfield ----------------------------------------
 	motion.speed = motion.cruise_speed
 	await _frames(2)

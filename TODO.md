@@ -423,6 +423,12 @@ Interface + detection from GMTK 2025, carry physics from Doortal.
 - [x] Field stretching removed — changing `cell_size` re-rolled the whole grid, so every speed
       change flickered. Near field brought in to 10–260m so its stars actually stream.
       Measured: 28% sky change per second at cruise, 0.0% re-roll on speed change.
+- [x] **45° corners on every window** ([log](docs/features/window-chamfers.md)) — four small
+      triangular prisms dropped into each opening's corners, so a window reads as a chamfered
+      porthole instead of a rectangular hole. Additive, so the wall-splitting maths is untouched.
+      Tinted, because a 45° face under shadowless lighting is otherwise invisible — the same
+      lesson `SlidingDoor.BEVEL_TINT` already learned. `window_chamfer` (default 0.12m) sets the
+      leg, clamped so the 1m bathroom portholes can't close into a diamond.
 - [x] Distant star layer: a ~60km shell of non-streaking, effectively stationary stars for the near
       field to move against. One sample per ray; angular density so it fills the sky independently
       of the near grid. Let `field_stretch_with_speed` drop 0.35 -> 0.2.
