@@ -42,3 +42,12 @@ shape = SubResource("CylinderShape3D_cell")
 ; base and Carry would otherwise hold the cell dangling from underneath.
 [node name="Model" parent="." instance=ExtResource("2_model")]
 transform = Transform3D(0.0792, 0, 0, 0, 0.0792, 0, 0, 0, 0.0792, 0, -0.35, 0)
+
+; CD_Battery_v1 ships a StaticBody3D on its Socket mesh. Inside a RigidBody that is a second
+; collider the physics engine drags around, fighting this body's own shape — and it does not
+; merely snag: the cells were found sitting TWENTY-ONE METRES above the cargo bay, launched
+; through the hull on the first physics frame. Layers cleared so it collides with nothing.
+; pickup_crate.tscn hit the same trap with the crate's `-col` mesh.
+[node name="StaticBody3D" parent="Model/Socket" index="0"]
+collision_layer = 0
+collision_mask = 0

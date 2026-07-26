@@ -420,6 +420,20 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
   the parser ever seeing the cast. Re-view the body through a `Node3D`-typed variable first
   (`var view: Node3D = body` then `view as Consumable`), which is what
   `smoke_cable_drag._make_plug()` does.
+- **Never measure a model by instancing the `.blend` headlessly — measure it in a RUNNING
+  scene.** `global_transform` on freshly instanced nodes that have not had a frame reports
+  nonsense (it also spews `Condition "!is_inside_tree()" is true`). This reported
+  `CD_Crate_v1.1` as centred on its own origin when the origin is actually at its BASE, and it
+  put a silo's status lamp 11 cm off the tank. Instantiate `game.tscn`, await physics frames,
+  then read `mesh.global_transform * mesh.get_aabb()`.
+- **A prop's mesh must be dropped by half its height, and a model's own `StaticBody3D` must be
+  neutralised.** Both bugs are invisible in a screenshot and both are caught by one assertion:
+  after physics settles, the lowest visible mesh point of every carryable should be at floor
+  level. Model origins sit at the base, so an undropped mesh floats a quarter of a metre; and a
+  `StaticBody3D` inside a `RigidBody3D` (from a `-col` mesh, or shipped in the .blend as
+  `CD_Battery_v1` does) is a second collider the engine drags around — it launched the power
+  cells **21 metres through the hull** on the first physics frame. Clear its
+  `collision_layer`/`collision_mask`; see `pickup_crate.tscn` and `power_cell.tscn`.
 - **Prove a regression test can fail.** Several fixes here were mutation-tested — the code
   was deliberately re-broken to confirm the test goes red (the pod-refill rule, patch expiry,
   the instant-alarm switch, the missing-sound guard). A green test that cannot fail is not

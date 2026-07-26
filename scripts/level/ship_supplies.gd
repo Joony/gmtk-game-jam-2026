@@ -24,6 +24,7 @@ extends Node3D
 
 const CANISTER_SCENE := preload("res://scenes/props/canister.tscn")
 const POWER_CELL_SCENE := preload("res://scenes/props/power_cell.tscn")
+const FOOD_CRATE_SCENE := preload("res://scenes/props/food_crate.tscn")
 const SILO_SCENE := preload("res://scenes/props/silo.tscn")
 
 ## Where the dressed-in props live, so the table below can name them by their own names.
@@ -92,6 +93,33 @@ const SILOS := [
 		"offset": Vector3(0.0, 1.2, 0.5),
 	},
 	{
+		# The vending machine in the mess. A Silo like every other, which is the point: TODO
+		# 17e's worry that hunger had "an extra hop" was a miscount — need, silo in a room,
+		# crate from cargo is the same three steps every other need takes.
+		#
+		# The only thing that makes it different from a tank is its shape, so its collider and
+		# lamp are bigger and sit in the machine's own frame — which is why adoption now takes
+		# the decor node's rotation as well as its position: this one is turned to face out of
+		# the wall it stands against.
+		"id": &"food",
+		"display_name": "VENDING",
+		"decor": ^"MessVending",
+		"mode": Silo.Mode.SUPPLY,
+		"accepts": &"food",
+		"level": 1.0,
+		"use_amount": 0.25,
+		"warn_at": 0.3,
+		"vo_line": &"ate_food",
+		"use_text": "Get something to eat",
+		"service_text": "Load the crate in",
+		# 2.4m wide x 1.8m of machine above the floor x 1.3m deep, at the 0.6 the mess dresses
+		# it at. It sinks 0.6m into the floor, so the box covers only what is above it.
+		"size": Vector3(2.4, 1.8, 1.3),
+		"offset": Vector3(0.0, 0.9, 0.05),
+		# On the front, which is local +Z — the face the decor node is turned to present.
+		"lamp_offset": Vector3(0.0, 1.5, 0.75),
+	},
+	{
 		# The head. Its own prop rather than an adoption, because the bathroom's decorative
 		# silo is a tank and this is the thing you sit on — and the whole point of the chain is
 		# that both halves happen in the same place. See scenes/props/toilet.tscn.
@@ -124,11 +152,22 @@ const CANISTERS := [
 
 ## Fuel cells, a little further into the room so they are a separate errand rather than
 ## something you sweep up on the same trip as the air.
+## On a 0.9m grid, comfortably clear of the 0.5m cell, so they stand in a row rather than
+## climbing on each other. A cell resting on another cell is not a bug, but it makes the
+## "everything is on the floor" check in smoke_supplies unable to tell stacked from floating —
+## and that check is what caught these being launched through the hull in the first place.
 const POWER_CELLS := [
-	Vector3(21.5, 0.5, 6.5),
-	Vector3(22.3, 0.5, 6.9),
-	Vector3(21.9, 0.5, 7.6),
-	Vector3(22.7, 0.5, 7.2),
+	Vector3(21.2, 0.5, 6.4),
+	Vector3(22.1, 0.5, 6.4),
+	Vector3(21.2, 0.5, 7.3),
+	Vector3(22.1, 0.5, 7.3),
+]
+
+## Food crates, further in again, beside the big decorative crates they are small versions of.
+const FOOD_CRATES := [
+	Vector3(19.5, 0.5, 9.5),
+	Vector3(20.3, 0.5, 9.8),
+	Vector3(19.9, 0.5, 10.6),
 ]
 
 var _silos: Array[Silo] = []
@@ -155,6 +194,8 @@ func build() -> void:
 		_canisters.append(_spawn(CANISTER_SCENE, row["kind"], row["at"]))
 	for at in POWER_CELLS:
 		_canisters.append(_spawn(POWER_CELL_SCENE, &"battery", at))
+	for at in FOOD_CRATES:
+		_canisters.append(_spawn(FOOD_CRATE_SCENE, &"food", at))
 
 
 func silos() -> Array[Silo]:
@@ -169,6 +210,7 @@ func canisters() -> Array[Consumable]:
 func _build_silo(row: Dictionary) -> Silo:
 	var adopting := row.has("decor")
 	var at := Vector3.ZERO
+	var facing := Basis.IDENTITY
 	if adopting:
 		var decor := get_node_or_null(decor_root)
 		var host: Node3D = null
@@ -181,6 +223,11 @@ func _build_silo(row: Dictionary) -> Silo:
 				% [decor_root, row["decor"], row["id"]])
 			return null
 		at = host.global_position
+		# The ROTATION too, not just the position. The tanks all sit square, but the vending
+		# machine is turned to face out of its wall — and an adopted body's collider and lamp
+		# are described in the prop's own frame, so without this they would be laid out across
+		# a machine that is standing side-on to them.
+		facing = host.global_transform.basis.orthonormalized()
 	else:
 		at = row["at"]
 
@@ -211,9 +258,9 @@ func _build_silo(row: Dictionary) -> Silo:
 			silo.set(key, row[key])
 
 	add_child(node)
-	# AFTER add_child: global_position on a node outside the tree is meaningless.
+	# AFTER add_child: a global transform on a node outside the tree is meaningless.
 	var body := node as Node3D
-	body.global_position = at
+	body.global_transform = Transform3D(facing, at)
 	if row.has("yaw"):
 		body.rotation.y = deg_to_rad(row["yaw"])
 	return silo

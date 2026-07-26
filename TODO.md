@@ -1363,7 +1363,8 @@ per run, which fits.
 3. [x] `Need` + HUD rows, proven on CO2 (17h Phase 2)
 4. [x] Power/fuel — done without the battery model, which is still outstanding (17h Phase 3)
 5. [x] The thirst → bladder → toilet → crap chain, as one unit (17c, 17h Phase 4)
-6. [ ] Hunger + vending restock last — it is the least novel and has the extra hop
+6. [x] Hunger + vending restock — done 2026-07-26. The "extra hop" was a miscount (see 17e);
+       it needed no new script, no new field and no branch, which is the whole claim of 17a
 
 ### 17h. IMPLEMENTATION PLAN (2026-07-25)
 
@@ -1462,8 +1463,18 @@ right design after the lock lifts.
   - [x] `tests/smoke_chain.gd`, its own suite rather than a section of `smoke_supplies` —
         buried in a bigger file this is the thing that would get quietly deleted to make a
         failing suite pass. Mutation-tested six ways
-- [ ] **Phase 5 — hunger + vending restock last.** Least novel, and the only need with an
-      extra hop
+- [x] **Phase 5 — hunger.** Done 2026-07-26, and the point of doing it last is that it needed
+      **no new script, no new field and no branch anywhere**. If it had, 17a's "one mechanic
+      six times over" would have been wrong
+  - [x] The vending machine in the mess becomes a `Silo` (adopts `MessVending`), `ate_food`
+        wired — the line is "You ate all the food", so it belongs to the machine running out
+  - [x] `scenes/props/food_crate.tscn` — a `Consumable`, half the size of the cargo bay's
+        decorative crates so a crate you can pick up reads differently from scenery
+  - [x] Adoption now takes the decor prop's ROTATION as well as its position. Every tank sits
+        square; the vending machine is turned to face out of its wall, and its collider and
+        lamp are described in its own frame
+  - [x] Longest fuse of the six and the latest arrival (11 days), so the back half of a voyage
+        is where the ship's problems and the body's start landing together
 
 ### 17i. Blocked on `scenes/game.tscn` — do when the lock lifts
 
@@ -1484,8 +1495,6 @@ Each of these is a placement or a scene-wiring change. Pull first, re-run the su
       a named liquid mesh** whose Y scale can be driven, and `Silo` will drive it. Until then
       `Silo` builds a small emissive lamp instead — green/amber/red — which is readable from
       across a dark room and was the thing that actually mattered
-- [ ] The vending machine as a functional restock point rather than the decor instance now
-      standing in the mess (Phase 5)
 - [ ] **Link the toilet and the bathroom's decorative tank.** The toilet at (-7, 0, -5.7) IS
       the septic silo; `BathroomSilo` at (-3, 0, -6) is a tank it notionally feeds and is still
       pure scenery. Either run a pipe between them or move the tank beside the toilet — as it

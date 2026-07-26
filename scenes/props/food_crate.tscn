@@ -1,0 +1,49 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/consumable.gd" id="1_consumable"]
+[ext_resource type="PackedScene" uid="uid://dh3p1153cu6lc" path="res://3D-Models/CD_Crate_v1.1.blend" id="2_model"]
+
+; A small crate of food, carried from the cargo bay to the vending machine in the mess.
+;
+; This is where TODO 17e's one real objection to the hunger system dissolved. It looked like
+; hunger had an extra hop that no other need had — hungry, then vending, then a crate — but
+; every other need is exactly the same three steps: need, then a silo in a room, then a
+; canister from cargo. The vending machine IS a Silo and this IS a Consumable, so hunger is
+; not special-cased anywhere, which is the whole claim of 17a on the last of the six systems.
+;
+; `becomes` is empty: unlike a canister, a crate you have emptied into the machine is gone.
+;
+; CD_Crate_v1.1 is a 2-unit cube with its origin at the BASE, scaled here to 0.5m — half the
+; size of the crates dressed into the cargo bay, so a crate you can pick up reads differently
+; from the scenery around it. The instance drops a further 0.25 to centre the cube on the
+; RigidBody's origin; without it the crate rests a quarter of a metre in the air, since the
+; body settles on the middle of its own collider. Same convention as pickup_crate.tscn.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_food"]
+size = Vector3(0.5, 0.5, 0.5)
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it.
+[node name="FoodCrate" type="RigidBody3D" groups=["consumables"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_consumable")
+kind = &"food"
+amount = 0.5
+interaction_type = 0
+interaction_text = "Pick up food crate"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_food")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0, -0.25, 0)
+
+; The .blend's `-col` suffix gives the mesh its own StaticBody3D. Right for scenery, wrong here:
+; a static body inside a rigid body is a second collider that the physics engine drags around,
+; fighting the RigidBody's own shape. Layers cleared so it collides with nothing. See
+; pickup_crate.tscn, which hit this first.
+[node name="StaticBody3D" parent="Model/Crate" index="0"]
+collision_layer = 0
+collision_mask = 0

@@ -52,19 +52,22 @@ interaction_text = "Pick up canister"
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("CylinderShape3D_canister")
 
-; -0.231 = -1.1525 model units x 0.2004, which centres the mesh on the body origin. Without it
-; Carry holds the can by a point a quarter of the way up its side.
+; -0.4685 = half of (4.675 units x 0.2004), which centres the mesh on the body origin. The
+; model's origin is at its BASE, so without this the can rests a quarter of a metre in the air
+; — the body settles on the middle of its own collider, and the mesh sits entirely above that.
+; Measured against a RUNNING scene, not by instancing the .blend headlessly: see
+; docs/debugging-gotchas.md.
 [node name="Air" parent="." instance=ExtResource("2_air")]
-transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.4685, 0)
 
 [node name="Beer" parent="." instance=ExtResource("3_beer")]
-transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.4685, 0)
 visible = false
 
 [node name="Empty" parent="." instance=ExtResource("4_empty")]
-transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.4685, 0)
 visible = false
 
 [node name="Shit" parent="." instance=ExtResource("5_shit")]
-transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.231, 0)
+transform = Transform3D(0.2004, 0, 0, 0, 0.2004, 0, 0, 0, 0.2004, 0, -0.4685, 0)
 visible = false

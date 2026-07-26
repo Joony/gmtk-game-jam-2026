@@ -400,10 +400,55 @@ Mutation-tested six ways: breaking the chain link, never stopping the septic cou
 letting a scheduled need arrive, dropping the speed penalty, ignoring expired needs in the
 speed scale, and letting a chained need start itself.
 
+## Phase 5 — hunger, and the point of doing it last
+
+Hunger is the least novel of the six, which is exactly why it was worth building last: it needed
+**no new script, no new field and no branch anywhere.** The vending machine in the mess became a
+`Silo`, a food crate is a `Consumable`, and hunger is a row in the needs table. If any of it had
+required a special case, 17a's claim that this is one mechanic six times over would have been
+wrong — and the sixth system is where you find out.
+
+TODO 17e's one real objection dissolved on contact. Hunger looked like it had an extra hop —
+hungry, then the vending machine, then a crate — but every other need is exactly the same three
+steps: *need → silo in a room → canister from cargo*. Same count.
+
+`ate_food` is wired to the machine running **out**, not to eating: the recorded line is "You ate
+all the food", which is a complaint about an empty machine.
+
+One thing did have to change. Adoption now takes the decor prop's **rotation** as well as its
+position. Every tank on the ship sits square, so it never came up — but the vending machine is
+turned to face out of the wall it stands against, and an adopted body's collider and lamp are
+described in the prop's own frame. Without it they were laid out across a machine standing
+side-on to them.
+
+Hunger has the longest fuse of the six and arrives latest (11 days), so the back half of a
+voyage is where the ship's problems and the body's start landing together.
+
+## Two bugs a screenshot could not have caught
+
+Placing the food crate turned up a check worth keeping. After physics settles, **the lowest
+visible mesh point of every carryable should be at floor level** — and it was not, twice:
+
+- **Model origins sit at the BASE**, so a prop whose mesh is not dropped by half its height
+  rests a quarter of a metre in the air. The canisters had been doing this since Phase 2.
+- **`CD_Battery_v1` ships a `StaticBody3D` on its Socket mesh.** Inside a `RigidBody3D` that is
+  a second collider the engine drags around, fighting the body's own shape — and it does not
+  merely snag. The power cells were sitting **21 metres above the cargo bay**, launched through
+  the hull on the first physics frame. `pickup_crate.tscn` documents the same trap for `-col`
+  meshes; this one arrives inside the .blend.
+
+Neither is visible in a render, which is how both survived a screenshot review. The assertion
+now lives in `smoke_supplies` and is mutation-tested both ways.
+
+The measurement that misled me is also worth recording: **instancing a `.blend` headlessly and
+reading `global_transform` reports nonsense.** It said `CD_Crate_v1.1` was centred on its own
+origin when it is not, and it put a silo's status lamp beside the tank rather than on it. Measure
+in a running scene, after frames. Both are in [debugging-gotchas.md](../debugging-gotchas.md).
+
 ## What is next
 
-Phase 5 (hunger + the vending restock), which is the least novel of the six. Plus the placements
-waiting on the scene lock — TODO 17i, which also carries three things these renders turned up:
-`CD_Silo_Base_v1` ships with no collider, so only the adopted silos are solid; its glass level
-needs a driveable mesh; and the bathroom's decorative tank is not visually linked to the toilet
-that actually *is* the septic tank.
+All six systems are built. What remains is the placement pass waiting on the scene lock —
+TODO 17i — which also carries three things these renders turned up: `CD_Silo_Base_v1` ships with
+no collider, so only the adopted silos are solid; its glass level needs a driveable mesh from the
+modeller; and the bathroom's decorative tank is not visually linked to the toilet that actually
+*is* the septic tank.

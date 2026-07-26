@@ -153,6 +153,64 @@ func _run() -> void:
 		_check("a spent air canister becomes an empty for the toilet (%s)" % air.kind,
 			air.kind == &"empty" and air.matches(toilet.accepts))
 
+	# --- hunger: the sixth system, and the proof that none of this is special-cased ----
+	# TODO 17e worried hunger had "an extra hop" — hungry, vending machine, food crate. It does
+	# not: every other need is need, silo in a room, canister from cargo. Same three steps. So
+	# the vending machine is a Silo and a food crate is a Consumable, and hunger needed no new
+	# script, no new field and no branch anywhere. If any of the assertions below had required
+	# one, 17a's "it is one mechanic six times over" would have been wrong.
+	var vending := run.silo_by_id(&"food")
+	var hunger := run.need_by_id(&"hunger")
+	_check("there is a vending machine", vending != null)
+	_check("and a hunger countdown", hunger != null)
+	if vending != null and hunger != null:
+		_check("the machine is in the mess (%s)" % ship.room_at(vending.global_position),
+			ship.room_at(vending.global_position) == "kitchen")
+		_check("it takes food crates", vending.accepts == &"food")
+		_check("which the cargo bay stocks (%d)" % _stock(supplies, &"food"),
+			_stock(supplies, &"food") >= 2)
+
+		_check("hunger arrives later than thirst (%.0f vs %.0f days)"
+			% [hunger.starts_after_days, thirst.starts_after_days],
+			hunger.starts_after_days > thirst.starts_after_days)
+		run.days_elapsed = hunger.starts_after_days + 0.1
+		await _frames(2)
+		_check("and it does arrive", hunger.active)
+
+		# The machine stands against a wall and is TURNED to face out of it, unlike every tank
+		# on the ship. Adoption has to take the decor prop's rotation as well as its position or
+		# the collider and lamp — which are described in the machine's own frame — get laid out
+		# across a machine standing side-on to them.
+		var decor: Node3D = game.get_node("Decor/MessVending")
+		_check("the functional machine faces the way the prop does (%.2f)"
+			% vending.global_transform.basis.z.dot(decor.global_transform.basis.z.normalized()),
+			vending.global_transform.basis.z.dot(
+				decor.global_transform.basis.z.normalized()) > 0.99)
+
+		# Run it down FIRST. Eating while already full proves nothing — the earlier version of
+		# this assertion passed with hunger wired to a silo that does not exist.
+		hunger.advance(hunger.seconds * 0.8)
+		var starving := hunger.fraction()
+		_check("hunger can be run down (%.2f)" % starving, starving < 0.3)
+		var stock := vending.level
+		_check("eating works", vending.use())
+		await _frames(2)
+		_check("and clears the hunger (%.2f -> %.2f)" % [starving, hunger.fraction()],
+			hunger.fraction() > starving + 0.5)
+		_check("at the cost of a portion (%.2f -> %.2f)" % [stock, vending.level],
+			vending.level < stock)
+
+		while vending.use():
+			pass
+		_check("the machine empties", vending.is_exhausted())
+		var crate := _make(game, "food_crate", &"food")
+		_check("a food crate restocks it", vending.service(crate))
+		_check("and the crate is gone — it is not a canister", crate.is_spent)
+		_check("there is something to eat again", not vending.is_exhausted())
+		# Put hunger back to bed so it does not muddy the speed assertions below.
+		hunger.stop()
+		await _frames(2)
+
 	# --- an unmet need costs you walking speed --------------------------------
 	# 17e: only CO2 and the tank kill you; everything else makes the rest of the run harder.
 	# The currency here is seconds outside the pod, so a fifth off your speed is a fifth more

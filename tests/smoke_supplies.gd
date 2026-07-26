@@ -34,6 +34,34 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+func _physics_frames(n: int) -> void:
+	for i in n:
+		await physics_frame
+
+
+## Bottom of the lowest VISIBLE mesh under a node, in world space. Visible only, because the
+## canister carries all four of its kinds and the three it is not currently showing are still
+## in the tree.
+func _lowest_visible_point(node: Node3D) -> float:
+	var lowest := INF
+	for entry in _meshes(node):
+		var mesh := entry as MeshInstance3D
+		if not mesh.visible:
+			continue
+		var box: AABB = mesh.global_transform * mesh.get_aabb()
+		lowest = minf(lowest, box.position.y)
+	return lowest
+
+
+func _meshes(node: Node) -> Array:
+	var out := []
+	if node is MeshInstance3D:
+		out.append(node)
+	for child in node.get_children():
+		out.append_array(_meshes(child))
+	return out
+
+
 func _run() -> void:
 	var game = load("res://scenes/game.tscn").instantiate()
 	root.add_child(game)
@@ -79,6 +107,25 @@ func _run() -> void:
 		in_cargo == cans.size())
 	_check("stocked with what the scrubber takes (%s)" % cans[0].kind,
 		cans[0].matches(silo.accepts))
+
+	# --- everything you can pick up is actually ON THE FLOOR ------------------
+	# Two shipped bugs came out of this check and neither was visible in a screenshot. Model
+	# origins are at the BASE, so a prop whose mesh is not dropped by half its height rests a
+	# quarter of a metre in the air; and CD_Battery_v1 ships a StaticBody3D on its Socket mesh,
+	# which inside a RigidBody is a second collider the engine drags around — it launched the
+	# power cells TWENTY-ONE METRES through the hull on the first physics frame.
+	#
+	# Measured after letting physics settle, because both failures only exist once the body has
+	# fallen: the spawn position is right in every case.
+	await _physics_frames(150)
+	for supply in supplies.canisters():
+		var body := supply as Node3D
+		var base := _lowest_visible_point(body)
+		_check("a %s rests on the floor rather than in the air (mesh base %+.2f)"
+			% [supply.kind, base], base < 0.05)
+		_check("and is still inside the ship (%s at y %.1f)"
+			% [supply.kind, body.global_position.y],
+			ship.room_at(body.global_position) != "")
 
 	# --- the CO2 clock is not running yet ------------------------------------
 	var co2: Need = null

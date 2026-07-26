@@ -138,6 +138,22 @@ const NEEDS := [
 		"movement_penalty": 0.35,
 	},
 	{
+		# Hunger. Last of the six and the least novel, which is exactly why it is worth having:
+		# it needed no new script, no new field and no special case — a need, a silo in a room,
+		# a crate from cargo, same as every other. If it HAD needed any of those, 17a's claim
+		# that this is one mechanic six times over would have been wrong.
+		#
+		# Longest fuse of the lot and it arrives latest, so the back half of a voyage is when
+		# the ship's problems and the body's problems start landing together.
+		"id": &"hunger",
+		"display_name": "HUNGER",
+		"seconds": 240.0,
+		"warn_at": 0.45,
+		"starts_after_days": 11.0,
+		"silo_id": &"food",
+		"movement_penalty": 0.25,
+	},
+	{
 		"id": &"overflow",
 		"display_name": "SEPTIC TANK",
 		# Short, and lethal. Once the tank is full the run has a hard deadline measured in
