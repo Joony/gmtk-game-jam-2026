@@ -424,6 +424,104 @@ side-on to them.
 Hunger has the longest fuse of the six and arrives latest (11 days), so the back half of a
 voyage is where the ship's problems and the body's start landing together.
 
+### The machine shows what is in it
+
+The vending machine is the one silo whose level the player can literally see: nine pigeonholes
+behind the glass, and `CD_VendingMachine_v1` carries an empty named `slot1`..`slot9` for each.
+So it is counted in **slots**, not in an abstract fraction — `use_amount` is one ninth, a
+purchase is exactly one item, and a food crate is worth three. It starts with three in it: one
+cake, one can, one plant.
+
+[`VendingStock`](../../scripts/game/vending_stock.gd) is **a view over the silo, not a second
+copy of it.** The `Silo` stays the only thing that knows how full the machine is — the HUD reads
+it, hunger is cleared by it, the prompt counts from it — and the stock watches `level_changed`
+and reconciles the grid to match. Two stores of the same number would eventually disagree, and
+the one the player can see is the one that would be wrong.
+
+That is also where the randomness lives. **Which** pigeonhole empties is arbitrary, which is the
+only place in the game that is true of anything; *how many* is not, so `use()` needs to know
+nothing about any of this.
+
+Item types **rotate** rather than being drawn at random: the first three loaded are one cake, one
+can and one plant, and a full machine holds three of each. Nine random draws would sooner or
+later be nine cakes.
+
+The holes are read from the model rather than laid out on a computed grid. They are not a perfect
+lattice — the rows sit at y 2.54, 1.57 and 0.38 with a few millimetres of wobble across each —
+so a grid computed in code would be subtly wrong everywhere and would need re-deriving every time
+the model is redrawn. Items are parented to the empties themselves, so they inherit the machine's
+placement and scale and cannot drift from it.
+
+Each item carries a `yaw` to turn it out through the glass. The empties have no rotation of their
+own, so an item lands in the machine's frame — and the three models present their front along X,
+which puts it against the side wall of the hole. It only really shows on the cake, whose slice is
+three units deep and one wide: unturned, you see the icing edge-on.
+
+The lamp moved off the glass and onto the keypad panel once there was something behind the glass
+worth seeing.
+
+### The lamp: three states, no gradient
+
+Green unless there is something the player has to go and fetch, and only two things ever are:
+
+| | |
+| --- | --- |
+| **red** | out of order — a spare part, or the hammer |
+| **orange** | empty — a canister or a crate |
+| **green** | fine |
+
+An amber "getting low" tier used to sit in the middle of that and it was the wrong shape for a
+lamp read across a room. The useful question at that distance is *do I need to bring something*,
+which has a yes and a no. How urgent it is belongs on the HUD row, which has room for a number.
+
+A fault outranks an empty shelf, because the part is the thing you have to fetch first.
+
+### The machine can break, and it breaks like everything else
+
+The vending machine is the one silo with moving parts, so it is the one that can fail. It gets
+an **ordinary `Malfunction` with an ordinary `RepairPoint`** — a spare part or a hammer bodge, a
+row in the ship's fault list, the same repair sounds as a coolant leak.
+
+That was the whole design decision. A bespoke "machine is out of order" flag would have been
+less code and a worse game: the player would have had to learn a second repair idiom for one
+prop, and a jammed dispenser would have felt like it belonged to a different game than the
+coolant loop does.
+
+Three things about it are deliberately unlike the ship's other faults:
+
+- **It fires at a random point in the voyage.** Every other fault has a fixed
+  `fire_at_distance`, because a run should be a sequence you can learn the shape of. A vending
+  machine packing up is comic rather than structural — there is nothing worth learning the
+  timing of — so it just happens somewhere in the middle third.
+- **It costs no drive.** It is not a ship system; it is the thing standing between the player
+  and lunch, and hunger is the clock it actually presses on. The HUD had to learn to omit the
+  drive clause for a fault with no speed cost — `(-0% drive)` reads as a broken readout.
+- **A bodge holds for 9 million miles**, against 25–33 everywhere else. That is the whole trade
+  the hammer offers here: cheap to patch, back again soon, so the spare part is worth spending
+  on a machine you are going to keep needing.
+
+While it is broken the machine will not serve you, the reticle stops promising it will, and the
+prompt says what is wrong rather than going silent — the repair hatch is small enough to walk
+past. **Restocking a broken machine is still allowed**, on purpose: refusing the crate would
+throw away a trip already paid for in air, over a distinction the player could not see from the
+cargo bay.
+
+### Ninths do not exist in binary
+
+Counting a silo in slots turned three latent float bugs into real ones, all in `Silo` and all
+fixed with one `EPSILON`:
+
+- Three ninths taken one ninth at a time lands a hair either side of zero, so `is_exhausted()`
+  never fired and the `ate_food` line never played.
+- `uses_left()` floored `0.33333/0.11111` to **2** while the machine was showing three items.
+- Worst of the three: a food crate is worth a third and a purchase costs a ninth, and those do
+  not compose — the last item in a machine sat at `0.1111109` against a `use_amount` of
+  `0.1111111`, so `use()` refused to sell it. The player would see an item on the shelf and a
+  prompt that would not take it.
+
+`_set_level` now also snaps the two ends, so a tank emptied in ninths finishes on a true zero
+rather than on `5e-17`.
+
 ## Two bugs a screenshot could not have caught
 
 Placing the food crate turned up a check worth keeping. After physics settles, **the lowest

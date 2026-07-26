@@ -236,6 +236,11 @@ func _fault_line(malfunction: Malfunction) -> String:
 			int(round(malfunction.speed_decay * 100.0)),
 			int(round(malfunction.speed_penalty * 100.0)),
 		]
+	# A fault that costs no drive says nothing about drive. Not every system is a ship system:
+	# the vending machine jamming is a real problem, but "(-0% drive)" reads as a bug in the
+	# readout rather than as a fault with no speed cost.
+	if malfunction.speed_penalty <= 0.0:
+		return "! %s — %s" % [malfunction.system_name, malfunction.fault_text]
 	return "! %s — %s  (-%d%% drive)" % [
 		malfunction.system_name,
 		malfunction.fault_text,

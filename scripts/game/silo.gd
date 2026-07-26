@@ -104,9 +104,22 @@ const GROUP_SILO := &"silos"
 ## axis, at chest height, just proud of the face nearest the door.
 @export var lamp_offset: Vector3 = Vector3(-0.11, 1.55, -0.30)
 
+## Slack for comparing a level against a limit. Levels are fractions of the number of uses a
+## silo holds, and thirds and ninths do not survive binary arithmetic intact.
+const EPSILON := 0.0001
+
 const LAMP_OK := Color(0.24, 0.90, 0.40)
 const LAMP_WARN := Color(1.00, 0.62, 0.10)
 const LAMP_CRIT := Color(1.00, 0.16, 0.12)
+
+## A fault that takes this silo out of service while it is active, or null. The vending machine
+## is the one that has one: it is a machine with moving parts, not a tank.
+##
+## Deliberately the ORDINARY Malfunction, with an ordinary RepairPoint on it — so a jammed
+## vending machine is a spare part or a hammer bodge, appears in the HUD fault list, and sounds
+## like every other repair. A bespoke "machine is broken" flag would have been less code and a
+## worse game: the player would have had to learn a second repair idiom for one prop.
+var malfunction: Malfunction = null
 
 var _consumed: bool = false
 var _lamp_material: StandardMaterial3D = null
@@ -129,19 +142,46 @@ func headroom() -> float:
 
 
 ## How many more uses are left in it. Rounded DOWN: a silo with half a use in it has none.
+##
+## Nudged by EPSILON first, because a level is not always a round number of uses. The vending
+## machine is counted in NINTHS — nine pigeonholes — and three ninths taken one ninth at a time
+## does not reach zero in binary: it lands a hair either side. Without the nudge the machine
+## reports two items left when it is showing three.
 func uses_left() -> int:
 	if use_amount <= 0.0:
 		return 0
-	return int(floor(headroom() / use_amount))
+	return int(floor(headroom() / use_amount + EPSILON))
 
 
 func is_exhausted() -> bool:
-	return headroom() <= 0.0
+	return headroom() <= EPSILON
 
 
 ## Bad enough to have earned a row on the HUD.
 func is_pressing() -> bool:
 	return headroom() <= warn_at
+
+
+## Out of order. Not the same as empty: an empty machine needs a crate, a broken one needs a
+## spare part or the hammer.
+func is_broken() -> bool:
+	return malfunction != null and malfunction.is_active
+
+
+## Put this silo out of service whenever `fault` is active.
+func bind_malfunction(fault: Malfunction) -> void:
+	malfunction = fault
+	if fault == null:
+		return
+	if not fault.broke.is_connected(_on_fault_changed):
+		fault.broke.connect(_on_fault_changed)
+	if not fault.repaired.is_connected(_on_fault_changed):
+		fault.repaired.connect(_on_fault_changed)
+	_refresh_lamp()
+
+
+func _on_fault_changed(_fault: Malfunction, _flag: bool) -> void:
+	_refresh_lamp()
 
 
 ## Burn what a silo loses on its own. `days` is ship time already scaled by stasis, so a fuel
@@ -159,9 +199,14 @@ func advance(days: float) -> void:
 ## full and `exhausted` has fired — the player has flushed into a tank that cannot take it, and
 ## that is the state the explosion countdown hangs off.
 func use() -> bool:
-	if use_amount <= 0.0:
+	if use_amount <= 0.0 or is_broken():
 		return false
-	if block_when_exhausted and headroom() < use_amount:
+	# EPSILON again, and it is load-bearing rather than defensive. A level is arrived at by
+	# adding and subtracting fractions that do not exist in binary — a food crate is worth a
+	# third and a purchase costs a ninth — so the last item in a machine sits at 0.1111109
+	# against a use_amount of 0.1111111 and a bare `<` refuses to sell it. The player sees an
+	# item on the shelf and a prompt that will not take it.
+	if block_when_exhausted and headroom() + EPSILON < use_amount:
 		return false
 	_set_level(level + use_amount * _use_direction())
 	used.emit(self)
@@ -171,6 +216,9 @@ func use() -> bool:
 ## Spend a carried canister on it. Returns false if the item is the wrong kind or the silo has
 ## no room for it — a full silo must reject the canister rather than swallowing it, or a
 ## mistimed press costs the player a whole trip to the cargo bay.
+## Restocking a BROKEN machine is allowed on purpose. Refusing the crate would throw away a
+## trip the player has already paid for in air, over a distinction they cannot see from the
+## cargo bay — and a jammed machine full of food is a fair thing to be annoyed at.
 func service(item: Consumable) -> bool:
 	_consumed = false
 	if item == null or not item.matches(accepts):
@@ -209,6 +257,8 @@ func can_act_on(held_item: Node3D = null) -> bool:
 		return false
 	if held_item != null:
 		return _servicer(held_item) != null and headroom() < 1.0
+	if is_broken():
+		return false
 	return not is_exhausted() or not block_when_exhausted
 
 
@@ -217,6 +267,10 @@ func get_interaction_text(held_item: Node3D = null) -> String:
 		if headroom() >= 1.0:
 			return "%s: nothing to top up" % display_name
 		return service_text
+	# A broken machine still SAYS something. Going silent here would read as a prop the player
+	# had misjudged, and the repair hatch is small enough to walk past.
+	if is_broken():
+		return "%s: %s" % [display_name, malfunction.fault_text]
 	if held_item != null:
 		return "%s: %s is no use here" % [display_name, held_item.name]
 	if is_exhausted():
@@ -264,6 +318,12 @@ func _use_direction() -> float:
 func _set_level(value: float) -> void:
 	var was_exhausted := is_exhausted()
 	level = clampf(value, 0.0, 1.0)
+	# Snap the ends, so a tank emptied in ninths ends on a true zero rather than on 5e-17 and
+	# `is_exhausted()` does not depend on which way the last subtraction rounded.
+	if level < EPSILON:
+		level = 0.0
+	elif level > 1.0 - EPSILON:
+		level = 1.0
 	_refresh_lamp()
 	level_changed.emit(self, level)
 	if is_exhausted() and not was_exhausted:
@@ -291,13 +351,23 @@ func _build_lamp() -> void:
 	add_child(lamp)
 
 
+## Green unless there is something to do about it, and only two things ever are:
+##
+##   RED     out of order — a spare part or the hammer
+##   ORANGE  empty        — a canister or a crate
+##   GREEN   fine
+##
+## Three states and no gradient. An amber "getting low" tier used to sit in here and it was
+## the wrong shape for a lamp across a room: the useful question is "do I need to bring
+## something", which has a yes and a no. How URGENT it is belongs on the HUD row, which has
+## room for a number.
 func _refresh_lamp() -> void:
 	if _lamp_material == null:
 		return
 	var color := LAMP_OK
-	if is_exhausted():
+	if is_broken():
 		color = LAMP_CRIT
-	elif is_pressing():
+	elif is_exhausted():
 		color = LAMP_WARN
 	_lamp_material.albedo_color = color
 	_lamp_material.emission_enabled = true

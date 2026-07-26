@@ -13,6 +13,9 @@
 ;
 ; `becomes` is empty: unlike a canister, a crate you have emptied into the machine is gone.
 ;
+; amount = 1/3, because the vending machine is counted in NINTHS — nine pigeonholes you can see
+; through the glass — so one crate restocks exactly three of them.
+;
 ; CD_Crate_v1.1 is a 2-unit cube with its origin at the BASE, scaled here to 0.5m — half the
 ; size of the crates dressed into the cargo bay, so a crate you can pick up reads differently
 ; from the scenery around it. The instance drops a further 0.25 to centre the cube on the
@@ -30,7 +33,7 @@ collision_mask = 3
 continuous_cd = true
 script = ExtResource("1_consumable")
 kind = &"food"
-amount = 0.5
+amount = 0.3333333
 interaction_type = 0
 interaction_text = "Pick up food crate"
 

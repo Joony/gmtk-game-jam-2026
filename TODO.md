@@ -1481,6 +1481,32 @@ right design after the lock lifts.
         lamp are described in its own frame
   - [x] Longest fuse of the six and the latest arrival (11 days), so the back half of a voyage
         is where the ship's problems and the body's start landing together
+  - [x] **The machine shows its stock**, 2026-07-26. Nine pigeonholes, read from the model's own
+        `slot1`..`slot9` empties rather than a computed grid (the rows are not a perfect
+        lattice). Starts with one cake, one can and one plant; a purchase takes a RANDOM hole;
+        a food crate refills three. `VendingStock` is a view over `Silo.level`, not a second
+        tally — the randomness is only in *which* hole, never in *how many*
+  - [x] **The lamp is three states with no gradient**, 2026-07-26: red out of order, orange
+        empty, green otherwise. The old amber "getting low" tier was the wrong shape for a lamp
+        read across a room — at that distance the question is "must I bring something", which
+        has a yes and a no. Urgency belongs on the HUD row, which has room for a number
+  - [x] **The machine can break**, and it breaks like everything else on the ship: an ordinary
+        `Malfunction` with an ordinary `RepairPoint`, so it is a spare part or a hammer bodge,
+        a row in the fault list, and the same repair sounds. A bespoke "out of order" flag
+        would have been less code and a worse game — a second repair idiom for one prop
+    - Fires at a RANDOM point mid-voyage, unlike every other fault. A run should be a sequence
+        you can learn the shape of; a vending machine packing up is comic, not structural
+    - Costs no drive, so the HUD now omits the drive clause for a fault that has none —
+        `(-0% drive)` reads as a broken readout rather than as a fault with no speed cost
+    - A bodge holds 9 million miles against 25–33 elsewhere: cheap to patch, back soon, so the
+        spare is worth spending on a machine you keep needing
+    - Broken blocks `use()` but NOT `service()` — refusing the crate would throw away a trip
+        already paid for in air, over a distinction invisible from the cargo bay
+  - [x] Counting a silo in ninths turned three latent float bugs real, all fixed with one
+        `EPSILON` in `Silo`: `is_exhausted()` never fired (so `ate_food` never played),
+        `uses_left()` reported 2 while three items were on the shelf, and — worst — the last
+        item could not be bought at all, because a crate's third and a purchase's ninth do not
+        compose. The player would have seen an item and a prompt that refused it
 
 ### 17i. Blocked on `scenes/game.tscn` — do when the lock lifts
 
@@ -1662,3 +1688,57 @@ Everything here is one file and one lock. Nothing else in 18 is waiting on anyth
 - [ ] After the edit, re-run `smoke_tutorial_cue` — it should still pass **unchanged**, now
       reporting `bridge` rather than `engine_room`. If it needs editing to pass, the cue stopped
       following the fault and that is the regression it exists to catch
+
+---
+
+## 19. Ship status map — SPEC (not yet built)
+
+Full spec: [ship-status-map.md](docs/features/ship-status-map.md). A **London Underground diagram
+of the ship** as a second page on the nav console, with **pulsating red and orange blobs in the
+rooms where something needs doing**.
+
+The HUD fault list says *what* is wrong and has never said *where*. That is the question the
+player actually has to answer on waking, because every fault is priced in walking distance and
+walking distance is priced in air.
+
+### 19a. The decisions worth not relitigating
+
+- [ ] **Second page on the existing console, not a new prop or a HUD overlay.** A prop needs a
+      `scenes/game.tscn` edit (locked, see 17i); an overlay would make the information free, and
+      this game charges air for information — which is why the nav plot walks you to a console
+      instead of opening a menu
+- [ ] **Colour is reserved for trouble.** The diagram is drawn in the same green ink as the nav
+      plot, so the blobs are the only saturated pixels on the page and nothing competes with them
+- [ ] **RED = repair it, ORANGE = fetch something for it** — the game's only two responses to a
+      problem, in the colours the silo lamps and the HUD rows already use (`Silo.LAMP_CRIT` /
+      `LAMP_WARN`). A patched fault is a hollow red ring: not getting worse, not gone
+- [ ] **Pulse RATE encodes urgency, blob SIZE does not.** 0.5–2.2 Hz, the same grammar as the HUD
+      air vignette. A constant base radius stops the map lying about magnitude; the *number* of
+      blobs in a room is the magnitude
+- [ ] **Topology derived, positions authored.** Edges come from `RoomBuilder.doorways` at runtime;
+      only the 13 schematic positions are hand-written. A hand-drawn map drifts from the ship the
+      first time a room moves — this way the drift is a test failure
+
+### 19b. Build order
+
+- [ ] **Phase 1 — the drawing.** `scripts/ui/ship_plan.gd` (the plan table + edge derivation) and
+      `scripts/ui/status_map.gd` (`_draw()`, blobs, pulse clock), fed a hard-coded problem list.
+      Testable alone; cannot break the game
+- [ ] **Phase 2 — wire it up.** `ComputerTerminal` collects problems from `RunState`
+      (`active_malfunctions()`, `pressing_silos()`, `pressing_needs()` located via their silo),
+      page toggle on `left`/`right` while READING, and the console auto-shows the map whenever
+      anything is wrong. No new input action, no `game.tscn` edit
+- [ ] **Phase 3 — walking costs (severable, and the best idea in the spec).** Label each segment
+      in metres, then in **seconds of air** at the current drain rate and walk speed — a TfL
+      walking-times diagram for the currency the player is already counting. `player_speed_scale()`
+      means a full bladder makes every number on the map go up
+
+### 19c. Verification
+
+- [ ] `tests/smoke_status_map.gd` — every `ShipLayout` room has a node and every node a room (the
+      drift guard); 12 doorways → 12 edges; every edge horizontal, vertical or exactly 45°; no
+      crossings; a pressing need whose silo is *also* pressing merges to ONE blob
+- [ ] **Mutation:** add a room to a copy of the layout and confirm the coverage check fails
+- [ ] `tests/capture_status_map.gd` — render at two pulse phases: red/orange pixels appear only
+      within the expected node neighbourhoods (a blob on the wrong room is invisible to a smoke
+      test), and the phases differ inside the blob discs and nowhere else

@@ -192,6 +192,113 @@ func _run() -> void:
 		hunger.advance(hunger.seconds * 0.8)
 		var starving := hunger.fraction()
 		_check("hunger can be run down (%.2f)" % starving, starving < 0.3)
+		# --- the nine pigeonholes ---------------------------------------------
+		# The machine is counted in slots you can SEE, so the display and the silo must not be
+		# able to disagree. VendingStock is a view over `level` rather than a second tally,
+		# which is what makes that structurally true; these check it holds in practice.
+		var display: VendingStock = vending.get_node_or_null("Stock")
+		_check("the machine shows what is in it", display != null)
+		if display != null:
+			_check("with nine pigeonholes (%d)" % display.slot_count(),
+				display.slot_count() == 9)
+			_check("three of them full to start (%d)" % display.occupied(),
+				display.occupied() == 3)
+			_check("and the silo agrees (%d uses)" % vending.uses_left(),
+				vending.uses_left() == 3)
+			# One of each, not three of the same: the item type rotates as holes are filled.
+			var kinds := {}
+			for kind in display.contents():
+				if kind >= 0:
+					kinds[kind] = true
+			_check("one cake, one can, one plant (%d distinct)" % kinds.size(),
+				kinds.size() == 3)
+
+			vending.use()
+			await _frames(2)
+			_check("buying something empties a hole (%d)" % display.occupied(),
+				display.occupied() == 2)
+
+			var restock := _make(game, "food_crate", &"food")
+			vending.service(restock)
+			await _frames(2)
+			_check("a crate fills three more (%d)" % display.occupied(),
+				display.occupied() == 5)
+			_check("and the silo still agrees (%d)" % vending.uses_left(),
+				vending.uses_left() == 5)
+
+			# Empty it the whole way. The last item is where ninths-in-binary bites: without
+			# the epsilon in Silo the machine reports empty with one still on the shelf.
+			while vending.use():
+				pass
+			await _frames(2)
+			_check("emptying it clears every hole (%d left)" % display.occupied(),
+				display.occupied() == 0)
+			_check("and the machine knows it is empty", vending.is_exhausted())
+
+			# --- the machine can also just break ------------------------------
+			# Not a bespoke "out of order" flag: an ordinary Malfunction with an ordinary
+			# repair hatch, so a jammed dispenser is a spare part or a hammer bodge, shows up
+			# in the HUD fault list, and sounds like every other repair on the ship.
+			var fault := vending.malfunction
+			_check("the machine has a fault of its own", fault != null)
+			if fault != null:
+				_check("which is in the ship's fault list",
+					run.malfunctions().has(fault))
+				_check("and is a MINOR problem, not a drive one (%.2f)" % fault.speed_penalty,
+					is_zero_approx(fault.speed_penalty)
+						and fault.severity == Malfunction.Severity.DEGRADING)
+				# It fires at a random point in the voyage, unlike every other fault, so all
+				# that can be asserted is that it is scheduled to happen at all and within the
+				# window the table declares.
+				_check("scheduled to break somewhere mid-voyage (%.1f)" % fault.fire_at_distance,
+					fault.fire_at_distance >= 30.0 and fault.fire_at_distance <= 62.0)
+
+				var hatch: RepairPoint = null
+				for child in fault.get_children():
+					if child is RepairPoint:
+						hatch = child
+				_check("with a repair hatch bound to it",
+					hatch != null and hatch.malfunction == fault)
+
+				# Restock it FIRST, so "cannot be used" below is about the fault and not about
+				# an empty machine.
+				vending.service(_make(game, "food_crate", &"food"))
+				await _frames(2)
+				_check("there is food in it", not vending.is_exhausted())
+
+				fault.break_now(false)
+				await _frames(2)
+
+				# It has to actually SHOW UP as a ship problem — that is what makes a jammed
+				# machine feel like part of the same game as a coolant leak. And its row must
+				# not claim a drive cost it does not have: "(-0% drive)" reads as a broken
+				# readout rather than as a fault that simply does not slow the ship.
+				var hud: CanvasLayer = game.get_node("HUD")
+				var row: String = hud._fault_line(fault)
+				_check("the fault gets a HUD row naming the machine (%s)" % row,
+					row.contains(fault.system_name) and row.contains(fault.fault_text))
+				_check("and does not claim a drive cost it has not got", not row.contains("drive"))
+
+				_check("a broken machine will not serve you", not vending.use())
+				_check("and says why (%s)" % vending.get_interaction_text(),
+					vending.get_interaction_text().contains(fault.fault_text))
+				_check("the reticle does not promise anything", not vending.can_act_on())
+				_check("but a crate still goes in — the trip is not wasted",
+					vending.service(_make(game, "food_crate", &"food")))
+
+				# The hammer route: fixed now, broken again soon. bodge_distance is 9 against
+				# the ship's 25-33, which is the whole trade for a machine you keep needing.
+				_check("a bodge holds for less than any other fault (%.0f)"
+					% fault.bodge_distance, fault.bodge_distance < 25.0)
+
+				fault.repair(true)
+				await _frames(2)
+				_check("repairing it puts the machine back in service", vending.use())
+
+			# Back to a usable machine for the assertions below.
+			vending.service(_make(game, "food_crate", &"food"))
+			await _frames(2)
+
 		var stock := vending.level
 		_check("eating works", vending.use())
 		await _frames(2)

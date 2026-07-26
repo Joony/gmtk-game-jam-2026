@@ -85,6 +85,7 @@ func _run() -> void:
 	await process_frame
 
 	_test_consumable()
+	_test_lamp()
 	_test_supply_silo()
 	_test_waste_silo()
 	_test_draining_silo()
@@ -136,6 +137,54 @@ func _test_consumable() -> void:
 	var cake := _make_consumable(&"food", 1.0)
 	_check("a consumable with no cycle is used up in one go", not cake.spend())
 	_check("and is spent", cake.is_spent)
+
+
+# --- the lamp on the front of a silo -----------------------------------------
+#
+# Three states and no gradient: green unless there is something the player has to go and fetch,
+# and the two things that can ever be are a spare part and a refill. Worth its own section
+# because it is the only part of the system readable from across a room, and because a lamp
+# that is subtly wrong is worse than no lamp — it teaches the wrong thing quietly.
+
+func _test_lamp() -> void:
+	var silo := _make_silo(&"vend", Silo.Mode.SUPPLY, &"food", 1.0, 1.0 / 9.0)
+	var lamp := silo.get_node_or_null("StatusLamp") as MeshInstance3D
+	_check("a silo builds a lamp", lamp != null)
+	if lamp == null:
+		return
+	var material := lamp.material_override as StandardMaterial3D
+	_check("which is emissive, so it reads in a dark room",
+		material != null and material.emission_enabled)
+
+	_check("a full machine is green", material.albedo_color == Silo.LAMP_OK)
+
+	# Running LOW is not one of the states. The useful question across a room is "must I bring
+	# something", which has a yes and a no; how urgent it is belongs on the HUD row.
+	silo.level = 1.0
+	while silo.uses_left() > 1:
+		silo.use()
+	_check("one item left is still green (%d left)" % silo.uses_left(),
+		material.albedo_color == Silo.LAMP_OK)
+
+	silo.use()
+	_check("empty turns it orange", silo.is_exhausted()
+		and material.albedo_color == Silo.LAMP_WARN)
+
+	# A fault outranks an empty shelf: the part is the thing you have to fetch first.
+	var fault := Malfunction.new()
+	fault.system_name = "VEND"
+	_world.add_child(fault)
+	silo.bind_malfunction(fault)
+	fault.break_now(false)
+	_check("broken turns it red", silo.is_broken()
+		and material.albedo_color == Silo.LAMP_CRIT)
+
+	silo.service(_make_consumable(&"food", 1.0))
+	_check("and it stays red while broken, even once restocked",
+		material.albedo_color == Silo.LAMP_CRIT)
+
+	fault.repair(true)
+	_check("fixing it goes back to green", material.albedo_color == Silo.LAMP_OK)
 
 
 # --- Silo, the SUPPLY half --------------------------------------------------
