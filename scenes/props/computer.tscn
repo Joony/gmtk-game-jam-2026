@@ -1,7 +1,8 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/game/computer_terminal.gd" id="1_terminal"]
 [ext_resource type="Script" path="res://scripts/ui/nav_chart.gd" id="2_chart"]
+[ext_resource type="Script" path="res://scripts/ui/status_map.gd" id="3_map"]
 
 ; A real screen: NavChart draws into a SubViewport and the viewport's texture is the quad's
 ; albedo. Structure copied from GMTK 2025's ComputerScreen — SubViewport as a direct child
@@ -78,3 +79,15 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_chart")
+
+; The second page. Both pages are children of the ONE viewport and swap by visibility, so the
+; console has a single render target and the quad's material never has to be repointed. Starts
+; hidden; ComputerTerminal decides which is up from the first refresh onward.
+[node name="StatusMap" type="Control" parent="SubViewport"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_map")

@@ -235,6 +235,24 @@ func _run() -> void:
 				display.occupied() == 0)
 			_check("and the machine knows it is empty", vending.is_exhausted())
 
+			# An empty machine is a WARNING, not a fault. Nothing is broken and there is
+			# nothing to repair — the answer is a walk — so it must not wear the same red "!"
+			# as a ruptured coolant line, or the player learns to distrust the colour.
+			var readout: CanvasLayer = game.get_node("HUD")
+			_check("an empty machine is amber, not fault red",
+				readout._silo_color(vending) == readout.COLOR_WARN)
+			_check("and marked as a warning, not a fault (%s)" % readout._silo_line(vending),
+				readout._silo_line(vending).begins_with("~"))
+
+			# The fuel tank is the one exception, and it earns it: running dry stops the ship.
+			var fuel := run.silo_by_id(&"power")
+			if fuel != null:
+				fuel.advance(100.0)
+				_check("but a dry fuel tank IS a fault — it stops the ship",
+					fuel.is_exhausted() and readout._silo_color(fuel) == readout.COLOR_CRIT
+						and readout._silo_line(fuel).begins_with("!"))
+				fuel.service(_make(game, "power_cell", &"battery"))
+
 			# --- the machine can also just break ------------------------------
 			# Not a bespoke "out of order" flag: an ordinary Malfunction with an ordinary
 			# repair hatch, so a jammed dispenser is a spare part or a hammer bodge, shows up
@@ -283,8 +301,16 @@ func _run() -> void:
 				_check("and says why (%s)" % vending.get_interaction_text(),
 					vending.get_interaction_text().contains(fault.fault_text))
 				_check("the reticle does not promise anything", not vending.can_act_on())
-				_check("but a crate still goes in — the trip is not wasted",
-					vending.service(_make(game, "food_crate", &"food")))
+				# It will not take a crate either. It is out of order, not merely empty — the
+				# mechanism that would hold the stock is the thing that has failed. The wasted
+				# trip is the intended cost: it is what makes repairing it first, rather than
+				# hopefully, the right move.
+				_check("and it will not take a crate either",
+					not vending.service(_make(game, "food_crate", &"food")))
+				_check("which the prompt says before you spend the press (%s)"
+					% vending.get_interaction_text(_make(game, "food_crate", &"food")),
+					vending.get_interaction_text(
+						_make(game, "food_crate", &"food")).contains(fault.fault_text))
 
 				# The hammer route: fixed now, broken again soon. bodge_distance is 9 against
 				# the ship's 25-33, which is the whole trade for a machine you keep needing.

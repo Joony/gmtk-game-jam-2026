@@ -73,6 +73,9 @@ const SILOS := [
 		# through a stretch is what eats it fastest.
 		"drain_per_day": 0.11,
 		"stops_the_drive": true,
+		# The only tank whose emptiness is felt the second it happens: the ship stops. Every
+		# other one is a supply run to schedule, and the need it feeds carries the countdown.
+		"empty_is_critical": true,
 		"warn_at": 0.35,
 		"vo_line": &"power_off",
 		"service_text": "Slot the cell in",
@@ -298,8 +301,8 @@ func _build_silo(row: Dictionary) -> Silo:
 	# quietly reset to the generic defaults. The toilet is entirely its own scene; its row here
 	# is just where it stands.
 	for key in ["display_name", "mode", "accepts", "level", "use_amount", "drain_per_day",
-			"stops_the_drive", "warn_at", "vo_line", "use_text", "service_text",
-			"block_when_exhausted", "lamp_offset"]:
+			"stops_the_drive", "empty_is_critical", "warn_at", "vo_line", "use_text",
+			"service_text", "block_when_exhausted", "lamp_offset"]:
 		if row.has(key):
 			silo.set(key, row[key])
 

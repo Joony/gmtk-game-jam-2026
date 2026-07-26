@@ -90,6 +90,22 @@ const GROUP_SILO := &"silos"
 ## consequence being wired to its name.
 @export var stops_the_drive: bool = false
 
+## Running out is an emergency NOW, rather than a supply run to schedule. Drives the HUD row's
+## colour, and it is deliberately its own field rather than being inferred from anything else.
+##
+## Severity is not "does it stop the drive" — that was the first guess and it is wrong. A jammed
+## vending machine stops you eating, which kills you just as dead as a stalled engine, only
+## slower. What actually separates the two is WHEN the consequence lands:
+##
+##   NOW      the fuel tank runs dry and the ship is stopped, this second
+##   EVENTUALLY  the food runs out and hunger, which has its own row and its own clock, starts
+##               counting toward it
+##
+## So the tanks whose emptiness is felt later stay amber, and the countdown they feed carries
+## the alarm. Marking both would double-count one problem and leave nothing on the readout
+## meaning "act right now".
+@export var empty_is_critical: bool = false
+
 @export var use_text: String = "Use"
 @export var service_text: String = "Refill it"
 
@@ -216,11 +232,17 @@ func use() -> bool:
 ## Spend a carried canister on it. Returns false if the item is the wrong kind or the silo has
 ## no room for it — a full silo must reject the canister rather than swallowing it, or a
 ## mistimed press costs the player a whole trip to the cargo bay.
-## Restocking a BROKEN machine is allowed on purpose. Refusing the crate would throw away a
-## trip the player has already paid for in air, over a distinction they cannot see from the
-## cargo bay — and a jammed machine full of food is a fair thing to be annoyed at.
+## A BROKEN machine takes nothing either. It is out of order, not merely empty: the mechanism
+## that would hold the stock is the thing that has failed, so a crate has nowhere to go.
+##
+## This does mean a wasted trip if you fetch a crate for a machine that jams while you are out,
+## and that is the intended cost rather than an oversight — it is what makes repairing it
+## first, rather than hopefully, the right move. The prompt says out of order before you spend
+## the press, so the trip is only ever wasted by bad luck, never by a hidden rule.
 func service(item: Consumable) -> bool:
 	_consumed = false
+	if is_broken():
+		return false
 	if item == null or not item.matches(accepts):
 		return false
 	if headroom() >= 1.0:
@@ -255,22 +277,22 @@ func get_interaction_type(held_item: Node3D = null) -> InteractionType:
 func can_act_on(held_item: Node3D = null) -> bool:
 	if not is_enabled:
 		return false
-	if held_item != null:
-		return _servicer(held_item) != null and headroom() < 1.0
 	if is_broken():
 		return false
+	if held_item != null:
+		return _servicer(held_item) != null and headroom() < 1.0
 	return not is_exhausted() or not block_when_exhausted
 
 
 func get_interaction_text(held_item: Node3D = null) -> String:
+	# BEFORE the servicing branch, so a player who has carried a crate all the way here is told
+	# the machine is out of order rather than being offered a press that would do nothing.
+	if is_broken():
+		return "%s: %s" % [display_name, malfunction.fault_text]
 	if _servicer(held_item) != null:
 		if headroom() >= 1.0:
 			return "%s: nothing to top up" % display_name
 		return service_text
-	# A broken machine still SAYS something. Going silent here would read as a prop the player
-	# had misjudged, and the repair hatch is small enough to walk past.
-	if is_broken():
-		return "%s: %s" % [display_name, malfunction.fault_text]
 	if held_item != null:
 		return "%s: %s is no use here" % [display_name, held_item.name]
 	if is_exhausted():

@@ -179,12 +179,18 @@ func _test_lamp() -> void:
 	_check("broken turns it red", silo.is_broken()
 		and material.albedo_color == Silo.LAMP_CRIT)
 
-	silo.service(_make_consumable(&"food", 1.0))
-	_check("and it stays red while broken, even once restocked",
-		material.albedo_color == Silo.LAMP_CRIT)
+	# It will not take a crate while broken — out of order is not the same as empty, and the
+	# mechanism that would hold the stock is the thing that failed.
+	_check("a broken machine refuses a refill", not silo.service(_make_consumable(&"food", 1.0)))
+	_check("and stays red", material.albedo_color == Silo.LAMP_CRIT)
 
+	# Repairing reveals the problem underneath rather than clearing both at once: the machine
+	# works again and is still empty, so the lamp steps red -> orange, not red -> green.
 	fault.repair(true)
-	_check("fixing it goes back to green", material.albedo_color == Silo.LAMP_OK)
+	_check("fixing it steps back to ORANGE, because it is still empty",
+		material.albedo_color == Silo.LAMP_WARN)
+	_check("and now the crate goes in", silo.service(_make_consumable(&"food", 1.0)))
+	_check("which finally gets it to green", material.albedo_color == Silo.LAMP_OK)
 
 
 # --- Silo, the SUPPLY half --------------------------------------------------
