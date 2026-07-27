@@ -333,10 +333,10 @@ func _refresh_fault() -> void:
 ## "" for a doorway gap or a spot outside the hull, and a blob placed on the nearest room instead
 ## would be the map telling a confident lie about where to walk.
 ## The life-support tank, so a spent canister shows on the ship map as somewhere to walk.
-var _oxygen: OxygenSilo = null
+var _oxygen: CanisterSilo = null
 
 
-func bind_oxygen(silo: OxygenSilo) -> void:
+func bind_oxygen(silo: CanisterSilo) -> void:
 	_oxygen = silo
 
 

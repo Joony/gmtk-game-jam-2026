@@ -36,8 +36,8 @@ var _system_lines: Array[Dictionary] = []
 ## schedule (every frame, since a need is a clock) and rebuilt off a different signal.
 var _need_lines: Array[Dictionary] = []
 var _oxygen_bar_style: StyleBoxFlat = null
-## The life-support tank, so the readout can call for a canister. See OxygenSilo.
-var _oxygen: OxygenSilo = null
+## The life-support tank, so the readout can call for a canister. See CanisterSilo.
+var _oxygen: CanisterSilo = null
 
 
 func _ready() -> void:
@@ -66,7 +66,7 @@ func bind(run: RunState) -> void:
 
 
 ## Bound separately from the run: the tank is a prop, and RunState does not know about props.
-func bind_oxygen(silo: OxygenSilo) -> void:
+func bind_oxygen(silo: CanisterSilo) -> void:
 	_oxygen = silo
 	if silo != null and not silo.recharged.is_connected(_on_recharged):
 		silo.recharged.connect(_on_recharged)

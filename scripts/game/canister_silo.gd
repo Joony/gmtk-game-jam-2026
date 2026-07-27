@@ -1,18 +1,22 @@
-class_name OxygenSilo
+class_name CanisterSilo
 extends Interactable
 
-# The life-support tank (TODO 21e). NOT a level you draw down — a SOCKET holding one canister,
-# and swapping that canister is what puts air back in the ship.
+# A tank you service by SWAPPING A CANISTER, rather than by drawing a number down (TODO 21e).
+# Three of them: life support takes air, the mess takes beer, the head fills with what it fills
+# with. Same object every time — a cradle holding one bottle, and the bottle is the state.
 #
-# WHY THIS IS NOT A `Silo`. Every other tank on the ship is a 0..1 number with a `use()` and a
-# `service()`: you take a quarter of it, you top it up. This one holds a physical object the
-# player can see from the doorway, and the object is the state — full canister, spent canister,
-# empty cradle. Modelling that as a float and then trying to keep a mesh in sync with it would
-# be two sources of truth for the thing the player is actually looking at.
+# WHY THIS IS NOT A `Silo`. A Silo is a 0..1 number with a `use()` and a `service()`: you take a
+# quarter of it, you top it up. These hold a physical object the player can see from the
+# doorway, and the object IS the state — full canister, spent canister, empty cradle. Modelling
+# that as a float and keeping a mesh in sync with it would be two sources of truth for the
+# thing the player is actually looking at.
 #
-# It also feeds a different number. The others clear a `Need`; this one refills the RUN'S OWN
-# OXYGEN — the single budget the whole game is priced in. So there is no countdown of its own
-# to keep: `RunState.oxygen_remaining` is the countdown, and this is how you add to it.
+# SUPPLY AND WASTE, the same distinction Silo makes and for the same reason:
+#
+#   SUPPLY  you fit a FULL bottle, it discharges into the ship, and you are left with an empty
+#   WASTE   you fit an EMPTY bottle, the ship fills it, and you are left with a full one
+#
+# One class, one sign. The head is the oxygen tank run backwards.
 #
 # THE SWAP IS ONE-WAY, and it happens the instant the canister goes in. A fresh one dumps its
 # air into the ship and is EMPTY from that moment — it does not sit there slowly draining. So
@@ -24,19 +28,36 @@ extends Interactable
 # stops the fix being free — the cargo bay holds a finite number of full ones, and every one you
 # burn is gone.
 
-## Emitted when a fresh canister goes in, carrying how much air it was worth.
+## Emitted when a fresh canister goes in, carrying how much air it was worth (0 for a tank
+## that does not feed the air budget).
 signal recharged(seconds: float)
+## Emitted when a WASTE tank's canister fills up and is ready to be swapped out.
+signal filled(silo: CanisterSilo)
 
 ## Named empties inside CD_Silo_Base_v1.1: where the canister sits, and where the light goes.
 const SOCKET_NAME := &"Socket"
 
-## Seconds of air a full canister is worth. Generous against the 240 s budget, because the walk
-## to the cargo bay and back is most of a minute of it — a canister that barely paid for its own
-## fetch would make the trip pointless.
+## A SUPPLY tank gives its canister to the ship; a WASTE tank takes what the ship gives it.
+enum Mode { SUPPLY, WASTE }
+
+@export var mode: Mode = Mode.SUPPLY
+## Which tank this is, so anything looking for a particular one can find it.
+@export var silo_id: StringName = &"life_support"
+
+## Seconds of air a full canister is worth, for the tank that feeds the air budget. 0 for the
+## others — beer and waste do not touch oxygen. Generous against the 240 s budget, because the
+## walk to the cargo bay and back is most of a minute of it, and a canister that barely paid
+## for its own fetch would make the trip pointless.
 @export var seconds_per_canister: float = 150.0
-## Air remaining, in seconds, below which the tank is calling for a new canister. Matches the
-## HUD's own `oxygen_warning` band so the two never disagree about what "low" means.
+
+## WASTE only: how full its canister is, 0..1. Filled by whatever drives the tank — the head,
+## for the septic one — and at 1.0 the bottle turns into what it has been collecting.
+@export_range(0.0, 1.0) var fill: float = 0.0
+## SUPPLY only: air remaining, in seconds, below which the tank is calling for a new canister.
+## Matches the HUD's own `oxygen_warning` band so the two never disagree about "low".
 @export var low_air_seconds: float = 60.0
+## WASTE only: how full it has to get before it is asking to be emptied.
+@export_range(0.0, 1.0) var warn_fill: float = 0.75
 ## What the fitted canister looks like once it is spent.
 @export var spent_kind: StringName = &"empty"
 ## Seconds the canister stays looking full after it goes in, before it reads as spent.
@@ -62,7 +83,7 @@ func setup() -> void:
 	interaction_type = InteractionType.USE_ITEM
 	_socket = _find_named(self, SOCKET_NAME)
 	if _socket == null:
-		push_warning("OxygenSilo: %s has no `%s` empty to hold a canister" % [name, SOCKET_NAME])
+		push_warning("CanisterSilo: %s has no `%s` empty to hold a canister" % [name, SOCKET_NAME])
 	if _indicator == null:
 		_indicator = IndicatorLight.attach(self)
 	refresh()
@@ -75,9 +96,35 @@ func bind(run: RunState) -> void:
 	refresh()
 
 
-## True when the ship is low enough on air that the fitted canister has nothing left to give.
+## Wants attention: a supply tank whose bottle is spent, or a waste tank whose bottle is full.
 func is_low() -> bool:
+	if mode == Mode.WASTE:
+		return fill >= warn_fill
+	if seconds_per_canister <= 0.0:
+		# A supply tank that feeds nothing (the beer silo, until thirst comes back) has no
+		# clock to read itself against, so it is low exactly when its bottle is spent.
+		return _fitted != null and is_instance_valid(_fitted) and _fitted.kind == spent_kind
 	return _run != null and _run.oxygen_remaining <= low_air_seconds
+
+
+## Is it completely used up — a supply tank holding a spent bottle, or a waste tank holding a
+## full one? This is the state the swap exists to clear.
+func is_spent() -> bool:
+	if _fitted == null or not is_instance_valid(_fitted):
+		return false
+	return _fitted.kind == spent_kind
+
+
+## WASTE only: put something in it. Whatever drives the tank calls this — the head does, once
+## there is a reason to use the head. At 1.0 the bottle becomes what it has been collecting.
+func add_waste(amount: float) -> void:
+	if mode != Mode.WASTE or amount <= 0.0:
+		return
+	fill = clampf(fill + amount, 0.0, 1.0)
+	if fill >= 1.0 and _fitted != null and is_instance_valid(_fitted):
+		_fitted.set_kind(spent_kind)
+		filled.emit(self)
+	refresh()
 
 
 func fitted() -> Consumable:
@@ -100,7 +147,12 @@ func fit(canister: Consumable) -> bool:
 		return false
 	_mount(canister)
 
-	if _run != null:
+	# A WASTE tank takes a fresh (empty) bottle and starts collecting; it does not discharge.
+	if mode == Mode.WASTE:
+		fill = 0.0
+		refresh()
+		return true
+	if _run != null and seconds_per_canister > 0.0:
 		var was := _run.oxygen_remaining
 		_run.oxygen_remaining = minf(was + seconds_per_canister, _run.oxygen_total)
 		_run.oxygen_changed.emit(_run.oxygen_remaining, _run.oxygen_total)
@@ -149,8 +201,12 @@ func take_out() -> Consumable:
 ## from here — the cradle always holds a spent one, so there is nothing to keep in step.
 func refresh() -> void:
 	if _indicator != null:
-		_indicator.set_state(
-			IndicatorLight.COLOR_WARN if is_low() else IndicatorLight.COLOR_OK, false)
+		var color := IndicatorLight.COLOR_OK
+		if is_spent():
+			color = IndicatorLight.COLOR_CRIT
+		elif is_low():
+			color = IndicatorLight.COLOR_WARN
+		_indicator.set_state(color, false)
 
 
 # --- interaction -------------------------------------------------------------
@@ -178,9 +234,12 @@ func get_interaction_text(held_item: Node3D = null) -> String:
 	if held_item != null:
 		return "%s: %s is no use here" % [display_name, held_item.name]
 	if _fitted == null:
-		return "%s: empty cradle — fit an O2 canister" % display_name
+		return "%s: empty cradle — fit a %s canister" % [display_name, accepts]
+	if is_spent():
+		return "%s: canister full — take it out" % display_name if mode == Mode.WASTE \
+			else "%s: canister spent — take it out" % display_name
 	if is_low():
-		return "%s: air low — fit a fresh O2 canister" % display_name
+		return "%s: needs a fresh %s canister" % [display_name, accepts]
 	return "%s: nominal" % display_name
 
 

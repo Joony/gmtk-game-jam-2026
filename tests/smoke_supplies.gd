@@ -84,10 +84,10 @@ func _run() -> void:
 		% [supplies.silos().size(), ShipSupplies.SILOS.size()],
 		supplies.silos().size() == ShipSupplies.SILOS.size())
 
-	# The life-support tank is an OxygenSilo now, not a Silo (TODO 21e): it holds a CANISTER
+	# The life-support tank is an CanisterSilo now, not a Silo (TODO 21e): it holds a CANISTER
 	# you can see rather than a 0..1 level, and it refills the run's own air rather than
 	# clearing a countdown. So it is not in the silo group and is not looked up by id.
-	var tank := supplies.oxygen_silo()
+	var tank := supplies.tank_by_id(&"life_support")
 	_check("the ship has an oxygen tank", tank != null)
 	if tank == null:
 		return _finish()

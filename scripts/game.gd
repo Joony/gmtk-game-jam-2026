@@ -183,10 +183,7 @@ func _ready() -> void:
 	# makes it the place to spend a few hundred milliseconds of shader compilation. Position
 	# comes from the player rather than the camera rig: the rig is `top_level` and rewrites its
 	# transform in _process, so at _ready it has not been anywhere yet.
-	var prewarm := ShaderPrewarm.new()
-	add_child(prewarm)
-	prewarm.run(_player.global_position + Vector3(0.0, 1.5, 0.0),
-		(_camera.get_node("Camera3D") as Camera3D).fov)
+	pass  # prewarm disabled for A/B
 
 
 ## An unmet need slows you down. Applied here rather than in RunState, which deliberately knows
@@ -290,8 +287,13 @@ var _said_return_to_cryo: bool = false
 var _critical_just_fixed: bool = false
 
 
-func _on_any_repaired(malfunction: Malfunction, permanent: bool) -> void:
-	if permanent and malfunction.severity == Malfunction.Severity.CRITICAL:
+## A BODGE COUNTS. This used to require a fitted part, on the reasoning that a patch has not
+## ended anything — but the line is the computer telling you the emergency is over and you can
+## go back to sleep, and from where the player is standing it is: the klaxon has stopped, the
+## system is running, and going back to the pod is exactly what they should now do. That the
+## patch will give out later is next time's problem, and the game has a klaxon for it.
+func _on_any_repaired(malfunction: Malfunction, _permanent: bool) -> void:
+	if malfunction.severity == Malfunction.Severity.CRITICAL:
 		_critical_just_fixed = true
 
 
@@ -325,10 +327,9 @@ func _wire_audio() -> void:
 		# out of bed. Which line is the fault's own data — see Malfunction.vo_line.
 		if malfunction.vo_line != &"":
 			Audio.say(malfunction.vo_line))
-	# The first time a critical failure is properly dealt with, the computer tells the player
-	# the emergency is over and they can go back to sleep. ONCE per run: it is a beat, and a
-	# beat repeated on every repair becomes wallpaper. Only a fitted part counts — a bodge has
-	# not ended anything, it has postponed it.
+	# The first time a critical failure is dealt with — hammer or spare part, either counts —
+	# the computer tells the player the emergency is over and they can go back to sleep. ONCE
+	# per run: it is a beat, and a beat repeated on every repair becomes wallpaper.
 	_run.systems_changed.connect(_maybe_say_return_to_cryo)
 	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
 		(node as Malfunction).repaired.connect(_on_any_repaired)

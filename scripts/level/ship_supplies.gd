@@ -26,7 +26,7 @@ const CANISTER_SCENE := preload("res://scenes/props/canister.tscn")
 const FOOD_CRATE_SCENE := preload("res://scenes/props/food_crate.tscn")
 const SILO_SCENE := preload("res://scenes/props/silo.tscn")
 const REPAIR_SCRIPT := preload("res://scripts/game/repair_point.gd")
-const OXYGEN_SILO_SCRIPT := preload("res://scripts/game/oxygen_silo.gd")
+const CANISTER_SILO_SCRIPT := preload("res://scripts/game/canister_silo.gd")
 const SILO_SCRIPT := preload("res://scripts/game/silo.gd")
 
 ## Where the dressed-in props live, so the table below can name them by their own names.
@@ -35,19 +35,6 @@ const SILO_SCRIPT := preload("res://scripts/game/silo.gd")
 ## The fixed containers. A row with a `decor` key ADOPTS that prop; one with an `at` key is
 ## SPAWNED there with its own model.
 const SILOS := [
-	{
-		"id": &"beer",
-		"display_name": "BEER",
-		"decor": ^"CD_Silo_Base_v1_3",
-		"mode": Silo.Mode.SUPPLY,
-		"accepts": &"beer",
-		"level": 1.0,
-		"use_amount": 0.25,
-		"warn_at": 0.3,
-		"vo_line": &"no_beer",
-		"use_text": "Have a drink",
-		"service_text": "Load a beer canister",
-	},
 	{
 		# The vending machine in the mess. A Silo like every other, which is the point: TODO
 		# 17e's worry that hunger had "an extra hop" was a miscount — need, silo in a room,
@@ -112,7 +99,7 @@ const SILOS := [
 		# that both halves happen in the same place. See scenes/props/toilet.tscn.
 		#
 		# Everything about it is in the prop scene, so this row is only where it stands.
-		"id": &"crap",
+		"id": &"head",
 		"scene": "res://scenes/props/toilet.tscn",
 		# The bathroom was shortened at some point — Rect2i(-9, -12, 7, 5), so it runs z -12
 		# to -7, not -5. The toilet was at -5.7 and had fallen clean out of the room into the
@@ -176,7 +163,8 @@ const FOOD_CRATES := [
 var _silos: Array[Silo] = []
 var _canisters: Array[Consumable] = []
 var _stocks: Array[VendingStock] = []
-var _oxygen: OxygenSilo = null
+var _oxygen: CanisterSilo = null
+var _tanks: Array[CanisterSilo] = []
 ## Loose props that are not Consumables — spare parts.
 var _props: Array[Node3D] = []
 
@@ -195,6 +183,7 @@ func build() -> void:
 		if is_instance_valid(old):
 			old.queue_free()
 	_props.clear()
+	_tanks.clear()
 	_canisters.clear()
 	# Not freed with the silos: a stock's items live inside the DECOR model's slot empties, so
 	# they outlive the silo body they were built from unless they are cleared here.
@@ -207,7 +196,7 @@ func build() -> void:
 		var silo := _build_silo(row)
 		if silo != null:
 			_silos.append(silo)
-	_build_oxygen_silo()
+	_build_canister_silos()
 	for row in CANISTERS:
 		_canisters.append(_spawn(CANISTER_SCENE, row["kind"], row["at"]))
 	for row in SPARES:
@@ -368,28 +357,115 @@ func _spawn(scene: PackedScene, kind: StringName, at: Vector3) -> Consumable:
 
 
 ## The life-support tank (TODO 21e). Adopted onto the silo prop in life support, like the
-## others — but with OxygenSilo rather than Silo, because it holds a canister you can see
+## others — but with CanisterSilo rather than Silo, because it holds a canister you can see
 ## rather than a number, and refills the run's own air rather than clearing a countdown.
 ##
 ## Starts with a full canister in the cradle, so the mechanic is legible before it is urgent:
 ## the player sees the thing that has to be swapped long before they need to swap it.
-func _build_oxygen_silo() -> Node:
-	var host := _find_prop(^"CD_Silo_Base_v1_1")
-	if host == null:
-		push_warning("ShipSupplies: no CD_Silo_Base_v1_1 to make the oxygen tank out of")
-		return null
-	host.set_script(OXYGEN_SILO_SCRIPT)
-	var tank := host as OxygenSilo
-	tank.setup()
-	_oxygen = tank
-	# An EMPTY canister already in it. The ship does not start with free air in the cradle —
-	# it starts with the spent bottle from whoever was awake last, which is the object the
-	# player will be replacing, sitting in the place they will replace it.
-	tank.install_spent(_spawn(CANISTER_SCENE, &"empty", host.global_position))
-	return tank
+## The socketed tanks — serviced by SWAPPING A CANISTER rather than by topping a number up.
+## The same object three times, differing only in what goes in and which way it flows.
+const CANISTER_SILOS := [
+	{
+		"id": &"life_support",
+		"display_name": "LIFE SUPPORT",
+		"prop": ^"CD_Silo_Base_v1_1",
+		"mode": CanisterSilo.Mode.SUPPLY,
+		"accepts": &"o2",
+		"spent": &"empty",
+		"seconds": 150.0,  # the only one that feeds the air budget
+		"starts_with": &"empty",
+	},
+	{
+		# The mess. Fitting a beer discharges it exactly as the air tank does; what it
+		# discharges INTO is thirst, which is parked (TODO 21 scope note). So for now the swap
+		# is the whole mechanic and the tank feeds nothing.
+		"id": &"beer",
+		"display_name": "BEER",
+		"prop": ^"CD_Silo_Base_v1_3",
+		"mode": CanisterSilo.Mode.SUPPLY,
+		"accepts": &"beer",
+		"spent": &"empty",
+		"seconds": 0.0,
+		"starts_with": &"beer",
+	},
+	{
+		# The head's tank, and the one that runs backwards: you fit an EMPTY bottle and the ship
+		# fills it. Nothing schedules that yet — the bladder is parked with thirst — so it fills
+		# only when something calls add_waste(). The head does, so using it already works.
+		"id": &"crap",
+		"display_name": "SEPTIC TANK",
+		"prop": ^"CD_Silo_Base_v1_2",
+		"mode": CanisterSilo.Mode.WASTE,
+		"accepts": &"empty",
+		"spent": &"shit",
+		"seconds": 0.0,
+		"starts_with": &"empty",
+	},
+]
 
 
-func oxygen_silo() -> OxygenSilo:
+## Adopt each declared prop as a socketed tank, with a canister already in the cradle.
+##
+## Every one starts LOADED, and with the bottle that makes the mechanic legible before it is
+## urgent: life support with a spent one (whoever was awake last used it), the mess with a full
+## beer, the head with a clean empty. The object the player will be swapping is in front of them
+## from the first minute, in the place they will swap it.
+func _build_canister_silos() -> void:
+	for row in CANISTER_SILOS:
+		var host := _find_prop(row["prop"])
+		if host == null:
+			push_warning("ShipSupplies: no %s to make the %s tank out of"
+				% [row["prop"], row["id"]])
+			continue
+		host.set_script(CANISTER_SILO_SCRIPT)
+		var tank := host as CanisterSilo
+		tank.silo_id = row["id"]
+		tank.display_name = row["display_name"]
+		tank.mode = row["mode"]
+		tank.accepts = row["accepts"]
+		tank.spent_kind = row["spent"]
+		tank.seconds_per_canister = row["seconds"]
+		tank.setup()
+		_tanks.append(tank)
+		if row["id"] == &"life_support":
+			_oxygen = tank
+		tank.install_spent(_spawn(CANISTER_SCENE, row["starts_with"], host.global_position))
+		# `install_spent` forces the spent kind; a tank that starts loaded with something usable
+		# has to be put back afterwards. Only the mess starts that way today.
+		if row["starts_with"] != row["spent"]:
+			tank.fitted().set_kind(row["starts_with"])
+
+	# The head has no tank of its own any more — it fills the septic one next door. Nothing
+	# calls this on a schedule yet (the bladder is parked), but using the head works.
+	var head := _silo_by_id(&"head")
+	var septic := tank_by_id(&"crap")
+	if head != null and septic != null:
+		head.used.connect(func(_s: Silo) -> void:
+			# Its own level is meaningless now, so keep it at zero and let the tank hold the
+			# state. One number for one thing.
+			head.level = 0.0
+			septic.add_waste(head.use_amount))
+
+
+func tank_by_id(id: StringName) -> CanisterSilo:
+	for tank in _tanks:
+		if tank.silo_id == id:
+			return tank
+	return null
+
+
+func tanks() -> Array[CanisterSilo]:
+	return _tanks
+
+
+func _silo_by_id(id: StringName) -> Silo:
+	for silo in _silos:
+		if silo.silo_id == id:
+			return silo
+	return null
+
+
+func oxygen_silo() -> CanisterSilo:
 	return _oxygen
 
 
