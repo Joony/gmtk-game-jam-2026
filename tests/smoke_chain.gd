@@ -8,8 +8,13 @@ extends SceneTree
 # smoke_supplies it would be the thing quietly deleted to make a failing file pass.
 #
 # smoke_needs already proves the chain can be ASSEMBLED from the three components. What is new
-# here is that the ship actually has a beer silo in the mess and a toilet in the bathroom, that
-# the cargo bay stocks both halves, and that the run wires the links.
+# here is that the ship actually has the tanks standing in it, that the cargo bay stocks both
+# halves, and that the plumbing between them works.
+#
+# The NEEDS half is parked — thirst is gone, so nothing schedules a reason to drink or to use
+# the head. The PLUMBING half is not, and that is what most of this now covers: use the head and
+# the septic tank fills, the bottle becomes what it collected, and swapping it is the way out.
+# That is the machinery thirst will be reconnected to, so it is worth guarding while it waits.
 #
 # Run: godot --headless --path . -s tests/smoke_chain.gd
 
@@ -55,25 +60,62 @@ func _run() -> void:
 	var supplies: ShipSupplies = game.get_node("Supplies")
 
 	# --- both ends of the chain are standing in the ship ----------------------
-	var beer := run.silo_by_id(&"beer")
-	var toilet := run.silo_by_id(&"crap")
-	_check("there is a beer silo", beer != null)
-	_check("and a toilet", toilet != null)
-	if beer == null or toilet == null:
+	# Both are CANISTER tanks now, not level-based silos, so neither is in the silo group and
+	# neither is found by RunState.silo_by_id — which is exactly how this suite went red: it
+	# was looking for the old shape and reported "there is no beer silo" about a beer silo that
+	# was standing right there.
+	var beer := supplies.tank_by_id(&"beer")
+	var septic := supplies.tank_by_id(&"crap")
+	var head := run.silo_by_id(&"head")
+	_check("there is a beer tank", beer != null)
+	_check("a septic tank", septic != null)
+	_check("and a head to use", head != null)
+	if beer == null or septic == null or head == null:
 		return _finish()
 
 	_check("the beer is in the mess (%s)" % ship.room_at(beer.global_position),
 		ship.room_at(beer.global_position) == "kitchen")
-	_check("the toilet is in the bathroom (%s)" % ship.room_at(toilet.global_position),
-		ship.room_at(toilet.global_position) == "bathroom")
-	_check("the toilet FILLS rather than empties", toilet.mode == Silo.Mode.WASTE)
-	_check("and it starts empty (%.2f)" % toilet.level, toilet.level <= 0.0)
-	_check("it takes empty canisters", toilet.accepts == &"empty")
+	_check("the head is in the bathroom (%s)" % ship.room_at(head.global_position),
+		ship.room_at(head.global_position) == "bathroom")
+	_check("and so is the tank it fills (%s)" % ship.room_at(septic.global_position),
+		ship.room_at(septic.global_position) == "bathroom")
+	_check("the septic tank FILLS rather than empties",
+		septic.mode == CanisterSilo.Mode.WASTE)
+	_check("it takes empty canisters and gives back full ones",
+		septic.accepts == &"empty" and septic.spent_kind == &"shit")
+	_check("with a clean one already in the cradle (%s)"
+		% ("none" if septic.fitted() == null else String(septic.fitted().kind)),
+		septic.fitted() != null and septic.fitted().kind == &"empty")
 	# Deliberately fewer empties than beers: running the mess dry and running out of empties
 	# are the same mistake seen from two ends.
 	_check("the cargo bay stocks beer (%d)" % _stock(supplies, &"beer"),
 		_stock(supplies, &"beer") >= 2)
 	_check("and empties (%d)" % _stock(supplies, &"empty"), _stock(supplies, &"empty") >= 2)
+
+	# --- the head fills the tank, and the swap is the way out -----------------
+	# The half of the chain that WORKS without any need behind it. Nothing schedules a reason to
+	# use the head yet, but using it does what it should — which is the part worth guarding,
+	# because it is the plumbing that thirst will be reconnected to.
+	_check("the tank starts empty (%.2f)" % septic.fill, septic.fill <= 0.0)
+	for i in 4:
+		head.use()
+	await _frames(2)
+	_check("using the head fills it (%.2f)" % septic.fill, septic.fill >= 1.0)
+	_check("and the bottle becomes what it collected (%s)" % String(septic.fitted().kind),
+		septic.fitted().kind == &"shit" and septic.is_spent())
+	_check("the head keeps no level of its own — one number for one thing (%.2f)" % head.level,
+		is_zero_approx(head.level))
+
+	var full := septic.fitted()
+	var carry: Carry = game.get_node("Player/Carry")
+	_check("the full one lifts straight out of the cradle", carry.grab(full))
+	await _frames(2)
+	_check("leaving the cradle empty", septic.fitted() == null)
+	carry.drop(false)
+	_check("and a full bottle cannot go back in", not septic.fit(full))
+	var clean := _make(game, "canister", &"empty")
+	_check("but a clean empty can", septic.fit(clean))
+	_check("which resets it (%.2f)" % septic.fill, septic.fill <= 0.0)
 
 	# --- THE CHAIN IS PARKED --------------------------------------------------
 	# This suite used to walk it end to end: thirst arrives on a schedule, drinking starts the
