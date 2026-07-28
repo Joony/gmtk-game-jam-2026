@@ -53,9 +53,12 @@ func _run() -> void:
 	if net == null:
 		return _finish()
 
-	await _test_the_net(net)
-	await _test_carry_refuses_to_release_embedded(net)
+	# FIRST, on a pristine ship: the sections below stage props around the cargo bay and knock
+	# the real supplies about, which is indistinguishable from the net having shuffled them.
 	await _test_nothing_normal_is_disturbed(net)
+	await _test_the_net(net)
+	await _test_looking_down_does_not_launch()
+	await _test_carry_refuses_to_release_embedded(net)
 
 	_finish()
 
@@ -96,6 +99,53 @@ func _test_the_net(net: LostAndFound) -> void:
 	await _physics_frames(2)
 
 
+## THE ACTUAL REPORTED BUG: pick something up, look at the floor, throw — and it is gone.
+##
+## It was never falling through the deck. `_carry_velocity` was measured from the HOLD POINT's
+## travel, and the hold point rides the camera, so looking down swung it from 1.4m in front of
+## the player to under their feet — mostly horizontal motion, pinning the max_release_speed cap.
+## Letting go fired the item across the room at 12 m/s, and whatever it hit decided where it
+## ended up. Release now inherits the CARRIER's velocity instead.
+##
+## The horizontal component is what this watches. Vertical is left alone: the throw impulse
+## points down when you look down, which is correct and which the deck survives — props were
+## slammed into it at 120 m/s in diag_floor_escape.gd without a single loss.
+func _test_looking_down_does_not_launch() -> void:
+	var player: CharacterBody3D = _game.get_node("Player")
+	var rig := _game.get_node("Player/CameraRig") as CameraController
+	var carry: Carry = _game.get_node("Player/Carry")
+	# Open floor in the cargo bay, clear of the pod and the cryo station — both of which
+	# confounded earlier attempts to measure this.
+	var clear := Vector3(24.0, 0.0, 6.0)
+
+	for path in PROPS:
+		player.global_position = clear
+		player.velocity = Vector3.ZERO
+		rig.set_look(0.0, 0.0)
+		await _frames(2)
+		var body := _spawn(path, clear + Vector3(0.0, 0.6, -1.2))
+		await _physics_frames(15)
+		if not carry.grab(body as Node3D as Interactable):
+			_check("%s can be picked up to look down with" % path.get_file(), false)
+			continue
+		await _frames(45)
+		# Swept, not snapped — a single set_look() does not move the hold point over time and so
+		# never built the velocity that was the whole bug.
+		for i in range(1, 13):
+			rig.set_look(0.0, deg_to_rad(-90.0) * (float(i) / 12.0))
+			await process_frame
+
+		carry.drop(true)
+		await physics_frame
+		var horizontal := Vector2(body.linear_velocity.x, body.linear_velocity.z).length()
+		_check("throwing the %s at your own feet does not fling it sideways (%.2f m/s)"
+			% [path.get_file(), horizontal], horizontal < 1.0)
+		await _physics_frames(60)
+		body.queue_free()
+		await _physics_frames(2)
+	rig.set_look(0.0, 0.0)
+
+
 ## THE CAUSE. Carry must not hand physics a body that is inside the floor. Driven through the
 ## real grab/drop path, with the item forced into the slab while held — which is what the
 ## unswept rotation in _clamp_to_walls can do in a corner.
@@ -128,6 +178,9 @@ func _test_carry_refuses_to_release_embedded(net: LostAndFound) -> void:
 ## should be exactly where it was after a sweep.
 func _test_nothing_normal_is_disturbed(net: LostAndFound) -> void:
 	var supplies: ShipSupplies = _game.get_node("Supplies")
+	# Let the hold come to rest first — props are still settling tens of frames after load, and
+	# a couple of centimetres of that is not the net having moved anything.
+	await _physics_frames(150)
 	var before := {}
 	for supply in supplies.canisters():
 		before[supply] = (supply as Node3D).global_position
@@ -141,7 +194,9 @@ func _test_nothing_normal_is_disturbed(net: LostAndFound) -> void:
 	_check("a sweep over a healthy ship recovers nothing", net.rescues() == rescues)
 	var moved := 0
 	for item in before:
-		if (item as Node3D).global_position.distance_to(before[item]) > 0.01:
+		# Metres, not millimetres: a recovery TELEPORTS across a room, so the threshold only has
+		# to clear residual settling.
+		if (item as Node3D).global_position.distance_to(before[item]) > 0.25:
 			moved += 1
 	_check("and moves nothing (%d moved)" % moved, moved == 0)
 

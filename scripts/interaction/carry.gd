@@ -13,7 +13,9 @@ extends Node3D
 #     walls instead of clipping through them
 #   * break-free when a wall holds the item too far from the hold point for a grace
 #     period, so you can't drag things through geometry
-#   * release keeps the carry velocity (capped) so items can be flung
+#   * release keeps the CARRIER's velocity (capped) so items thrown while running keep your
+#     momentum — deliberately NOT the hold point's own travel, which made a flick of the mouse
+#     read as a fling and launched items across the room (see _release_velocity)
 #
 # MUST run after CameraController: this node's process_priority is 10, the camera's
 # is 0. Otherwise the held item renders a frame behind the view.
@@ -32,8 +34,8 @@ signal dropped(item: Node3D)
 ## ...and persist this long (seconds) before it actually drops. Brief clips recover.
 @export var break_grace: float = 0.25
 @export var throw_impulse: float = 6.0
-## Carry velocity is kept on release so items can be flung, capped so a hard mouse
-## flick can't reach tunnelling speeds.
+## Cap on the momentum an item keeps when released. See _release_velocity(): this is the
+## CARRIER's speed, so at max_speed 7 it never binds — it is a backstop, not a tuning knob.
 @export var max_release_speed: float = 12.0
 ## Safety skin left between the swept body and geometry per test_move.
 @export var cast_margin: float = 0.04
@@ -46,7 +48,6 @@ var _held_interactable: Interactable = null
 var _break_timer: float = 0.0
 var _pickup_from: Transform3D = Transform3D.IDENTITY
 var _pickup_t: float = 1.0
-var _carry_velocity: Vector3 = Vector3.ZERO
 var _prev_origin: Vector3 = Vector3.ZERO
 var _prior_gravity_scale: float = 1.0
 ## Last origin at which the held body was demonstrably NOT inside anything. See drop().
@@ -96,7 +97,6 @@ func grab(interactable: Interactable) -> bool:
 	# Where it was sitting before we touched it. It was resting on the floor, so it is free by
 	# construction — and it is the fallback of last resort if every pose since has been embedded.
 	_last_free_origin = item.global_transform.origin
-	_carry_velocity = Vector3.ZERO
 
 	interactable.on_pickup()
 	picked_up.emit(item)
@@ -133,13 +133,15 @@ func drop(throw_it: bool = false) -> void:
 	item.freeze = false
 	item.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
 	item.reset_physics_interpolation()
-	# Jolt derives a wild velocity from the kinematic transform deltas; replace it
-	# with our own smoothed, capped estimate.
+	# Jolt derives a wild velocity from the kinematic transform deltas; replace it with the
+	# carrier's own, which is the only momentum the item legitimately inherits.
 	item.angular_velocity = Vector3.ZERO
-	item.linear_velocity = _carry_velocity.limit_length(max_release_speed)
-	item.gravity_scale = _prior_gravity_scale
+	# THE EXCEPTION COMES OFF FIRST, and the ordering matters: while it stands, the player is
+	# invisible to any collision query made here, including the one below.
 	if _body != null:
 		item.remove_collision_exception_with(_body)
+	item.linear_velocity = _release_velocity()
+	item.gravity_scale = _prior_gravity_scale
 	if throw_it and _holder != null:
 		item.apply_central_impulse(-_holder.global_transform.basis.z * throw_impulse)
 
@@ -179,9 +181,6 @@ func _process(delta: float) -> void:
 		_clamp_to_walls(_prev_origin, goal.origin, goal.basis))
 	_held.global_transform = Transform3D(goal.basis, clamped)
 	_remember_if_free(Transform3D(goal.basis, clamped))
-	if delta > 0.0:
-		# Smoothed so a single stuttery frame doesn't produce a silly release velocity.
-		_carry_velocity = _carry_velocity.lerp((clamped - _prev_origin) / delta, 0.5)
 	_prev_origin = clamped
 
 
@@ -236,6 +235,35 @@ func _push_out(basis: Basis, origin: Vector3) -> Vector3:
 		# and burns the remaining iterations without converging.
 		out += collision.get_normal() * (collision.get_depth() + 0.001)
 	return out
+
+
+## What the item is moving at when you let go: the CARRIER's velocity, not the hold point's.
+##
+## THE LAUNCH, and why this is the fix rather than a cleverer one. The release velocity used to
+## come from `_carry_velocity`, the hold point's own travel — and the hold point rides the
+## CAMERA. Looking down swings it from 1.4m in front of you to under your feet in a fraction of
+## a second, which is mostly horizontal motion, and it pinned the `max_release_speed` cap. So
+## letting go while looking at your feet fired the item across the room at 12 m/s. Measured in
+## tests/diag_void_repro.gd — one room, a player, one prop, nothing else — as a release velocity
+## of (0, -6.1, +11.9). The item was never falling through the floor. It was being LAUNCHED, and
+## whatever it hit decided where it ended up.
+##
+## Two narrower attempts failed, and both failed by being about geometry rather than about the
+## cause. Sweeping the release direction misses the player capsule for narrow props (the
+## canister and the spare gear still left at 11.9). Projecting out the component aimed at the
+## player fixed those but not the crate or the battery cube — they are too big to fit under the
+## player, so the sweep slides them SIDEWAYS and that velocity points away from the player, so
+## nothing was projected out. Both were patching symptoms of the same thing: camera rotation was
+## being read as throw speed.
+##
+## So it is not read that way any more. Momentum still transfers — walk or run and let go, and
+## the item keeps your speed — and the deliberate throw is the impulse below, unchanged. What is
+## gone is the flick of a mouse counting as a fling.
+func _release_velocity() -> Vector3:
+	var carrier := _body as CharacterBody3D
+	if carrier == null:
+		return Vector3.ZERO
+	return carrier.velocity.limit_length(max_release_speed)
 
 
 ## Where it is safe to let go: sweep from the last clear origin toward where the item actually

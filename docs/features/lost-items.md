@@ -111,15 +111,30 @@ They are only useful together. An earlier attempt at the sweep alone was a silen
 without `_push_out` the remembered origins track the item down into the floor, so the sweep is
 never blocked. `_push_out` is what makes "the last clear origin" mean anything.
 
-### Known, unfixed
+### The launch — the actual cause
 
-The minimal world showed the release velocity on a look-down throw is
-**(0, −6.1, +11.9)** — the item is *launched* at the `max_release_speed` cap, horizontally,
-back through the player. `_carry_velocity` is measured from the hold point's travel, and the
-hold point rides the camera: looking down swings it from 1.4m in front of you to under your
-feet, which is mostly horizontal motion straight at yourself. The item was never falling through
-the floor — it was being fired across the room.
+The minimal world showed the release velocity on a look-down throw was **(0, −6.1, +11.9)**. The
+item was never falling through the floor. It was being **launched** at the `max_release_speed`
+cap, horizontally, and whatever it hit decided where it ended up.
 
-Two changes fixed that in testing (lifting the player's collision exception *before* computing
-the release velocity, so the clip can see them; and projecting out any velocity component aimed
-at the player) but are **not** in the tree. `LostAndFound` catches the consequence.
+`_carry_velocity` was measured from the **hold point's** travel, and the hold point rides the
+camera. Looking down swings it from 1.4m in front of you to under your feet in a fraction of a
+second — mostly horizontal motion — so a flick of the mouse read as a fling.
+
+Two narrower fixes were tried and both failed, in the same instructive way:
+
+- **Sweeping the release direction** for geometry missed the player capsule entirely for narrow
+  props; the canister and the spare gear still left at 11.9 m/s.
+- **Projecting out the component aimed at the player** fixed those, but not the pickup crate or
+  the battery cube — they are too big to fit under the player, so the sweep slides them
+  *sideways* and that velocity points *away*, so nothing was projected out.
+
+Both were about geometry when the cause was that camera rotation was being read as throw speed.
+So it no longer is: release inherits the **carrier's** velocity (`Carry._release_velocity()`).
+Momentum still transfers — run and let go and the item keeps your speed — and the deliberate
+throw is the impulse, unchanged at 6.00 m/s forward. `_carry_velocity` is gone.
+
+Measured after: a look-down throw is `(0, −6.0, −0.10)` for every prop, and a plain drop is
+exactly zero. The downward component is left alone on purpose; the deck survives it, having
+taken 120 m/s slams without a loss. Mutation-tested by restoring `_carry_velocity` verbatim,
+which reproduces 11.89 m/s and fails the assertion.
