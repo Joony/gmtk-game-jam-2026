@@ -289,9 +289,12 @@ func _wire_room_voice() -> void:
 	add_child(_room_voice)
 	_room_voice.bind($Ship, _player)
 
-	var opening_fault := _opening_fault()
-	if opening_fault != null:
-		var room := ($Ship as RoomBuilder).room_at(opening_fault.global_position)
+	# Held onto, not just read: the same fault is what SILENCES the lesson when it is repaired,
+	# and re-scanning the group later would answer the question a second time in a place where
+	# a different answer would be a silent bug. See _on_any_repaired().
+	_tutorial_fault = _opening_fault()
+	if _tutorial_fault != null:
+		var room := ($Ship as RoomBuilder).room_at(_tutorial_fault.global_position)
 		if room != "":
 			_room_voice.lines[room] = TUTORIAL_LINE
 
@@ -312,6 +315,9 @@ func _opening_fault() -> Malfunction:
 	return null
 
 
+## The fault the tutorial line is about, so repairing THAT one can silence it. See
+## _wire_room_voice().
+var _tutorial_fault: Malfunction = null
 ## Latch for the return-to-cryo line, so it is said once and not on every repair.
 var _said_return_to_cryo: bool = false
 ## Set when a critical fault is properly fixed; spent on the next systems_changed, once the
@@ -327,6 +333,12 @@ var _critical_just_fixed: bool = false
 func _on_any_repaired(malfunction: Malfunction, _permanent: bool) -> void:
 	if malfunction.severity == Malfunction.Severity.CRITICAL:
 		_critical_just_fixed = true
+	# THE LESSON IS OVER once the thing it was teaching is done. The tutorial line explains how
+	# to repair the opening fault, and it is long enough that a player who walks in and fixes it
+	# briskly is still being told how while looking at the green light. A voice explaining a task
+	# that is finished sounds like a computer that has not noticed.
+	if malfunction != null and malfunction == _tutorial_fault:
+		Audio.stop_saying(TUTORIAL_LINE)
 
 
 ## Said only when the ship is genuinely clear — fixing one of three live criticals is not a
@@ -365,7 +377,14 @@ func _wire_audio() -> void:
 	_run.systems_changed.connect(_maybe_say_return_to_cryo)
 	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
 		(node as Malfunction).repaired.connect(_on_any_repaired)
-	_run.stasis_changed.connect(func(_in_stasis: bool) -> void: _update_ship_audio())
+	_run.stasis_changed.connect(func(in_stasis: bool) -> void:
+		# ...and the same for the OTHER instruction: "go back to cryo" is finished being useful
+		# the moment they do. Climbing in is a couple of seconds of pod animation, so a player
+		# who takes the advice promptly would otherwise lie there being told to do the thing
+		# they are already doing.
+		if in_stasis:
+			Audio.stop_saying(&"return_to_cryo")
+		_update_ship_audio())
 	_run.systems_changed.connect(_update_ship_audio)
 	_run.run_ended.connect(func(_won: bool, _summary: Dictionary) -> void: Audio.stop_all())
 	_run.oxygen_changed.connect(_on_oxygen_for_audio)

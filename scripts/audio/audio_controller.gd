@@ -341,6 +341,43 @@ func is_speaking() -> bool:
 	return _voice_player.playing or not _voice_queue.is_empty()
 
 
+## Which line is coming out of the speaker right now, or &"" for silence. Lets a caller ask
+## "are you still saying THAT?" without reaching into the player.
+func speaking_line() -> StringName:
+	return _speaking_line if _voice_player.playing else &""
+
+
+## Shut up about `line` specifically: stop it if it is playing, and drop it from the queue if
+## it is waiting. Anything else the computer had to say is left alone. Returns whether it found
+## anything to silence.
+##
+## FOR INSTRUCTIONS THAT HAVE BEEN OBEYED. The tutorial lines tell the player to do a thing —
+## fix this, go back to sleep — and both are long enough to outlast someone who acts promptly.
+## A voice still explaining a task that is finished is worse than no voice at all: the player
+## has moved on and the computer sounds like it has not noticed.
+##
+## Distinct from `say(interrupt: true)`, which clears the WHOLE queue for a line that makes
+## everything else wrong. This removes one line and leaves the rest intact, because a
+## klaxon-worthy announcement that happened to land behind the tutorial still needs saying.
+func stop_saying(line: StringName) -> bool:
+	var silenced := false
+	if _voice_player.playing and _speaking_line == line:
+		_voice_player.stop()
+		_speaking_line = &""
+		# Take the caption with it, or the last frame's text sits on screen until something
+		# else speaks — subtitles are driven off a playhead that has just gone away.
+		_update_subtitle()
+		silenced = true
+	var kept: Array[StringName] = []
+	for queued in _voice_queue:
+		if queued == line:
+			silenced = true
+		else:
+			kept.append(queued)
+	_voice_queue = kept
+	return silenced
+
+
 func _speak(line: StringName) -> void:
 	_voice_player.stream = _voices_by_name[line]
 	_voice_gap = VOICE_GAP
