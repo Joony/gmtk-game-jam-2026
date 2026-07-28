@@ -232,7 +232,11 @@ func start() -> void:
 	systems_changed.emit()
 	# A fault that starts broken never went through _on_broke, so the ship-wide red alert has
 	# to be brought up here or the run would open with a critical fault and white lighting.
-	_update_alert()
+	#
+	# IMMEDIATE, so the ship is already red on the first frame. Blended, it opened on the
+	# NORMAL defaults the rooms were built with and faded over 0.4s — a white ship turning red
+	# just after you wake, when the alarm is supposed to be the thing that woke you.
+	_update_alert(true)
 
 
 func _process(delta: float) -> void:
@@ -734,7 +738,7 @@ func _on_repaired(malfunction: Malfunction, permanent: bool) -> void:
 	systems_changed.emit()
 
 
-func _update_alert() -> void:
+func _update_alert(immediate: bool = false) -> void:
 	if _lighting == null:
 		return
 	var critical := false
@@ -742,7 +746,7 @@ func _update_alert() -> void:
 		if malfunction.is_critical():
 			critical = true
 			break
-	_lighting.set_alert(critical)
+	_lighting.set_alert(critical, immediate)
 
 
 func _end(won: bool) -> void:

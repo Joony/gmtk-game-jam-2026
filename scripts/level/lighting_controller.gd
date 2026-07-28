@@ -95,18 +95,36 @@ func bind_occupancy(builder: RoomBuilder, occupant: Node3D) -> void:
 	_last_cell = Vector2i(-99999, -99999)  # force a recompute on the next frame
 
 
-func set_mode(new_mode: Mode) -> void:
-	if new_mode == mode:
+## `immediate` skips the blend and lands on the mode this frame.
+##
+## For the OPENING. The run begins with a critical fault already broken, so the alert is raised
+## during RunState.start() — but a blended transition starts from the NORMAL defaults the rooms
+## were built with, so the first 0.4s of every session was a white ship fading to red. That
+## reads as the alarm going off just after you wake, when the fiction is that it woke you.
+##
+## Applied here rather than left to the next _process, so it holds even if something renders
+## before this node next ticks.
+func set_mode(new_mode: Mode, immediate: bool = false) -> void:
+	if new_mode == mode and not immediate:
 		return
-	_from = _current_values()
+	# `_from` FIRST: _current_values() interpolates toward `_to`, so assigning `_to` before
+	# reading it makes the blend start from the destination — every transition snaps.
+	if immediate:
+		_from = MODES[new_mode]
+		_blend = 1.0
+	else:
+		_from = _current_values()
+		_blend = 0.0
 	_to = MODES[new_mode]
-	_blend = 0.0
-	mode = new_mode
-	mode_changed.emit(mode)
+	if new_mode != mode:
+		mode = new_mode
+		mode_changed.emit(mode)
+	if immediate:
+		_apply(_current_values())
 
 
-func set_alert(on: bool) -> void:
-	set_mode(Mode.ALERT if on else Mode.NORMAL)
+func set_alert(on: bool, immediate: bool = false) -> void:
+	set_mode(Mode.ALERT if on else Mode.NORMAL, immediate)
 
 
 func is_alert() -> bool:

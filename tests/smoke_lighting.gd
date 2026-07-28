@@ -73,8 +73,18 @@ func _run() -> void:
 	# The ship starts with a critical fault already broken (DriveRegulator.starts_broken), so
 	# the alert lighting is up before the player is out of the pod — it is half of why they
 	# are being woken. This used to assert NORMAL here, back when the run began undamaged.
-	await _frames(30)
+	# ONE FRAME, not thirty. The mode being right eventually is not the point: the alert is
+	# raised with `immediate`, so the LIGHTS have to be red on the first frame the player could
+	# see. Blended, the run opened on the NORMAL defaults the rooms were built with and faded to
+	# red over transition_time — a white ship turning red just after you wake, when the alarm is
+	# meant to be what woke you.
+	await _frames(1)
 	_check("the run opens in ALERT", lighting.mode == LightingController.Mode.ALERT)
+	var opening_color := _average_light_color()
+	_check("...and the lights are ALREADY red, with no fade from white (%s)" % opening_color,
+		opening_color.r > 0.8 and opening_color.g < 0.4 and opening_color.b < 0.4)
+
+	await _frames(30)
 
 	# Clear it, and the ship goes back to white. Everything below is about the controller
 	# itself, which needs a neutral baseline to measure against.
