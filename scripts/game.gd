@@ -834,6 +834,16 @@ func _on_run_ended(won: bool, summary: Dictionary) -> void:
 	# processing. Both used to be shut down on this line, and both have to wait: pausing the
 	# tree freezes the collapse, and disabling the player stops CameraController — a child of
 	# it — which is the thing actually performing the fall.
+	# LET GO OF WHATEVER YOU WERE HOLDING. Carry authors the held item's transform from the hold
+	# point every render frame, and the hold point rides the camera — so an item still held when
+	# the player goes over would ride the collapse down with them, or worse, hang in mid-air once
+	# the player node stops processing. Either way it does not fall, which is the one thing a
+	# dropped object should do.
+	#
+	# BEFORE _set_player_active(false): a disabled player stops Carry processing too, and a drop
+	# from a stopped Carry never gets the frame it needs to hand the body back to physics.
+	if _carry != null and _carry.is_holding():
+		_carry.drop(false)
 	_set_player_active(false)
 	_camera.input_enabled = false
 

@@ -54,9 +54,29 @@ func _run() -> void:
 	var eye_before := camera.global_position.y
 	_check("the end screen is not up yet", not run_end.visible)
 
+	# DIE HOLDING SOMETHING. Carry authors a held item's transform from the hold point every
+	# render frame and the hold point rides the camera — so an item still held when the player
+	# goes over rides the collapse down with them, and then hangs in mid-air the moment the
+	# player node stops processing. It is the one object on screen that does not fall.
+	var carry: Carry = game.get_node("Player/Carry")
+	var node: Node = load("res://scenes/props/hammer.tscn").instantiate()
+	game.add_child(node)
+	var held := node as RigidBody3D
+	held.global_position = game._player.global_position + Vector3(0.0, 0.6, -1.0)
+	for i in 10:
+		await physics_frame
+	_check("the player can pick something up to die holding",
+		carry.grab(held as Node3D as Interactable))
+	for i in 30:
+		await process_frame
+	_check("...and is holding it when the run ends", carry.is_holding())
+	var held_at := held.global_position
+
 	# --- Out of air --------------------------------------------------------
 	run._end(false)
 	await process_frame
+
+	_check("dying drops what you were holding", not carry.is_holding())
 
 	# The two shutdowns that must NOT have happened yet. Either one on this frame and there is
 	# no collapse at all — the player simply cuts to a black screen.
@@ -78,6 +98,12 @@ func _run() -> void:
 		tilt_peak = maxf(tilt_peak, _tilt(camera))
 		lowest_eye = minf(lowest_eye, camera.global_position.y)
 	_check("the end screen comes up", run_end.visible)
+
+	# ...and it FELL, rather than riding the camera down or hanging where it was. Measured on
+	# the way through, because the tree is paused once the summary lands and nothing moves after.
+	_check("the dropped item fell instead of floating (%.2f -> %.2f)"
+		% [held_at.y, held.global_position.y],
+		is_instance_valid(held) and held.global_position.y < held_at.y - 0.1)
 
 	# `visible` goes true when the WIPE STARTS, not when the summary lands — fade_to_black()
 	# turns the layer on to show the black over the collapse, and show_result() only runs once
