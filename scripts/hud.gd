@@ -16,6 +16,18 @@ const COLOR_GOOD := Color(0.24, 0.90, 0.40)
 ## Below this fraction of cruise the arrival clock turns amber.
 const SPEED_WARN := 0.75
 
+## How fast the low-air vignette pulses, at the warning threshold and at empty. The rate itself
+## is the signal — it is what tells the player how bad it has got while they are looking at a
+## repair panel rather than at the gauge — so the RAMP matters more than either end.
+##
+## Slowed from 0.6..2.4. At 2.4 Hz the thing at the edge of vision read as a strobe rather than
+## as breathing, which is the wrong feeling for suffocating: panic, not dread. These sit close
+## to the breathing sound's own rate (AudioController paces breaths 3.4s apart down to 1.05s,
+## i.e. about 0.3 to 0.95 Hz), so the two escalate together and the pulse reads as a breath
+## rather than as an alarm lamp. Not synchronised to it — just the same register.
+const AIR_HZ_SLOW := 0.3
+const AIR_HZ_FAST := 1.0
+
 @onready var _oxygen_value: DigitReadout = %OxygenValue
 @onready var _oxygen_bar: ProgressBar = %OxygenBar
 @onready var _eta_value: DigitReadout = %EtaValue
@@ -28,6 +40,8 @@ const SPEED_WARN := 0.75
 
 var _run: RunState = null
 var _pulse: float = 0.0
+## Accumulated phase of the low-air vignette, in radians. See _update_air_pressure().
+var _air_phase: float = 0.0
 ## The system-list rows, paired with the fault each one describes, so a bleeding fault's line
 ## can be re-texted in place. Rebuilding the list every frame would mean a queue_free() and a
 ## fresh Label per fault per frame for a number that fits in the row already there.
@@ -81,7 +95,7 @@ func _process(delta: float) -> void:
 	if _run == null or not _run.running:
 		return
 	_pulse += delta
-	_update_air_pressure()
+	_update_air_pressure(delta)
 	# A critical fault bleeds speed continuously, so its line has to be RE-TEXTED every frame,
 	# not rebuilt on systems_changed like the list itself. Watching the number climb while you
 	# decide is the mechanic; a figure that only moved when something broke would tell the
@@ -112,15 +126,24 @@ func _process(delta: float) -> void:
 ## Red creep at the edges of the screen as the air runs out, faster the lower it gets.
 ## Cheap, and it works peripherally — the player feels it while looking at the panel they
 ## are repairing rather than at the gauge.
-func _update_air_pressure() -> void:
+func _update_air_pressure(delta: float) -> void:
 	var warn: float = _run.oxygen_warning
 	if warn <= 0.0 or _run.oxygen_remaining > warn or _run.finished:
 		_vignette.modulate.a = 0.0
+		# Reset, so every onset starts from the same point in the wave rather than from
+		# wherever the last one happened to stop.
+		_air_phase = 0.0
 		return
 	var severity := 1.0 - _run.oxygen_remaining / warn
-	# 0.6 Hz at the threshold rising to ~2.4 Hz at empty: the rate itself is the signal.
-	var hz := lerpf(0.6, 2.4, severity)
-	var throb := 0.5 + 0.5 * sin(TAU * hz * _pulse)
+	var hz := lerpf(AIR_HZ_SLOW, AIR_HZ_FAST, severity)
+	# PHASE IS ACCUMULATED, not computed from elapsed time. `sin(TAU * hz * _pulse)` looks
+	# equivalent and is not: `hz` rises as the air drains, so every change to it moves the whole
+	# phase term by TAU * delta_hz * _pulse. A few minutes in, `_pulse` is in the hundreds, so a
+	# hz change of 0.001 between two frames shifts the phase by about a third of a cycle. The
+	# vignette was not pulsing at whatever rate it claimed — it was jumping around the wave
+	# every frame, which is most of what read as flashing too fast.
+	_air_phase += TAU * hz * delta
+	var throb := 0.5 + 0.5 * sin(_air_phase)
 	_vignette.modulate.a = severity * (0.20 + 0.35 * throb)
 
 
