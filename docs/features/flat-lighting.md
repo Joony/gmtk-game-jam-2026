@@ -69,3 +69,38 @@ movement on the machine was rotating the camera. Script runs no longer capture t
 
 Still worth doing when a shot looks wrong: print the camera transform. The pose distinguishes a
 lighting problem from a camera-pointing-somewhere-else problem immediately.
+
+## The ship opens ON red alert (2026-07-28)
+
+The game loaded with white lighting and then went red — a visible flash of normal light before
+the alarm.
+
+**The alert was not being raised late.** `RunState.start()` has called `_update_alert()` for
+exactly this reason for a while, with a comment saying why: a fault that `starts_broken` never
+goes through `_on_broke`, so the ship-wide alert has to be brought up by hand. The mode was
+correct from frame zero.
+
+**The blend was the problem.** `set_mode()` starts the transition from `_current_values()`, which
+at startup is the NORMAL defaults the rooms were built with — so the first `transition_time`
+(0.4s) of every session was a white ship fading to red. That reads as the alarm going off just
+after you wake, when the fiction is that the alarm is what woke you.
+
+(No `Tween` is involved anywhere here, which is worth saying because it is the first thing anyone
+will look for. `LightingController` blends manually in `_process` against `transition_time`.)
+
+`set_mode()` and `set_alert()` take an optional `immediate`: it snaps `_from` to the destination,
+sets `_blend = 1.0`, and calls `_apply()` on the spot rather than waiting for the next `_process`,
+so it holds even if something renders before this node next ticks. `RunState.start()` passes it.
+Every other transition — breaking a fault, repairing the last one — still blends as before.
+
+### Two things worth keeping
+
+**`_from` must be computed before `_to` is assigned.** The first version of this set `_to` first,
+and `_current_values()` interpolates *toward* `_to` — so every blend began at its own destination
+and snapped instantly. `smoke_lighting`'s existing "transition does not snap" check caught it on
+the first run.
+
+**The opening assertion now runs at ONE frame and checks the light colour**, not thirty frames and
+the mode. The old version waited out the fade and only asked which mode the controller was in, so
+it would have passed for as long as this bug existed. Mutation-tested: with `immediate` removed
+the first frame is `(0.96, 0.74, 0.76)` — pale pink, caught mid-fade.
