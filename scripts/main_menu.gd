@@ -1,10 +1,10 @@
 extends Control
 
-# The first thing the game shows now: a bare black title screen. Start goes to the intro
-# video (which then fades into the game); the old flow launched straight into the intro and
-# skipped the menu entirely.
+# The first thing the game shows now: a bare black title screen. Start goes to a black loading
+# beat (which warms the game's shaders and then plays the intro video); the old flow launched
+# straight into the intro and skipped the menu entirely.
 
-const INTRO_SCENE := "res://scenes/intro.tscn"
+const LOADING_SCENE := "res://scenes/loading.tscn"
 
 
 func _ready() -> void:
@@ -17,7 +17,7 @@ func _ready() -> void:
 
 func _on_play_button_pressed() -> void:
 	Audio.play(&"click")
-	SceneManager.change_scene(INTRO_SCENE)
+	SceneManager.change_scene(LOADING_SCENE)
 
 
 func _on_quit_button_pressed() -> void:

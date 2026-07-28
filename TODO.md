@@ -2144,3 +2144,36 @@ oxygen — one lost under a doorway can make a run unwinnable with no feedback a
 guard deliberately broken, because the net was rescuing the props behind it. The carry section
 now switches the net off for its duration. Two defences are only two defences if each is proved
 on its own.
+
+## 23. ✅ The first-turn frame drop and the two-second cut — done ([log](docs/features/shader-prewarm.md))
+
+Reported as "turn around when the game first loads and the fps tanks for a second". **Not the
+lights**, which was the obvious suspect at 93 fixtures — hiding all 55 omnis, the starfield, the
+imported props, or the entire built ship each leaves the spike intact, and it never recurs on a
+second sweep of the same angles. It is shader-variant compilation on first draw, which under GL
+Compatibility happens on the main thread, and whatever is left in view pays it.
+
+- [x] **`ShaderPrewarm`** draws 12 yaws × 2 pitches into a 320×180 off-screen `SubViewport`
+      sharing the real `World3D`, one angle per frame, fired un-awaited from `game.gd::_ready()`
+      so its 24 frames land inside `OPENING_STASIS_TIME`
+- [x] **A black loading beat** (`scenes/loading.tscn`) between the menu and the intro builds a
+      whole copy of `game.tscn`, draws it and bins it — ~1.45s of the 2.1s first draw is variant
+      compilation the RenderingServer caches for the whole *process*, so a throwaway copy pays it
+- [x] **`warm_only` metadata gate** in `game.gd`, immediately before `start_game()`: builds the
+      ship, starts no run
+- [x] **`SceneManager.pin()`** holds the `PackedScene`, so binning the warm copy does not drop
+      the last reference to every mesh it was holding — worth 1012ms → 507ms on its own
+- [x] **`SceneManager.is_changing()`**, because a `change_scene()` made during a `change_scene()`
+      is silently dropped
+- [x] Four probes: `probe_turn_hitch`, `probe_opening_frames`, `probe_warm_reuse`,
+      `probe_boot_warm`. Dev utilities like `capture_*`, not in `run_tests.sh`; all need a real
+      display
+
+Measured on an M1 Max at 1280×720: first turn **171ms → 0 spikes** (worst frame 12.5ms), cut into
+the game **2201ms → 507ms**. The residual ~500ms is per-instance GPU upload of RoomBuilder's
+procedural boxes; only keeping a live warmed instance would remove it, and that was judged not
+worth a `change_scene_to_instance` path plus a reset story for replay.
+
+**The gotcha worth keeping:** the warm copy is a second `Player` in the tree, and
+`smoke_full_loop` rightly failed on it. It now warms once per process, is skipped entirely under
+the headless display server, and runs `PROCESS_MODE_DISABLED` — drawn but inert.

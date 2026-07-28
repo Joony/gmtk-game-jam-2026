@@ -172,6 +172,15 @@ func _ready() -> void:
 	_player_max_speed = _player.max_speed
 	_run.needs_changed.connect(_apply_need_penalties)
 
+	# A WARM instance stops here. Everything above has built the ship, which is all the renderer
+	# needs to compile its shader variants; everything below would start an actual run — the
+	# countdown, the audio, the mouse capture. Set as metadata before add_child() rather than as
+	# an export or a static, so it arrives in time for this _ready() and cannot outlive the one
+	# instance it was meant for. See main_menu.gd for why the menu builds one of these.
+	if get_meta(&"warm_only", false):
+		_start_prewarm()
+		return
+
 	# The game starts itself the moment the scene loads: the intro video already gated the
 	# launch, so a second "press START" screen in here was just a redundant click. On desktop
 	# the mouse captures immediately. On web, pointer lock needs a user gesture — if the
@@ -183,10 +192,20 @@ func _ready() -> void:
 	_wake_from_opening_stasis()
 	# Started here and NOT awaited, so it overlaps that opening stasis beat — the one stretch
 	# of the run where the player is sat still with nothing to do, which is precisely what
-	# makes it the place to spend a few hundred milliseconds of shader compilation. Position
-	# comes from the player rather than the camera rig: the rig is `top_level` and rewrites its
-	# transform in _process, so at _ready it has not been anywhere yet.
-	pass  # prewarm disabled for A/B
+	# makes it the place to spend a few hundred milliseconds of shader compilation.
+	_start_prewarm()
+
+
+## Draw the surroundings off-screen from every angle, so the renderer compiles the shader
+## variants now instead of on the player's first look around. Fire and forget — see
+## ShaderPrewarm for the measurements. Position comes from the player rather than the camera
+## rig: the rig is `top_level` and rewrites its transform in _process, so at _ready it has not
+## been anywhere yet.
+func _start_prewarm() -> void:
+	var prewarm := ShaderPrewarm.new()
+	add_child(prewarm)
+	prewarm.run(_player.global_position + Vector3(0.0, 1.5, 0.0),
+		(_camera.get_node("Camera3D") as Camera3D).fov)
 
 
 ## An unmet need slows you down. Applied here rather than in RunState, which deliberately knows

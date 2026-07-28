@@ -5,6 +5,12 @@ const FADE_DURATION := 0.3
 
 var _fade_rect: ColorRect
 var _changing := false
+## Scenes deliberately held in memory. A PackedScene owns references to every mesh and texture
+## it pulls in, and those carry their GPU uploads with them — so dropping the last reference and
+## loading the scene again re-imports and re-uploads the lot. Measured on the menu's shader warm
+## (main_menu.gd): binning the warm copy without pinning left the real load paying 1012ms on its
+## first drawn frame, against 510ms with it pinned. See tests/probe_boot_warm.gd.
+var _pinned: Array[PackedScene] = []
 
 
 func _ready() -> void:
@@ -18,6 +24,23 @@ func _ready() -> void:
 	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(_fade_rect)
+
+
+## True while a change_scene() is still running. A second call made during one is DROPPED, so
+## anything that chains a change off the back of its own _ready() has to wait this out first —
+## see loading.gd.
+func is_changing() -> bool:
+	return _changing
+
+
+## Load a scene and keep it loaded for the rest of the process, returning it ready to
+## instantiate. For scenes that are about to be thrown away and loaded again shortly after —
+## see _pinned and main_menu.gd's shader warm.
+func pin(path: String) -> PackedScene:
+	var packed: PackedScene = load(path)
+	if packed != null and not _pinned.has(packed):
+		_pinned.append(packed)
+	return packed
 
 
 ## Change scene, black-fading out and back in.
