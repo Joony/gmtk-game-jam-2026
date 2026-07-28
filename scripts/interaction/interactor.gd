@@ -18,6 +18,18 @@ signal focus_changed(interactable: Interactable, prompt: String, actionable: boo
 @export var body_path: NodePath = NodePath("..")
 @export var ray_length: float = 2.5
 
+## The forgiveness cone, in degrees off dead centre, walked inside-out. Only consulted when the
+## centre ray finds nothing usable — see cast_from().
+##
+## 1.6 and 3.2 degrees is about 6cm and 11cm of slack at the two metres you actually stand at,
+## which is roughly "the reticle is touching it" rather than "the reticle is near it". Wide
+## enough to fix a hammer lying end-on, narrow enough that it never picks a thing you were not
+## looking at: a second ring at 6 degrees started answering for props a clear hand's width away.
+const CONE_RINGS := [1.6, 3.2]
+## Rays per ring. Eight is one every 45 degrees around the circle, which is dense enough that a
+## sliver of hammer cannot fall between two of them at these radii.
+const CONE_RAYS := 8
+
 @onready var _cam: Camera3D = get_node_or_null(camera_path)
 @onready var _carry: Carry = get_node_or_null(carry_path)
 @onready var _body: PhysicsBody3D = get_node_or_null(body_path)
@@ -63,15 +75,41 @@ func _physics_process(_delta: float) -> void:
 func _cast() -> Interactable:
 	if _cam == null:
 		return null
+	return cast_from(_cam.global_position, -_cam.global_transform.basis.z)
+
+
+## The aim, as a function of where you are and where you are looking. Public and parameterised
+## so a test can sweep it without standing a real camera up — see tests/diag_aim.gd.
+##
+## DEAD CENTRE FIRST, then a thin cone. The centre ray is the reticle's promise — "you act on
+## whatever the dot covers" — and it still wins outright whenever it finds anything, so precise
+## aim is never overruled by something merely near the dot. The cone only runs when the centre
+## ray came back with nothing usable, which is exactly the case where the player currently gets
+## no prompt at all.
+##
+## A CONE OF RAYS rather than a swept sphere or a nearest-within-an-angle search, and the reason
+## is occlusion: every ray in the cone still stops at the first thing it hits, so a ray that
+## meets a wall returns the wall and contributes nothing. You cannot reach through geometry or
+## around a crate. A swept sphere leaks past both and would need guarding against it.
+##
+## Measured in tests/diag_aim.gd. Over a 12-degree aim window, a hammer on the floor answers
+## 37%..82% of directions depending which way it landed — the L-shape means its silhouette
+## genuinely changes by more than double — and the small spares are far worse, from 9% to 30%.
+##
+## WHAT THE CONE ACTUALLY BUYS, since it is less than it sounds: the small spares roughly DOUBLE
+## their hit area (gear 9%->20%, screw 19%->35%), and the hammer gains about a degree — it goes
+## from failing at 7 degrees off to succeeding there. The big props were already fine and are
+## unaffected.
+##
+## AND THE KNOWN COST. Aim far enough off and the cone can answer with a DIFFERENT nearby prop:
+## rays in a ring all share an angle, so ties break on distance-to-camera, and a neighbour closer
+## to you beats the thing you were pointing at. Measured in a cargo bay, aiming 8 degrees off a
+## hammer returns a canister a hand's width away. It is bounded by the ring radius, so CONE_RINGS
+## is the knob — a single 1.6-degree ring nearly removes it and keeps most of the spare-part win.
+func cast_from(from: Vector3, forward: Vector3) -> Interactable:
 	var space := get_world_3d().direct_space_state
 	if space == null:
 		return null
-
-	var from := _cam.global_position
-	var to := from + (-_cam.global_transform.basis.z * ray_length)
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collide_with_areas = true
-
 	var exclude: Array[RID] = []
 	if _body != null:
 		exclude.append(_body.get_rid())
@@ -80,18 +118,62 @@ func _cast() -> Interactable:
 		var held := _carry.held_item() as CollisionObject3D
 		if held != null:
 			exclude.append(held.get_rid())
-	query.exclude = exclude
 
+	var aim := forward.normalized()
+	var found := _probe(space, from, aim, exclude)
+	if found != null:
+		return found
+
+	# The cone. Rings are walked from the inside out and the first ring to find anything wins,
+	# so a near miss is preferred to a wide one; within a ring the NEAREST hit wins, so two
+	# things beside the reticle resolve to the closer.
+	var right := aim.cross(Vector3.UP)
+	if right.length_squared() < 0.0001:
+		# Looking straight up or down — any perpendicular will do, and the ship's forward axis
+		# is as good as anything.
+		right = aim.cross(Vector3.FORWARD)
+	right = right.normalized()
+	var up := right.cross(aim).normalized()
+
+	for degrees in CONE_RINGS:
+		var spread := tan(deg_to_rad(degrees))
+		var best: Interactable = null
+		var best_distance := INF
+		for i in CONE_RAYS:
+			var theta := TAU * float(i) / float(CONE_RAYS)
+			var offset := right * (cos(theta) * spread) + up * (sin(theta) * spread)
+			var probe := (aim + offset).normalized()
+			var distance := [INF]
+			var candidate := _probe(space, from, probe, exclude, distance)
+			if candidate != null and distance[0] < best_distance:
+				best = candidate
+				best_distance = distance[0]
+		if best != null:
+			return best
+	return null
+
+
+## One ray. Returns the interactable it lands on, or null — including when it hits something
+## that simply is not one, which is the case the cone above exists to rescue.
+##
+## `out_distance`, when given, receives how far away the hit was, so the caller can prefer the
+## nearest of several cone hits.
+func _probe(space: PhysicsDirectSpaceState3D, from: Vector3, direction: Vector3,
+		exclude: Array[RID], out_distance: Array = []) -> Interactable:
+	var query := PhysicsRayQueryParameters3D.create(from, from + direction * ray_length)
+	query.collide_with_areas = true
+	query.exclude = exclude
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return null
-
 	var found := find_interactable_in_hierarchy(resolve_hit(hit))
 	if found == null:
 		return null
 	var held_item := _carry.held_item() if _carry != null else null
 	if not found.can_interact(held_item):
 		return null
+	if not out_distance.is_empty():
+		out_distance[0] = from.distance_to(hit.get("position", from))
 	return found
 
 
