@@ -245,7 +245,17 @@ func _run() -> void:
 	# covers the actual repair route the game ships.
 	var fault: Malfunction = _game.get_node("MainDrive")
 	var panel: RepairPoint = fault.get_node("RepairPanel")
-	var part: Node3D = _game.get_node("SparePart1")
+	# Taken from the supplies rather than by node path: the spares are a TABLE now (TODO 21d,
+	# ShipSupplies.SPARES) and are spawned into the hold at runtime, so there is no `SparePart1`
+	# in the scene file to reach for. Asserted rather than assumed — a null here used to abort
+	# the coroutine, which means quit() never runs and the whole suite reads as a hang instead
+	# of as one missing prop.
+	var supplies: ShipSupplies = _game.get_node("Supplies")
+	var spares := supplies.spares()
+	_check("the hold has a spare part to fit (%d)" % spares.size(), not spares.is_empty())
+	if spares.is_empty():
+		return _finish()
+	var part: Node3D = spares[0]
 
 	# A healthy system's panel is invisible to the ray — otherwise every panel on the
 	# ship would offer a prompt for a problem the player does not have.
@@ -353,6 +363,10 @@ func _run() -> void:
 	await _frames(4)
 	_check("and is removed from the world", not is_instance_valid(part))
 
+	_finish()
+
+
+func _finish() -> void:
 	if _failures.is_empty():
 		print("INTERACTION TEST PASS")
 		quit(0)

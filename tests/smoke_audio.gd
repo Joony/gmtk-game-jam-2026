@@ -419,7 +419,12 @@ class _Runner:
 		# 3. A degrading fault must not start it — only CRITICAL ones.
 		drive.repair(true, run.distance_remaining)
 		await suite.process_frame
+		# Demoted here rather than found in the scene: every fault the ship ships with is CRITICAL
+		# now (TODO 21b), so there is no degrading one to borrow. What is under test is the
+		# CONTROLLER — that it reads severity rather than just "something broke" — and that stays
+		# true whatever the balance table happens to say this week.
 		var scrubber: Malfunction = game.get_node("O2Scrubber")
+		scrubber.severity = Malfunction.Severity.DEGRADING
 		suite.check(scrubber.severity == Malfunction.Severity.DEGRADING,
 			"the scrubber is a DEGRADING fault")
 		scrubber.break_now()

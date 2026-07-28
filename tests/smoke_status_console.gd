@@ -109,7 +109,7 @@ func _test_placement() -> void:
 			ShipPlan.has_node(room))
 
 	var silos := get_nodes_in_group(Silo.GROUP_SILO)
-	_check("the ship has silos to place (%d)" % silos.size(), silos.size() >= 4)
+	_check("the ship has silos to place (%d)" % silos.size(), silos.size() >= 3)
 	for node in silos:
 		var silo := node as Silo
 		if silo == null:
@@ -119,6 +119,20 @@ func _test_placement() -> void:
 			room != "")
 		_check("%s is in a room the map can draw (%s)" % [silo.display_name, room],
 			ShipPlan.has_node(room))
+
+	# The three socketed tanks are NOT silos (TODO 21e) — they hold a canister rather than a
+	# level, so they are outside the group above and the count dropped from four to three when
+	# they converted. They are still props that can be spawned a metre outside the hull, which
+	# is the whole point of this section, so they are swept here rather than left uncovered.
+	var supplies: ShipSupplies = _game.get_node("Supplies")
+	var tanks := supplies.tanks()
+	_check("the ship has canister tanks to place (%d)" % tanks.size(), tanks.size() >= 3)
+	for tank in tanks:
+		var tank_room := _ship.room_at(tank.global_position)
+		_check("the %s tank is in a room (%s at %v)"
+			% [tank.silo_id, tank_room, tank.global_position], tank_room != "")
+		_check("the %s tank is in a room the map can draw (%s)" % [tank.silo_id, tank_room],
+			ShipPlan.has_node(tank_room))
 
 
 # --- faults ------------------------------------------------------------------
@@ -182,21 +196,25 @@ func _test_faults() -> void:
 # --- silos and needs ---------------------------------------------------------
 
 func _test_silos_and_needs() -> void:
-	var life := _run.silo_by_id(&"life_support")
-	_check("the life support silo exists", life != null)
-	if life == null:
+	# Run on the VENDING MACHINE and HUNGER rather than the life-support tank and CO2 (TODO 21e):
+	# the tank holds a canister you can see now, not a 0..1 level, so it is a CanisterSilo and
+	# not in the silo group at all — and CO2 is parked until it gets a tank of its own (21f).
+	# Hunger over the food silo is the same shape: one need, one silo, one room.
+	var food := _run.silo_by_id(&"food")
+	_check("the food silo exists", food != null)
+	if food == null:
 		return
-	var room := _ship.room_at(life.global_position)
+	var room := _ship.room_at(food.global_position)
 
-	_check("a full tank is not pressing", not life.is_pressing())
+	_check("a stocked machine is not pressing", not food.is_pressing())
 	_check("...and has no blob", _warnings_for(room).is_empty())
 
 	# Drain it past its warning line.
-	while not life.is_exhausted():
-		life.use()
+	while not food.is_exhausted():
+		food.use()
 	await _settle()
 	var warnings := _warnings_for(room)
-	_check("an empty tank makes one warning blob in its own room (%d)" % warnings.size(),
+	_check("an empty machine makes one warning blob in its own room (%d)" % warnings.size(),
 		warnings.size() == 1)
 	if warnings.size() == 1:
 		_check("...and it is a WARNING, not a fault",
@@ -204,35 +222,35 @@ func _test_silos_and_needs() -> void:
 		_check("...pulsing at the top of the range (%.2f)" % float(warnings[0]["urgency"]),
 			absf(float(warnings[0]["urgency"]) - 1.0) < 0.001)
 
-	# THE MERGE. The CO2 clock is cleared at this same tank, so a pressing need and a pressing
-	# silo are ONE errand — one walk, one canister — and must be ONE blob. Two would say there
-	# were two places to go.
-	var co2 := _run.need_by_id(&"co2")
-	_check("the CO2 need exists", co2 != null)
-	if co2 != null:
-		co2.start()
+	# THE MERGE. Hunger is cleared at this same machine, so a pressing need and a pressing silo
+	# are ONE errand — one walk, one crate — and must be ONE blob. Two would say there were two
+	# places to go.
+	var hunger := _run.need_by_id(&"hunger")
+	_check("the hunger need exists", hunger != null)
+	if hunger != null:
+		hunger.start()
 		# Past its warning line, so it earns a row of its own on the HUD.
-		co2.advance(co2.seconds * (1.0 - co2.warn_at) + 1.0)
-		_check("the CO2 need is pressing", co2.is_pressing())
-		_check("and the tank still is", life.is_pressing())
+		hunger.advance(hunger.seconds * (1.0 - hunger.warn_at) + 1.0)
+		_check("the hunger need is pressing", hunger.is_pressing())
+		_check("and the machine still is", food.is_pressing())
 		await _settle()
 		warnings = _warnings_for(room)
-		_check("a need and its own tank are ONE blob, not two (%d)" % warnings.size(),
+		_check("a need and its own silo are ONE blob, not two (%d)" % warnings.size(),
 			warnings.size() == 1)
 
-		# ...and the need alone still puts a blob on the tank's room, because the tank is where
-		# you have to walk even when the tank itself is fine.
-		var canister := Consumable.new()
-		canister.kind = &"o2"
-		canister.amount = 1.0
-		_game.add_child(canister)
-		life.service(canister)
+		# ...and the need alone still puts a blob on the silo's room, because the silo is where
+		# you have to walk even when the silo itself is fine.
+		var crate := Consumable.new()
+		crate.kind = &"food"
+		crate.amount = 1.0
+		_game.add_child(crate)
+		food.service(crate)
 		await _settle()
-		_check("refilling the tank leaves the need's own blob behind (%d)"
+		_check("restocking leaves the need's own blob behind (%d)"
 			% _warnings_for(room).size(), _warnings_for(room).size() == 1)
-		_check("the tank itself is no longer pressing", not life.is_pressing())
-		co2.stop()
-		canister.queue_free()
+		_check("the machine itself is no longer pressing", not food.is_pressing())
+		hunger.stop()
+		crate.queue_free()
 
 	await _settle()
 

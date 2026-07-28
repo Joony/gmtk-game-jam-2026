@@ -15,8 +15,14 @@
 #   tools/run_tests.sh run_state    # run only suites whose name contains "run_state"
 #   GODOT=/path/to/godot tools/run_tests.sh
 #   REIMPORT=1 tools/run_tests.sh   # (re)import assets first — needed after adding art/audio
+#   SUITE_TIMEOUT=300 tools/run_tests.sh   # seconds before a suite is declared HUNG (default 140)
 
 set -uo pipefail
+
+# Longest any one suite may run before it is killed and reported as HUNG. The slowest honest
+# suite is smoke_full_loop at well under a minute, so this is generous without letting a wedged
+# tree eat the run.
+SUITE_TIMEOUT="${SUITE_TIMEOUT:-140}"
 
 # --- locate Godot ---
 GODOT="${GODOT:-}"
@@ -59,11 +65,33 @@ failed_names=()
 
 for suite in "${suites[@]}"; do
 	name="$(basename "$suite" .gd)"
-	out="$("$GODOT" --headless -s "$suite" 2>&1)"
+
+	# HARD WALL-CLOCK KILL. A suite's own create_timer() watchdog only fires if the suite gets
+	# far enough to arm it and the tree keeps ticking — and a SCRIPT ERROR aborts the _run()
+	# coroutine, so quit() is never reached and the SceneTree spins forever. Without this the
+	# whole run hangs on the first such suite and the report is "the test suite times out",
+	# which names nothing. macOS ships no coreutils `timeout`, hence the manual watchdog.
+	log="$(mktemp)"
+	"$GODOT" --headless -s "$suite" >"$log" 2>&1 &
+	pid=$!
+	hung=0
+	for ((t = 0; t < SUITE_TIMEOUT; t++)); do
+		kill -0 "$pid" 2>/dev/null || break
+		sleep 1
+	done
+	if kill -0 "$pid" 2>/dev/null; then
+		kill -9 "$pid" 2>/dev/null
+		hung=1
+	fi
+	wait "$pid" 2>/dev/null
 	code=$?
+	out="$(cat "$log")"
+	rm -f "$log"
 
 	reason=""
-	if [[ $code -ne 0 ]]; then
+	if [[ $hung -eq 1 ]]; then
+		reason="HUNG — killed after ${SUITE_TIMEOUT}s"
+	elif [[ $code -ne 0 ]]; then
 		reason="exit $code"
 	elif grep -q "Parse Error" <<<"$out"; then
 		reason="PARSE ERROR (would have exited 0!)"

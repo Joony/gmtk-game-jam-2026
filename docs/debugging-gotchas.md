@@ -393,6 +393,35 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
 
 ---
 
+## Web / browser
+
+### Pointer lock is asynchronous, and the browser can take it back
+
+- **`Input.set_mouse_mode(CAPTURED)` on web only ASKS.** `mouse_get_mode()` is derived, not
+  stored — it reports whatever `document.pointerLockElement` currently says. So
+  `is_captured()` on the line after `capture()` reads **false even on success**, and any
+  watchdog for a lost cursor needs a settle window (see `MouseCapture.SETTLE_MS`).
+- **The browser changes the game's mouse mode without the game doing anything.** Losing tab
+  focus, a click off the canvas, or the browser's own Esc drops the lock; from the game's side
+  the mode simply becomes `VISIBLE`. Nothing is notified.
+- **It cannot be taken back from `_process`.** Browsers only grant pointer lock inside a user
+  gesture, and Chrome additionally blocks re-locking for ~1.25 s after an Esc unlock. Retrying
+  every frame just fills the console with security errors. Put a **button** on screen and let
+  the click buy it back — that is what the pause menu's lost-cursor path does
+  ([mouse-recapture-on-web.md](features/mouse-recapture-on-web.md)).
+
+### The automated browser pane cannot run the web build at all
+
+The preview pane serves the page with `document.visibilityState === "hidden"`, and browsers
+**suspend `requestAnimationFrame` for hidden documents** — which is Godot's main loop. The
+build loads and paints its first frame (so a screenshot looks fine and can fool you), then
+freezes: clicks land on a game that never advances, and `javascript_tool` promises that wait on
+a frame time out. Pointer lock is refused outright there too (`WrongDocumentError`). **Anything
+that needs the web build to actually run has to be checked in a real browser tab** — serve
+`build/web` with `.claude/launch.json` (port 8099) and open it by hand.
+
+---
+
 ## Tooling & environment
 
 - **Working-directory drift.** `godot --path .` targets whatever the shell's cwd is; a
@@ -454,3 +483,17 @@ Three separate silent no-ops, all hit while building the vent-pipe steam:
   was deliberately re-broken to confirm the test goes red (the pod-refill rule, patch expiry,
   the instant-alarm switch, the missing-sound guard). A green test that cannot fail is not
   evidence.
+- **A SCRIPT ERROR in a suite reads as "the whole test run hangs", and names nothing.** A
+  runtime error aborts the `_run()` coroutine, so `quit()` is never reached and the SceneTree
+  spins forever — and `tools/run_tests.sh` waited on it, so one stale node path took the entire
+  run down with no output at all. 2026-07-28: `smoke_interaction` fetched `SparePart1` (spares
+  are a table in `ShipSupplies` now) and `smoke_main_menu` did `var title: Label = ...` at a
+  node that had become a `TextureRect`. Both are one-line scene drifts; both presented as an
+  infinite hang. Two defences, both now in place: the runner kills any suite past
+  `SUITE_TIMEOUT` and reports it as `HUNG`, and a suite that looks a prop up by name should
+  `_check()` it and bail through `_finish()` rather than dereference a null.
+- **When a test hard-codes a node path into `game.tscn`, it is a countdown to a hang.** The
+  same drift hit four suites at once: spare parts, the O2/beer/septic tanks (now `CanisterSilo`,
+  so absent from the silo group), the menu title, and the CO2 need. Prefer the accessor that
+  owns the thing — `supplies.spares()`, `supplies.tanks()`, `run.silo_by_id()` — over
+  `get_node("SparePart1")`.

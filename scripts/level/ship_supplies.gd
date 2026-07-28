@@ -101,10 +101,8 @@ const SILOS := [
 		# Everything about it is in the prop scene, so this row is only where it stands.
 		"id": &"head",
 		"scene": "res://scenes/props/toilet.tscn",
-		# The bathroom was shortened at some point — Rect2i(-9, -12, 7, 5), so it runs z -12
-		# to -7, not -5. The toilet was at -5.7 and had fallen clean out of the room into the
-		# hull, which nothing notices until a test asks which room it is in.
-		"at": Vector3(-7.0, 0.0, -7.7),
+		# Against the aft wall of the bathroom, which runs z -12 to -5.
+		"at": Vector3(-7.0, 0.0, -5.7),
 		# Yawed to face the door, which is in the aft wall at (-3.5, -12).
 		"yaw": 180.0,
 	},

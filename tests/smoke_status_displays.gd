@@ -289,7 +289,6 @@ func _test_prompts() -> void:
 	# fails it never becomes the focus at all — there is no prompt to suppress separately and no
 	# half-lit reticle over it.
 	_check("the nav plot cannot be leaned into", not _console.lean_in)
-	_check("...which is what takes it out of the interaction ray", not _console.is_enabled)
 	_check("the deck plan still can be", _bridge.lean_in and _bridge.is_enabled)
 	_check("and its prompt names what is on it (%s)" % _bridge.get_interaction_text(),
 		_bridge.get_interaction_text().to_lower().contains("deck plan"))
@@ -320,6 +319,11 @@ func _test_prompts() -> void:
 	fault.repair(true, run.distance_remaining)
 	await _frames(2)
 	_check("a healthy nav plot refuses to be interacted with", not _console.can_interact(null))
+	# ...and it is `is_enabled` that does it: Interactor._cast() tests that before anything else,
+	# so a screen failing it never becomes the focus at all — no prompt to suppress separately and
+	# no half-lit reticle over it. Asserted HERE rather than up with `lean_in`, because a broken
+	# console overrides `is_enabled` back to true so it can still be repaired.
+	_check("...which is what takes it out of the interaction ray", not _console.is_enabled)
 	_check("the deck plan always accepts it", _bridge.can_interact(null))
 
 	# ...and then proved through the REAL ray, because "never becomes the focus" is a property of

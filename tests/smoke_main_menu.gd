@@ -37,9 +37,22 @@ func _run() -> void:
 	elif play.text.strip_edges() == "":
 		_failures.append("PlayButton has no label")
 
-	var title: Label = menu.get_node_or_null("Center/VBox/Title")
-	if title == null or title.text.strip_edges() == "":
-		_failures.append("main menu has no title text")
+	# The title is ARTWORK now, not text — so this asks the question that survives that change:
+	# is there something in the title slot with anything in it? Typed as Control rather than
+	# Label deliberately; the old `var title: Label = ...` threw on assignment the moment the
+	# node became a TextureRect, and a throw here aborts the coroutine before quit(), so a
+	# one-line scene change reported as the whole suite hanging.
+	var title: Control = menu.get_node_or_null("Center/VBox/Title")
+	if title == null:
+		_failures.append("main menu has no title")
+	elif title is TextureRect:
+		if (title as TextureRect).texture == null:
+			_failures.append("the main menu title art has no texture")
+	elif title is Label:
+		if (title as Label).text.strip_edges() == "":
+			_failures.append("main menu has no title text")
+	else:
+		_failures.append("the main menu title is a %s, which shows nothing" % title.get_class())
 
 	# Keyboard/gamepad navigation needs an initial focus.
 	if play != null and not play.has_focus():
