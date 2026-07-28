@@ -118,13 +118,17 @@ func drop(throw_it: bool = false) -> void:
 	# thin-floor problem — the same suite slams these props into the deck at 120 m/s without a
 	# single loss, because `continuous_cd` is on.
 	#
-	# It gets embedded in the first place because _clamp_to_walls sweeps TRANSLATION only: the
-	# basis is written straight onto the body, so a long prop yawing with the view near a corner
-	# can rotate itself into geometry, and the slide loop gives up after four iterations
-	# regardless. Rather than trying to make that sweep exhaustive, back the item up to the last
-	# pose we know was clear.
-	if _is_embedded(item, item.global_transform):
-		item.global_transform = Transform3D(item.global_transform.basis, _last_free_origin)
+	# It gets there because _clamp_to_walls sweeps TRANSLATION only: the basis is written straight
+	# onto the body, so rotation can put the shape where the origin's path never went.
+	#
+	# Released by SWEEP rather than by asking "am I embedded". That question was put to
+	# test_move(..., recovery_as_collision), and it answers `true` for a body resting normally on
+	# the floor — so the old guard fired on almost every drop and silently teleported the item to
+	# wherever it last hung clear of the deck, about chest height in front of the player. That
+	# relocation was visible in play and was never the loss it was written to prevent.
+	item.global_transform = Transform3D(
+		item.global_transform.basis,
+		_safe_release_origin(item, item.global_transform))
 	# Unfreeze BEFORE setting velocity — a frozen body ignores it.
 	item.freeze = false
 	item.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
@@ -156,7 +160,8 @@ func _process(delta: float) -> void:
 	if _pickup_t < 1.0:
 		_pickup_t = minf(_pickup_t + delta / pickup_smooth_time, 1.0)
 		var eased := pickup_blend(_pickup_from, goal, _pickup_t)
-		var fly_origin := _clamp_to_walls(_prev_origin, eased.origin, eased.basis)
+		var fly_origin := _push_out(eased.basis,
+			_clamp_to_walls(_prev_origin, eased.origin, eased.basis))
 		_held.global_transform = Transform3D(eased.basis, fly_origin)
 		_prev_origin = fly_origin
 		_remember_if_free(Transform3D(eased.basis, fly_origin))
@@ -170,7 +175,8 @@ func _process(delta: float) -> void:
 		return
 	_break_timer = 0.0
 
-	var clamped := _clamp_to_walls(_prev_origin, goal.origin, goal.basis)
+	var clamped := _push_out(goal.basis,
+		_clamp_to_walls(_prev_origin, goal.origin, goal.basis))
 	_held.global_transform = Transform3D(goal.basis, clamped)
 	_remember_if_free(Transform3D(goal.basis, clamped))
 	if delta > 0.0:
@@ -184,7 +190,12 @@ func _process(delta: float) -> void:
 # along walls without colliding with its carrier. Only translation is swept; rotation
 # follows the camera directly.
 func _clamp_to_walls(origin: Vector3, desired: Vector3, basis: Basis) -> Vector3:
-	if _held == null:
+	return _sweep(_held, origin, desired, basis)
+
+
+## The sweep itself, with the body passed in — drop() needs it once `_held` has been cleared.
+func _sweep(item: RigidBody3D, origin: Vector3, desired: Vector3, basis: Basis) -> Vector3:
+	if item == null:
 		return desired
 	var cur := origin
 	var motion := desired - cur
@@ -192,7 +203,7 @@ func _clamp_to_walls(origin: Vector3, desired: Vector3, basis: Basis) -> Vector3
 	for _i in 4:
 		if motion.length() < 1e-5:
 			break
-		if _held.test_move(Transform3D(basis, cur), motion, collision, cast_margin):
+		if item.test_move(Transform3D(basis, cur), motion, collision, cast_margin):
 			cur += collision.get_travel()
 			motion = collision.get_remainder().slide(collision.get_normal())
 		else:
@@ -201,19 +212,50 @@ func _clamp_to_walls(origin: Vector3, desired: Vector3, basis: Basis) -> Vector3
 	return cur
 
 
-# Is the body overlapping anything at this pose? `recovery_as_collision` is the whole point of
-# the call: without it a zero-length test_move reports what a MOVE would hit, and a body sitting
-# still inside a wall hits nothing. With it, the depenetration the engine would have to apply
-# counts as a collision — which is exactly the condition drop() must not unfreeze into.
-func _is_embedded(item: RigidBody3D, pose: Transform3D) -> bool:
-	return item.test_move(pose, Vector3.ZERO, null, cast_margin, true)
+# Lift the pose out of anything it is inside, along the contact normal.
+#
+# WHY THE SWEEP ALONE IS NOT ENOUGH: it clamps TRANSLATION, and the basis is written straight
+# onto the body, so rotation can leave the shape overlapping even though the origin's path was
+# clear. Look down while carrying and the item's mesh ends up a centimetre or two under the deck
+# — measured at -0.017 for the canister and -0.010 for the hammer in tests/diag_wall_vs_floor.gd.
+#
+# HONEST NOTE. This is validated by playtest and by that measurement (the dip becomes positive
+# for every prop), but NOT by a full account of what `recovery_as_collision` and `get_depth()`
+# report — attempts to probe those in isolation kept picking up other bodies. What is
+# established: at `cast_margin` it converges and clears the dip, and at a 1mm margin it silently
+# does nothing. The margin is load-bearing; do not "tidy" it.
+func _push_out(basis: Basis, origin: Vector3) -> Vector3:
+	if _held == null:
+		return origin
+	var out := origin
+	var collision := KinematicCollision3D.new()
+	for _i in 4:
+		if not _held.test_move(Transform3D(basis, out), Vector3.ZERO, collision, cast_margin, true):
+			break
+		# A hair past the reported depth: landing exactly on the surface re-reports as touching
+		# and burns the remaining iterations without converging.
+		out += collision.get_normal() * (collision.get_depth() + 0.001)
+	return out
 
 
-# Called after each authored pose. The cost is one query per carried frame on top of the sweep's
-# four, and it buys drop() somewhere honest to fall back to.
+## Where it is safe to let go: sweep from the last clear origin toward where the item actually
+## is. If geometry stops the sweep short, the pose is on the far side of a surface and the
+## stopping point is the near side of it. Reaching the target — the ordinary case — leaves the
+## item exactly where it was, which is why this does not teleport things the way the old
+## embedded-boolean did.
+##
+## This only means anything because `_push_out` runs first: every remembered origin is a pose
+## that was actively lifted clear, so "sweep from the last clear one" has something true to
+## start from. Without it the remembered origins track the item down into the floor and the
+## sweep is never blocked — which is exactly how an earlier attempt at this became a no-op.
+func _safe_release_origin(item: RigidBody3D, pose: Transform3D) -> Vector3:
+	return _sweep(item, _last_free_origin, pose.origin, pose.basis)
+
+
+## Called after each authored pose. The pose has already been swept and pushed clear, so it is a
+## legitimate origin to fall back to.
 func _remember_if_free(pose: Transform3D) -> void:
-	if _held != null and not _is_embedded(_held, pose):
-		_last_free_origin = pose.origin
+	_last_free_origin = pose.origin
 
 
 # Keep the item upright and yaw it with the view, so looking up and down doesn't

@@ -70,3 +70,56 @@ the net off for its duration. Two defences are only two defences if each is prov
 Three mutations killed: the `Carry` guard removed (all five props fall through), the sweep made
 a no-op (nothing is recovered), and `FLOOR_ESCAPE_Y` raised so the net is over-eager (it
 teleports 11 healthy props and the "disturbs nothing" check goes red).
+
+---
+
+## Follow-up: "look at the floor and throw" (2026-07-28)
+
+The fix above did not stop items being lost by picking one up, looking straight down and
+throwing. Playtesting kept reproducing it; roughly 200 headless throws — every prop, every
+pitch, every look speed, both guards on and off — never did. What finally reproduced it was
+building the smallest possible world (`tests/diag_void_repro.gd`): one room, the real player
+scene, one prop, no `LostAndFound`.
+
+### Two corrections to the account above
+
+**The dip is real but was never the cause.** The held item does sink below the deck when you
+look down — measured at −0.017 (canister) and −0.010 (hammer) in
+`tests/diag_wall_vs_floor.gd`. But depenetration needs about **0.15m** to eject a body through
+the underside, and 0.017 is an order of magnitude short. Two measurements were placed side by
+side and a causal link asserted that neither supported.
+
+**The old `drop()` guard was moving items on its own.** `_is_embedded()` asked
+`test_move(..., recovery_as_collision)`, which answers `true` for a body resting *normally* on
+the floor. So it fired on nearly every drop and silently teleported the item to
+`_last_free_origin` — roughly chest height in front of the player, the last pose that had hung
+clear of the deck. That relocation was visible in play and was mistaken for the item falling
+through and being recovered. It is gone.
+
+### What is there now
+
+`_push_out()` and the release sweep, working as a pair:
+
+- **`_push_out()`** lifts the held pose out along the contact normal every frame. The per-frame
+  sweep clamps translation only, and the basis is written straight onto the body, so rotation
+  can leave the shape overlapping. This closes that — every prop's dip becomes positive.
+- **`_safe_release_origin()`** sweeps from the last clear origin to wherever the item actually
+  is, and releases at the stopping point. In the ordinary case the sweep reaches its target, so
+  nothing moves — no teleport.
+
+They are only useful together. An earlier attempt at the sweep alone was a silent **no-op**:
+without `_push_out` the remembered origins track the item down into the floor, so the sweep is
+never blocked. `_push_out` is what makes "the last clear origin" mean anything.
+
+### Known, unfixed
+
+The minimal world showed the release velocity on a look-down throw is
+**(0, −6.1, +11.9)** — the item is *launched* at the `max_release_speed` cap, horizontally,
+back through the player. `_carry_velocity` is measured from the hold point's travel, and the
+hold point rides the camera: looking down swings it from 1.4m in front of you to under your
+feet, which is mostly horizontal motion straight at yourself. The item was never falling through
+the floor — it was being fired across the room.
+
+Two changes fixed that in testing (lifting the player's collision exception *before* computing
+the release velocity, so the clip can see them; and projecting out any velocity component aimed
+at the player) but are **not** in the tree. `LostAndFound` catches the consequence.
