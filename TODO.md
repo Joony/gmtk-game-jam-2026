@@ -2106,3 +2106,41 @@ Scene nodes this needs: `Computer` (0.43, 0, -20.50), `CD_Engine_v4_2` (-19.5, 0
 `ShipSupplies` now attaches the script to the prop itself. Anything hung off an adopted prop
 (indicator, socket, panel) is in that prop's LOCAL space, which is scaled — divide by the host
 scale so offsets can stay written in metres.
+
+---
+
+## 22. ✅ Items falling through the deck — done ([log](docs/features/lost-items.md))
+
+Items could be glitched through the floor into the void and lost for good. Fixed with two
+independent defences, both proved by mutation.
+
+Neither obvious cause was it, and both are worth not re-guessing:
+
+- **The floor is not too thin.** `tests/diag_floor_escape.gd` slams every prop straight down at
+  up to **120 m/s** (`Carry` caps release at 12) and onto five doorway seams: not one loss.
+  `continuous_cd` is set on every prop scene and it holds.
+- **There is no hole.** `tests/diag_floor_gaps.gd` rains 1157 probes over every walkable square
+  metre: none escaped. It does confirm all 12 room-to-room seams are exact zero-overlap butt
+  joints and that every doorway stands on one — but nothing falls through them.
+
+The mechanism is **depenetration**: a body already inside the 0.2m slab is resolved to the
+nearest face, and past the midplane that is the underside, with nothing below the ship.
+Measured threshold ~0.15m for every prop, less for the canister. It gets in there because
+`Carry._clamp_to_walls()` sweeps translation but writes the basis straight onto the body, so a
+long prop can yaw itself into a corner and `drop()` unfroze it there.
+
+- [x] **`Carry` will not unfreeze an embedded body** — every authored pose checked with
+      `test_move(..., recovery_as_collision = true)`, and `drop()` backs up to the last clear
+      origin
+- [x] **`LostAndFound`** sweeps the `interactables` group each second and returns anything below
+      y −0.5 to the room it fell through, or the player's feet if it went through over no room.
+      Silent to the player, `push_warning` to the log
+- [x] **`tests/smoke_lost_items.gd`**, three mutations killed
+
+Not cosmetic: thirteen spares against roughly forty-seven repairs, and the canisters **are** the
+oxygen — one lost under a doorway can make a run unwinnable with no feedback at all.
+
+**The testing gotcha worth keeping:** the first version of the suite passed with the `Carry`
+guard deliberately broken, because the net was rescuing the props behind it. The carry section
+now switches the net off for its duration. Two defences are only two defences if each is proved
+on its own.

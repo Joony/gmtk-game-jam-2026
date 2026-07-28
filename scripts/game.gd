@@ -94,6 +94,8 @@ var _supplies: ShipSupplies = null
 ## The readable screens that are not props of their own — the bridge deck plan. Built in code for
 ## the same reason as the two above: `scenes/game.tscn` is locked. See ShipDisplays.
 var _displays: ShipDisplays = null
+## Catches anything that falls through the deck and puts it back. See LostAndFound.
+var _lost_and_found: LostAndFound = null
 ## The player's undamaged walking speed, so a need's penalty is always a fraction of THAT and
 ## never of an already-penalised number. See _apply_need_penalties().
 var _player_max_speed: float = 0.0
@@ -142,6 +144,7 @@ func _ready() -> void:
 	# BEFORE start_game(), because RunState.start() collects the silos by group and a silo
 	# that does not exist yet is a need with nothing that can clear it.
 	_build_supplies()
+	_build_lost_and_found()
 	# Also before start_game(), and for a sharper reason: `starts_broken` is read there, and
 	# the fault plan is what decides which system carries it. Applied late, the run would open
 	# on whichever fault the scene happened to have the flag on.
@@ -218,6 +221,16 @@ func _build_supplies() -> void:
 	_supplies = ShipSupplies.new()
 	_supplies.name = "Supplies"
 	add_child(_supplies)
+
+
+## The backstop under everything the player can pick up. AFTER _build_supplies() in _ready(),
+## because the canisters and spare parts it exists to protect are spawned there — though the
+## sweep is by group and would find them whenever they appeared.
+func _build_lost_and_found() -> void:
+	_lost_and_found = LostAndFound.new()
+	_lost_and_found.name = "LostAndFound"
+	add_child(_lost_and_found)
+	_lost_and_found.bind($Ship as RoomBuilder, _player)
 
 
 ## The bridge deck plan. Built in code and hung off the terminal bank that is already dressed on

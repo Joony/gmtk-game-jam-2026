@@ -497,3 +497,20 @@ that needs the web build to actually run has to be checked in a real browser tab
   so absent from the silo group), the menu title, and the CO2 need. Prefer the accessor that
   owns the thing — `supplies.spares()`, `supplies.tanks()`, `run.silo_by_id()` — over
   `get_node("SparePart1")`.
+- **A second defence can make the first one's test vacuous.** 2026-07-28: `smoke_lost_items`
+  passed with `Carry`'s embedded-release guard deliberately broken, because `LostAndFound`
+  rescued the props within a second regardless — the suite was testing the backstop twice and
+  the cause not at all. Whenever two mechanisms protect the same property, each section has to
+  switch the OTHER one off (`net.process_mode = PROCESS_MODE_DISABLED`) or it proves nothing.
+  Only the mutation found this; the suite was green and looked thorough.
+- **Items lost through the floor are a DEPENETRATION bug, not a thin floor.** A body already
+  inside the 0.2m deck is resolved to the nearest face, and past the midplane that is the
+  underside — with nothing below the ship. Measured at ~0.15m of penetration for every prop.
+  The floor itself takes a 120 m/s slam without a loss, because every prop scene sets
+  `continuous_cd`. So the question is never "how did it get through" but "what put it inside":
+  here, `Carry` sweeping translation while writing rotation straight onto the body. See
+  [lost-items.md](features/lost-items.md), `tests/diag_floor_escape.gd`.
+- **`test_move` with zero motion reports nothing unless you pass `recovery_as_collision`.** A
+  body sitting still inside a wall "hits" nothing, because the default asks what a MOVE would
+  collide with. `test_move(pose, Vector3.ZERO, null, margin, true)` counts the depenetration the
+  engine would have to apply as a collision, which is the "am I embedded right now" question.

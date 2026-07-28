@@ -49,6 +49,8 @@ var _pickup_t: float = 1.0
 var _carry_velocity: Vector3 = Vector3.ZERO
 var _prev_origin: Vector3 = Vector3.ZERO
 var _prior_gravity_scale: float = 1.0
+## Last origin at which the held body was demonstrably NOT inside anything. See drop().
+var _last_free_origin: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -91,6 +93,9 @@ func grab(interactable: Interactable) -> bool:
 	_pickup_from = item.global_transform
 	_pickup_t = 0.0 if pickup_smooth_time > 0.0 else 1.0
 	_prev_origin = item.global_transform.origin
+	# Where it was sitting before we touched it. It was resting on the floor, so it is free by
+	# construction — and it is the fallback of last resort if every pose since has been embedded.
+	_last_free_origin = item.global_transform.origin
 	_carry_velocity = Vector3.ZERO
 
 	interactable.on_pickup()
@@ -105,6 +110,21 @@ func drop(throw_it: bool = false) -> void:
 	_held = null
 	_break_timer = 0.0
 
+	# NEVER UNFREEZE A BODY THAT IS INSIDE SOMETHING. The floor is a 0.2m slab, and a body
+	# released more than about halfway into it is depenetrated to the nearest face — which past
+	# the midplane is the UNDERSIDE. There is nothing below the ship, so it falls for ever.
+	# Measured in tests/diag_floor_escape.gd: every prop is lost from 0.15m of penetration, and
+	# the canister from less, its collider hanging below its origin. Note this is not a
+	# thin-floor problem — the same suite slams these props into the deck at 120 m/s without a
+	# single loss, because `continuous_cd` is on.
+	#
+	# It gets embedded in the first place because _clamp_to_walls sweeps TRANSLATION only: the
+	# basis is written straight onto the body, so a long prop yawing with the view near a corner
+	# can rotate itself into geometry, and the slide loop gives up after four iterations
+	# regardless. Rather than trying to make that sweep exhaustive, back the item up to the last
+	# pose we know was clear.
+	if _is_embedded(item, item.global_transform):
+		item.global_transform = Transform3D(item.global_transform.basis, _last_free_origin)
 	# Unfreeze BEFORE setting velocity — a frozen body ignores it.
 	item.freeze = false
 	item.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
@@ -139,6 +159,7 @@ func _process(delta: float) -> void:
 		var fly_origin := _clamp_to_walls(_prev_origin, eased.origin, eased.basis)
 		_held.global_transform = Transform3D(eased.basis, fly_origin)
 		_prev_origin = fly_origin
+		_remember_if_free(Transform3D(eased.basis, fly_origin))
 		return
 
 	# Break free if a wall has held the item away from the hold point for long enough.
@@ -151,6 +172,7 @@ func _process(delta: float) -> void:
 
 	var clamped := _clamp_to_walls(_prev_origin, goal.origin, goal.basis)
 	_held.global_transform = Transform3D(goal.basis, clamped)
+	_remember_if_free(Transform3D(goal.basis, clamped))
 	if delta > 0.0:
 		# Smoothed so a single stuttery frame doesn't produce a silly release velocity.
 		_carry_velocity = _carry_velocity.lerp((clamped - _prev_origin) / delta, 0.5)
@@ -177,6 +199,21 @@ func _clamp_to_walls(origin: Vector3, desired: Vector3, basis: Basis) -> Vector3
 			cur += motion
 			break
 	return cur
+
+
+# Is the body overlapping anything at this pose? `recovery_as_collision` is the whole point of
+# the call: without it a zero-length test_move reports what a MOVE would hit, and a body sitting
+# still inside a wall hits nothing. With it, the depenetration the engine would have to apply
+# counts as a collision — which is exactly the condition drop() must not unfreeze into.
+func _is_embedded(item: RigidBody3D, pose: Transform3D) -> bool:
+	return item.test_move(pose, Vector3.ZERO, null, cast_margin, true)
+
+
+# Called after each authored pose. The cost is one query per carried frame on top of the sweep's
+# four, and it buys drop() somewhere honest to fall back to.
+func _remember_if_free(pose: Transform3D) -> void:
+	if _held != null and not _is_embedded(_held, pose):
+		_last_free_origin = pose.origin
 
 
 # Keep the item upright and yaw it with the view, so looking up and down doesn't
