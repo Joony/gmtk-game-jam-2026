@@ -90,59 +90,59 @@ environment = SubResource("Environment_game")
 mesh = SubResource("SphereMesh_shell")
 surface_material_override/0 = ExtResource("11_starfield")
 
-[node name="Sprite3D" type="Sprite3D" parent="Starfield" unique_id=336948122]
+[node name="Sprite3D" type="Sprite3D" parent="Starfield" unique_id=336948122 groups=["lit_signs"]]
 transform = Transform3D(0.075, 0, 0, 0, 0.075, 0, 0, 0, 0.075, 0.5, 2.621, -3.9)
 texture = ExtResource("3_l6q63")
 
-[node name="Sprite3D14" type="Sprite3D" parent="Starfield" unique_id=433600843]
+[node name="Sprite3D14" type="Sprite3D" parent="Starfield" unique_id=433600843 groups=["lit_signs"]]
 transform = Transform3D(0.075, 0, 0, 0, 0.075, 0, 0, 0, 0.075, 20.5, 2.621, -1.9000001)
 texture = ExtResource("8_o8oq8")
 
-[node name="Sprite3D11" type="Sprite3D" parent="Starfield" unique_id=47043854]
+[node name="Sprite3D11" type="Sprite3D" parent="Starfield" unique_id=47043854 groups=["lit_signs"]]
 transform = Transform3D(0.075, 0, 0, 0, 0.075, 0, 0, 0, 0.075, -19.5, 2.621, -1.9000001)
 texture = ExtResource("10_2iuns")
 
-[node name="Sprite3D2" type="Sprite3D" parent="Starfield" unique_id=1309348149]
+[node name="Sprite3D2" type="Sprite3D" parent="Starfield" unique_id=1309348149 groups=["lit_signs"]]
 transform = Transform3D(-0.075, 0, -1.1324686e-08, 0, 0.075, 0, 1.1324686e-08, 0, -0.075, 0.5, 2.621, -12.1)
 texture = ExtResource("4_mmvbu")
 
-[node name="Sprite3D3" type="Sprite3D" parent="Starfield" unique_id=1463685019]
+[node name="Sprite3D3" type="Sprite3D" parent="Starfield" unique_id=1463685019 groups=["lit_signs"]]
 transform = Transform3D(-0.075, 0, -1.1324686e-08, 0, 0.075, 0, 1.1324686e-08, 0, -0.075, -3.5, 2.621, -12.1)
 texture = ExtResource("5_weeiq")
 
-[node name="Sprite3D10" type="Sprite3D" parent="Starfield" unique_id=1283811537]
+[node name="Sprite3D10" type="Sprite3D" parent="Starfield" unique_id=1283811537 groups=["lit_signs"]]
 transform = Transform3D(-0.075, 0, -1.1324686e-08, 0, 0.075, 0, 1.1324686e-08, 0, -0.075, -19.5, 2.621, -10.1)
 texture = ExtResource("9_sxt1d")
 
-[node name="Sprite3D4" type="Sprite3D" parent="Starfield" unique_id=1802823430]
+[node name="Sprite3D4" type="Sprite3D" parent="Starfield" unique_id=1802823430 groups=["lit_signs"]]
 transform = Transform3D(-0.075, 0, -1.1324686e-08, 0, 0.075, 0, 1.1324686e-08, 0, -0.075, 4.5, 2.621, -12.1)
 texture = ExtResource("6_uxocx")
 
-[node name="Sprite3D13" type="Sprite3D" parent="Starfield" unique_id=1658570031]
+[node name="Sprite3D13" type="Sprite3D" parent="Starfield" unique_id=1658570031 groups=["lit_signs"]]
 transform = Transform3D(-0.075, 0, -1.1324686e-08, 0, 0.075, 0, 1.1324686e-08, 0, -0.075, 20.5, 2.621, -10.1)
 texture = ExtResource("7_7nv0b")
 
-[node name="Sprite3D5" type="Sprite3D" parent="Starfield" unique_id=1280307796]
+[node name="Sprite3D5" type="Sprite3D" parent="Starfield" unique_id=1280307796 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, -0.075, 0, 0.075, 0, 0.075, 0, -3.2783543e-09, 7.9, 2.621, -14)
 texture = ExtResource("7_7nv0b")
 
-[node name="Sprite3D7" type="Sprite3D" parent="Starfield" unique_id=2119930693]
+[node name="Sprite3D7" type="Sprite3D" parent="Starfield" unique_id=2119930693 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, -0.075, 0, 0.075, 0, 0.075, 0, -3.2783543e-09, 7.9, 2.621, -15)
 texture = ExtResource("8_o8oq8")
 
-[node name="Sprite3D6" type="Sprite3D" parent="Starfield" unique_id=430141175]
+[node name="Sprite3D6" type="Sprite3D" parent="Starfield" unique_id=430141175 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, 0.075, 0, 0.075, 0, -0.075, 0, -3.2783543e-09, -6.9, 2.621, -14)
 texture = ExtResource("9_sxt1d")
 
-[node name="Sprite3D8" type="Sprite3D" parent="Starfield" unique_id=2011443509]
+[node name="Sprite3D8" type="Sprite3D" parent="Starfield" unique_id=2011443509 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, 0.075, 0, 0.075, 0, -0.075, 0, -3.2783543e-09, -6.9, 2.621, -15)
 texture = ExtResource("10_2iuns")
 
-[node name="Sprite3D12" type="Sprite3D" parent="Starfield" unique_id=486819032]
+[node name="Sprite3D12" type="Sprite3D" parent="Starfield" unique_id=486819032 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, 0.075, 0, 0.075, 0, -0.075, 0, -3.2783543e-09, 16.1, 2.621, -14.5)
 texture = ExtResource("3_l6q63")
 
-[node name="Sprite3D9" type="Sprite3D" parent="Starfield" unique_id=1432687668]
+[node name="Sprite3D9" type="Sprite3D" parent="Starfield" unique_id=1432687668 groups=["lit_signs"]]
 transform = Transform3D(-3.2783543e-09, 0, -0.075, 0, 0.075, 0, 0.075, 0, -3.2783543e-09, -15.1, 2.621, -14.5)
 texture = ExtResource("3_l6q63")
 

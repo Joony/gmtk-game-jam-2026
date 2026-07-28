@@ -195,6 +195,38 @@ func _run() -> void:
 	var hi: float = samples.max()
 	_check("alert energy pulses (%.3f..%.3f)" % [lo, hi], hi - lo > 0.02)
 
+	# --- The doorway signs follow the ship ------------------------------------
+	# They are Sprite3Ds, and SpriteBase3D.shaded defaults to FALSE, so lights and ambient pass
+	# straight through them: on red alert the whole ship went red around a set of signs that
+	# stayed daylight-white. They are TINTED rather than lit — see LightingController.GROUP_SIGN.
+	var signs := get_nodes_in_group(LightingController.GROUP_SIGN)
+	_check("the doorway signs are tagged for the lighting (%d)" % signs.size(), signs.size() >= 8)
+	if not signs.is_empty():
+		var sign_node := signs[0] as GeometryInstance3D
+		_check("...and they really are unshaded, which is why tinting is the fix at all",
+			sign_node is SpriteBase3D and not (sign_node as SpriteBase3D).shaded)
+
+		lighting.set_alert(true)
+		await _frames(60)
+		var lit: Color = sign_node.get("modulate")
+		_check("a sign goes red on alert (%s)" % lit, lit.r > lit.g * 1.5 and lit.r > lit.b * 1.5)
+		# Legibility is the whole reason for tinting instead of shading, so it is asserted
+		# rather than assumed — and asserted on the NON-RED channels, which is where it
+		# actually lives. Checking `lit.r` proves nothing: red stays high at any tint strength,
+		# so that version of this check passed a mutation that dragged the sign all the way to
+		# the alert colour. What full tint destroys is green and blue, and with them the
+		# contrast that makes white lettering readable at the moment the ship is telling you
+		# to go somewhere.
+		_check("...but is not dragged to solid red, so the lettering still reads (g %.2f)"
+			% lit.g, lit.g > 0.15)
+		_check("...and stays bright overall (%.2f)" % lit.r, lit.r > 0.5)
+
+		lighting.set_alert(false)
+		await _frames(60)
+		var calm: Color = sign_node.get("modulate")
+		_check("and comes back to untinted white when the ship is calm (%s)" % calm,
+			calm.r > 0.9 and calm.g > 0.9 and calm.b > 0.9)
+
 	if _failures.is_empty():
 		print("LIGHTING TEST PASS")
 		quit(0)

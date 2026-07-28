@@ -32,6 +32,30 @@ const MODES := {
 	},
 }
 
+## Signs that should take the ship's lighting without being lit by it.
+##
+## The doorway signs are `Sprite3D`s, and SpriteBase3D.shaded defaults to FALSE — so they draw
+## their texture at full albedo and scene lights and ambient pass straight through them. On red
+## alert the whole ship went red around a set of signs that stayed daylight-white.
+##
+## Turning `shaded` on was the other option and is worse here: a sign tucked above a doorway sits
+## away from the omnis, so it would read as murky in a lit room and vanish outright in an unlit
+## one. Modulating keeps them legible and is the same move the emissive light panels already
+## make — the sign reads as lit by the room without depending on a lamp being near it.
+##
+## They are NOT built by RoomBuilder (they are authored in game.tscn), so the group lives here
+## with its consumer rather than beside GROUP_LIGHT.
+const GROUP_SIGN := &"lit_signs"
+
+## How far a sign is dragged toward the light colour. Not 1.0: a sign taking the alert colour
+## outright is red text on a red sign, and the point of a doorway sign is to be readable at the
+## moment the ship is telling you to go somewhere.
+const SIGN_TINT := 0.8
+## ...and how far it follows the room's BRIGHTNESS. Alert is dimmer as well as red, and a sign
+## that stayed at full brightness would float off the wall. Kept shallow, and floored, so it
+## never goes black.
+const SIGN_DIM := 0.35
+
 ## Emitted when the mode actually changes (not when re-set to the current mode).
 signal mode_changed(mode: Mode)
 
@@ -208,6 +232,17 @@ func _apply(values: Dictionary) -> void:
 			if material != null:
 				material.albedo_color = color
 				material.emission = color
+
+	# The doorway signs. Unshaded sprites, so they are tinted rather than lit — see GROUP_SIGN.
+	# Measured against NORMAL rather than against 1.0, so "normal" is exactly no change however
+	# the mode table is retuned: at NORMAL this comes out white and the signs are untouched.
+	var normal_energy: float = MODES[Mode.NORMAL]["light_energy"]
+	var brightness := lerpf(1.0, energy / maxf(normal_energy, 0.001), SIGN_DIM)
+	var tint := Color.WHITE.lerp(color, SIGN_TINT) * maxf(brightness, 0.35)
+	tint.a = 1.0
+	for sign_node in get_tree().get_nodes_in_group(GROUP_SIGN):
+		if sign_node is GeometryInstance3D:
+			(sign_node as GeometryInstance3D).set("modulate", tint)
 
 	if _environment != null:
 		_environment.ambient_light_color = values["ambient_color"]

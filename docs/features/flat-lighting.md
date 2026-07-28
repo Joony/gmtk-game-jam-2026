@@ -104,3 +104,42 @@ the first run.
 the mode. The old version waited out the fade and only asked which mode the controller was in, so
 it would have passed for as long as this bug existed. Mutation-tested: with `immediate` removed
 the first frame is `(0.96, 0.74, 0.76)` — pale pink, caught mid-fade.
+
+## The doorway signs (2026-07-28)
+
+The signs above each door stayed daylight-white while the rest of the ship went red on alert.
+
+**Two independent reasons, neither a fault in the lighting.**
+
+The signs are `Sprite3D` nodes, and `SpriteBase3D.shaded` **defaults to false** — so the texture
+draws at full albedo and scene lights and ambient pass straight through. Nothing about the alert
+could reach them. They are also authored by hand in `game.tscn` rather than built by
+`RoomBuilder`, so they were in neither `GROUP_LIGHT` nor `GROUP_LIGHT_PANEL`, the only two groups
+`LightingController` touches.
+
+**Tinted, not shaded.** Turning `shaded` on was the other option and is worse here: a sign tucked
+above a doorway sits away from the omnis, so it would read as murky in a lit room and vanish
+outright in an unlit one. Modulating is the move the emissive light panels already make — the
+sign reads as lit by the room without depending on a lamp being near it.
+
+Two constants, both deliberately short of 1.0:
+
+| | |
+| --- | --- |
+| `SIGN_TINT` 0.8 | how far toward the light colour. Full tint is red lettering on a red sign, at exactly the moment the ship is telling you to go somewhere |
+| `SIGN_DIM` 0.35 | how far it follows the room's brightness, floored so it never goes black. Alert is dimmer as well as red, and a sign at full brightness floats off the wall |
+
+Brightness is measured against NORMAL's own energy rather than against 1.0, so "normal" stays
+exactly no change however the mode table is later retuned.
+
+`GROUP_SIGN` lives on `LightingController` rather than beside `GROUP_LIGHT` on `RoomBuilder`,
+because RoomBuilder does not build these — the group belongs with its consumer.
+
+### A vacuous assertion, caught by mutation
+
+The legibility check first read `lit.r > 0.5`, and **full tint passed it**: red stays high at any
+tint strength. The property being protected lives in the OTHER channels — full tint drops green
+from 0.24 to 0.09, and with it the contrast that makes white lettering readable. Asserted on
+green now, and the mutation kills it.
+
+Not yet looked at on screen: both constants are chosen from the numbers, not from the render.
