@@ -144,3 +144,42 @@ motion straight into the camera. See [mouse-capture-in-tests.md](mouse-capture-i
 runs no longer capture the cursor.
 
 (Teleporting still warrants `reset_physics_interpolation()`, but it was not the cause here.)
+
+## Carried items hitting the door (2026-07-28)
+
+Items in the player's hands sometimes struck a door before it opened.
+
+**The animation was not the problem.** `open_time` stays at 0.4s. The bug was `door_approach`,
+which was 1.6m — a trigger sized for the player's BODY, when the hold point is **1.4m in front of
+the camera** (`player.tscn`, `HoldPoint z -1.4`). At `max_speed` 7 m/s the carried item therefore
+reached the doorway 0.2s before the body that opened it, against a door that needs about 0.09s of
+its SINE-out slide to be worth walking through.
+
+Chosen by measurement rather than feel — [tests/diag_door_clearance.gd](../../tests/diag_door_clearance.gd)
+walks the player at full speed into the corridor/cryo-bay door carrying each bulky prop and reports
+the clear width between the panels at the moment the item's nose arrives. Clearance each side,
+centred:
+
+| prop | 1.6 | 2.4 | 2.8 |
+| --- | --- | --- | --- |
+| canister | 0.017 | 0.311 | 0.466 |
+| battery | 0.072 | 0.211 | 0.406 |
+| food crate | 0.071 | 0.261 | 0.436 |
+| pickup crate | 0.067 | 0.067 | **0.194** |
+
+Under 7cm on everything at 1.6, which is exactly why it went wrong only SOMETIMES. Now 2.8.
+
+**The pickup crate picks the number**, and it is the non-obvious part: it is 0.8m *deep* as well as
+wide, so its nose arrives earlier and it gains **nothing at all** between 1.6 and 2.4 while every
+other prop roughly quadruples. A wide prop is not just a harder version of a narrow one.
+
+`open_time` is now exposed as `RoomBuilder.door_open_time` alongside `door_approach`. It had never
+been plumbed through at all — it sat on `SlidingDoor`'s own default and could not be tuned from the
+ship. Unchanged in value, so the feel is identical.
+
+### Two limits worth stating
+
+- **The off-centre case is not measured.** Walking off the centre line has the item scraping the
+  frame on the way in, so `Carry`'s collide-and-slide shoves it and the numbers stop describing the
+  door. Centred is the clean signal; real margin when not walking straight is somewhat worse.
+- **2.8m means doors open about a corridor's width away.** That is a feel call, not a derived one.

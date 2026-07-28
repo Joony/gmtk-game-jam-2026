@@ -514,3 +514,18 @@ that needs the web build to actually run has to be checked in a real browser tab
   body sitting still inside a wall "hits" nothing, because the default asks what a MOVE would
   collide with. `test_move(pose, Vector3.ZERO, null, margin, true)` counts the depenetration the
   engine would have to apply as a collision, which is the "am I embedded right now" question.
+- **A proximity trigger sized for the player is too small for what the player is CARRYING.** The
+  hold point is 1.4m in front of the camera, so at `max_speed` 7 m/s a carried item reaches a
+  doorway 0.2s before the body that opened it. `door_approach` was 1.6 — less than the hold
+  offset plus any margin — so every prop cleared the panels by under 7cm and it read as "items
+  sometimes hit the door". Any trigger tuned by walking through it without holding anything has
+  this bug latent in it. Measured in `tests/diag_door_clearance.gd`.
+- **A wide prop is not just a harder version of a narrow one — it is a DEEPER one.** The pickup
+  crate is 0.8m in both axes, so its nose arrives at a doorway 0.4m earlier than its centre and
+  it gained nothing at all from `door_approach` 1.6 -> 2.4 while every other prop roughly
+  quadrupled its clearance. Sweep the bulkiest item, not the most common one.
+- **Anything that teleports the player in a test must wake them from the pod first.**
+  `Game._pose_in_pod()` re-asserts the player's transform every frame until the run starts, so a
+  test that sets `player.global_position` and walks forward silently measures nothing — the
+  first run of the door diagnostic reported "the item never reached the door" with the player
+  still sitting at the pod. `tests/opening.gd`'s `Opening.wake()` is the fix and already exists.

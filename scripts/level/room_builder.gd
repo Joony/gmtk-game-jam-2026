@@ -68,6 +68,15 @@ const PANEL_CLEARANCE := 0.005
 @export var door_thickness: float = 0.08
 ## Sliver of each door panel left showing when fully open — see SlidingDoor.open_reveal.
 @export var door_open_reveal: float = 0.06
+## Seconds for a door to slide fully apart. Unchanged in feel — this is SlidingDoor's own
+## long-standing default — but it was never plumbed through here, so it could not be tuned from
+## the ship at all. Exposed now because it is one of the two numbers that decide whether a
+## carried item meets a closed door; the other, and the one that was actually wrong, is
+## `door_approach`.
+##
+## The panels ease SINE-OUT, so most of the gap arrives early: a usable width is there at about
+## 0.23 of this, not at the end of it.
+@export var door_open_time: float = 0.4
 ## Doors read as distinct by being LIGHTER than the walls, not by being shiny. Under GL
 ## Compatibility there is no reflection probe or sky for a metallic surface to reflect,
 ## so metallic/low-roughness materials fall back to hard specular off the omni lights —
@@ -77,8 +86,30 @@ const PANEL_CLEARANCE := 0.005
 @export var build_lights: bool = true
 ## Sliding door panels in each opening. Turn off to test the raw wall gap.
 @export var build_doors: bool = true
-## How far from an opening the player has to be for its door to slide apart.
-@export var door_approach: float = 1.6
+## How far from an opening the player has to be for its door to slide apart, in metres,
+## measured from the door plane.
+##
+## THIS IS A CARRY DISTANCE, NOT A WALKING ONE, and that is what 1.6 got wrong. The hold point
+## is 1.4m in front of the camera (`player.tscn`, HoldPoint z -1.4), so at the moment the player
+## crossed the old trigger the thing in their hands was already 0.2m from the panels — at
+## `max_speed` 7 m/s it arrived 0.03s later, against a door that needs about 0.09s to be worth
+## walking through. It clipped, every time, which is exactly what it looked like.
+##
+## MEASURED, not guessed — tests/diag_door_clearance.gd walks the player at `max_speed` into the
+## corridor/cryo-bay door carrying each bulky prop and reports the gap when the item's nose
+## arrives. Clearance each side, centred:
+##
+##   prop            1.6      2.4      2.8
+##   canister        0.017    0.311    0.466
+##   battery         0.072    0.211    0.406
+##   food crate      0.071    0.261    0.436
+##   pickup crate    0.067    0.067    0.194
+##
+## At 1.6 every prop cleared by under 7cm, which is why it only went wrong SOMETIMES. The pickup
+## crate is the case that picks the number: it is 0.8m DEEP as well as wide, so its nose arrives
+## earlier and it gains nothing at all between 1.6 and 2.4 — a wide prop is not just a harder
+## version of a narrow one.
+@export var door_approach: float = 2.8
 ## Fallback light colour. Step 10's LightingController drives these once it exists.
 @export var light_color: Color = Color(0.95, 0.96, 1.0)
 @export var light_energy: float = 1.6
@@ -500,6 +531,7 @@ func _chamfer_material(room: Room) -> StandardMaterial3D:
 func _build_door(doorway: Doorway) -> void:
 	var door := SlidingDoor.new()
 	door.open_reveal = door_open_reveal
+	door.open_time = door_open_time
 	_built_root.add_child(door)
 	door.build(
 		doorway,
