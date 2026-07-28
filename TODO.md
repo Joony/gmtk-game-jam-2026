@@ -198,10 +198,16 @@ more than action. Get this right before anything else in step 12:
       `build/.gdignore` + `exclude_filter`)
 - [x] **Pointer lock addressed** by the START prompt (step 7a below) — capture now happens inside
       a button `pressed` handler, which is the user gesture browsers require
-- [ ] **Confirm pointer lock in a normal browser tab.** The automated browser pane runs the page
-      with `visibilityState: hidden`, where the browser refuses pointer lock to *any* code (a direct
-      `canvas.requestPointerLock()` from the console fails with `WrongDocumentError`). Serve with
-      `.claude/launch.json` (port 8099), open a real tab, click START, check mouse look.
+- [x] **Losing pointer lock mid-game is survivable** ([log](docs/features/mouse-recapture-on-web.md)):
+      alt-tab / a click off the canvas / the browser's own Esc used to leave the player walking a
+      draining ship with dead mouse look and no way back. A lost cursor now pauses the game with a
+      hint, and the Resume *click* is the gesture that buys pointer lock back. Web-only; an
+      Esc-resume the browser refuses just pauses straight back
+- [x] **Pointer lock confirmed in a normal browser tab** (playtested by hand). It can only ever be
+      checked that way: the automated browser pane serves the page with `visibilityState: hidden`,
+      which both refuses pointer lock to *any* code (`WrongDocumentError`) **and suspends
+      `requestAnimationFrame` — i.e. Godot's main loop**, so the build paints one frame and freezes.
+      Serve with `.claude/launch.json` (port 8099) and open a real tab
 - [x] **Missing glyphs fixed** ([log](docs/features/font-and-theme.md)): the trial font maps only
       66 codepoints and the Web target has no system fonts to cover the rest, so `:` `%` `!` `[` `]`
       `—` `·` all rendered as boxes. `FontFallback` autoload attaches the engine's built-in font;

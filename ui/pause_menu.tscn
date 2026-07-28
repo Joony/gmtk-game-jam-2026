@@ -57,6 +57,16 @@ theme_override_font_sizes/font_size = 93
 text = "PAUSED"
 horizontal_alignment = 1
 
+[node name="LostCursorHint" type="Label" parent="Center/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.9, 1)
+theme_override_font_sizes/font_size = 30
+text = "THE BROWSER TOOK THE MOUSE BACK
+CLICK RESUME TO CARRY ON"
+horizontal_alignment = 1
+
 [node name="Spacer" type="Control" parent="Center/VBox"]
 custom_minimum_size = Vector2(0, 27)
 layout_mode = 2
