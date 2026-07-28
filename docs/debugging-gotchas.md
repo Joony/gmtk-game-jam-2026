@@ -263,6 +263,71 @@ host body is interactable, it inherits every ray aimed at the clone.
 
 ---
 
+## Rendering & shader compilation
+
+### A frame drop that never comes back is COMPILATION, not draw cost
+
+- **Symptom:** turning round for the first time after the game loaded dropped the frame rate hard
+  for about a second. Same spot, same angle, second time round: nothing. The ship carries 93 light
+  fixtures, so the lights were the obvious suspect.
+- **Cause:** under GL Compatibility the renderer builds a material's shader variant the first time
+  something using it is actually **rasterised**, on the main thread. Standing still only warms what
+  is in front of you; the first turn drags in everything else at once.
+- **How to tell the two apart, and it is the only reliable way:** sweep the camera through the same
+  angles **more than once** and time every frame. Draw cost recurs on every pass; compilation
+  spikes on pass 1 and never again. `tests/probe_turn_hitch.gd` does exactly that — 171 ms on pass
+  1, then 13.8 ms and 11.7 ms from the same angles.
+- **Do NOT try to localise it by subtracting subsystems.** Hiding all 55 omni lights, the
+  starfield, the imported props, or the *entire built ship* each left the spike intact at
+  ~160–170 ms. There is no culprit to find, because whatever is left in view pays the cost
+  instead. This bisects to nothing, and it will happily eat an afternoon.
+- **Fix:** draw it somewhere the player is not looking — see
+  [shader-prewarm.md](features/shader-prewarm.md).
+
+### Freeing a scene un-uploads its meshes, and the next load pays for them again
+
+- **Symptom:** a throwaway copy of `game.tscn` was built to warm the shaders and then binned. The
+  real load that followed still cost 1012 ms on its first drawn frame, against a measured
+  prediction of ~500 ms.
+- **Cause:** a `PackedScene` holds references to every mesh and texture it pulls in, and those
+  carry their **GPU uploads** with them. Binning the copy dropped the last reference to the lot,
+  so the real load re-imported and re-uploaded all of it.
+- **Fix:** keep the `PackedScene` referenced — `SceneManager.pin()`. Worth 1012 ms → 507 ms on its
+  own, which is half the benefit of the entire warm.
+- **The general shape:** "I freed it and the cost came back" is a *resource lifetime* bug, not a
+  rendering one. Anything measured across a scene teardown has to account for what the teardown
+  released.
+
+### Shader compilation cannot be moved off the main thread
+
+Resource *loading* is genuinely threaded (`ResourceLoader.load_threaded_request`), so the 257 ms
+of reading `game.tscn` off disk can be hidden behind anything. The ~1.45 s of shader compilation
+cannot: it happens when the geometry is drawn, on the main thread. "Warm it in the background
+while the intro video plays" is therefore not on the table — the video would freeze for those two
+seconds instead. The only real choices are to pay it somewhere the player already expects a pause,
+or to spread the draws thinly across many frames.
+
+---
+
+## Scene transitions
+
+### A `change_scene()` made during a `change_scene()` is silently dropped
+
+- **Symptom:** a loading screen that chains `SceneManager.change_scene()` off the back of its own
+  `_ready()` stayed up forever.
+- **Cause:** `change_scene()` guards on `_changing` and returns early. The change that brought the
+  new scene in is *still running* — it fades back in **after** the incoming scene's `_ready()` — so
+  a call made from that `_ready()` lands inside the window and is thrown away. No error, no
+  warning.
+- **Fix:** wait it out first —
+  `while SceneManager.is_changing(): await get_tree().process_frame`.
+- **Why it is worth knowing:** the failure is timing-dependent, so it hides. The loading beat
+  happened to spend 36 frames warming shaders on its first pass, which outlasted the fade and
+  worked fine; it would only ever have broken on the *second* trip through, once the warm was
+  already done and there was nothing left to wait for.
+
+---
+
 ## CPUParticles3D
 
 Three separate silent no-ops, all hit while building the vent-pipe steam:
@@ -427,6 +492,15 @@ that needs the web build to actually run has to be checked in a real browser tab
 - **Working-directory drift.** `godot --path .` targets whatever the shell's cwd is; a
   drifted cwd once created files inside the *2025* project by mistake, and `--path .` built
   the wrong game. **Always use absolute paths** for `--path` and for file operations.
+- **A newly-added `class_name` is invisible to `-s` runs until the project is re-imported.**
+  Adding `scripts/level/shader_prewarm.gd` from outside the editor made `game.gd` die with
+  *Identifier "ShaderPrewarm" not declared in the current scope* — the name resolves out of
+  `.godot/global_script_class_cache.cfg`, which only a scan writes. `godot --headless --import`
+  fixes it. (Per the note above, that scan registers the name but is not a compile gate.)
+- **Two Godot processes on the same project collide.** Running `tools/run_tests.sh` in the
+  background and then firing a second Godot command at the same `--path` wedged both — the suite
+  stopped advancing partway through and had to be killed, with no error explaining why.
+  Serialise anything that touches `.godot/`.
 - **`timeout` is not on macOS by default.** `timeout 120 godot …` fails with "command not
   found" and the wrapper silently does nothing. Run the command directly and rely on the
   harness's own timeout, or `brew install coreutils` for `gtimeout`.
