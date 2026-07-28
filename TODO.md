@@ -2204,3 +2204,104 @@ The table now says `"vo_line": &""` explicitly, because an absent key is what le
 (`tests/diag_oil_crawler.gd`), and its spout points along +Z out of Blender — which `Carry` aims
 straight at the player's face. That orientation is invisible to the bounding box, the collider
 fit and the floor probe alike, so nothing that existed could have caught it.
+
+---
+
+## 24. ✅ The end screen — done ([log](docs/features/end-screen.md))
+
+Both endings are the SAME screen: `RunEnd.show_result(won, summary)` branches on `won` for the
+title and one subtitle line, and everything below is shared. So this is one job, not two, and
+anything wrong with the death screen is wrong with the arrival screen too.
+
+### 24a. What is actually broken
+
+Audited every figure on it. Four of the six are wrong.
+
+**1. Distance covered — wrong unit AND wrong arithmetic.**
+```gdscript
+_stat("Distance covered", "%.1f km of %.1f km" % [covered / 1000.0, total / 1000.0])
+```
+`total_distance` is **82.0 MILLION MILES** — that is the unit the HUD prints beside it
+(`hud.tscn`, `DistanceUnit` = "MILLION MILES"). Dividing by 1000 and calling it km gives
+**"0.1 km of 0.1 km" for an entire crossing**. This is the "it's broken" in the report.
+
+**2. Air spent — wrong, and on a death it is always the same number.**
+```gdscript
+"air_spent": oxygen_total - oxygen_remaining,
+```
+That is the tank's CURRENT DEFICIT, not consumption. `CanisterSilo` refills `oxygen_remaining`
+(+150s a canister, capped at `oxygen_total`), so the difference is not cumulative. And every
+death by suffocation ends with `oxygen_remaining == 0`, so it reads **exactly `air_total`, every
+single time** — "4:00 of 4:00" whether the player used one canister or eight. It cannot
+distinguish any two runs.
+
+**3. Air total — a misleading denominator.** `oxygen_total` (240s) is the TANK SIZE, not the air
+a run has. Eight canisters is another 1200s. "X of Y" invites "you used X of the Y you had",
+which is false the moment anyone refills.
+
+**4. The tallies are never reset.** `start()` clears `finished`, `_end_title`, `_end_text`,
+`distance_remaining` and `oxygen_remaining` — but NOT `choices`, `repairs_permanent`,
+`repairs_patched`, `patch_failures` or `air_spent_on_repairs`. A second run in the same scene
+opens with the previous run's list and totals. The restart reloads the scene today, so it is
+latent — but `start()` is explicitly written to be safe to call twice (see its own comment about
+double-connecting signals), and `smoke_supplies` already restarts a run in place.
+
+**Correct as they stand:** the subtitle's `%.0f%%` (it divides two figures in the same unit), and
+`air_left` on the win (a level, which is what it claims to be).
+
+### 24b. What is wrong with the list
+
+**It is not a list of tasks.** It mixes what the player DID with what HAPPENED TO THEM, in one
+undifferentiated bullet list:
+
+| Things you chose | Things that happened |
+| --- | --- |
+| `Repaired X properly` | `Your patch on X gave out` |
+| `Vented 25s of air to patch X` | `OXYGEN ran dry` |
+| `Patched X (temporary)` | `HUNGER got the better of you` |
+
+**It is unbounded.** A crossing throws ~40 repairs (`smoke_run_state` asserts exactly this when
+it compares spares against repairs demanded), so the list is routinely 40+ lines.
+
+**And it does not scroll.** `Choices` is a bare `VBoxContainer` inside `Center/VBox` inside a
+`CenterContainer`. Nothing constrains its height, so it grows the VBox past the viewport and
+pushes the **Continue button off screen** — which is the only way out of the screen.
+
+### 24c. Proposed
+
+**Stats.**
+- `Distance covered` → `"%.1f of %.1f million miles"`, no division. Match the HUD's unit exactly;
+  the player has been reading that number all run.
+- `air_spent` → a real accumulator on RunState, summing every second actually breathed plus
+  every bodge cost, independent of refills. Report it on its own: **`Air breathed  6:20`**, with
+  no denominator, because there isn't an honest one.
+- Add **`Canisters used  N`** — that IS the meaningful air stat, and it is the run's real
+  scarcity.
+- Keep `Permanent repairs`, `Patches (N gave out)`.
+- Add **`Time survived`** in in-fiction days (`days_elapsed`) — the countdown is the game's whole
+  subject and it is not on the screen at all.
+- On a WIN, keep `air_left` in the subtitle.
+- Reset every tally in `start()`.
+
+**The list.** Two changes, and it needs both — scrolling a 40-line list is still a 40-line list.
+- **Split it in two:** *What you did* and *What went wrong*. The mix is what makes it read as
+  incorrect.
+- **Collapse repeats:** `Patched DRIVE COUPLER  x4`, not four identical lines. A crossing
+  breaks the same four systems over and over, so this alone takes 40 lines to about 8.
+- **Then scroll what is left:** wrap in a `ScrollContainer` with a `custom_minimum_size` height
+  cap, so the Continue button is always reachable no matter what the run did.
+
+### 24d. Built, with both open questions decided
+Air is reported with **no denominator** and **Time survived** was added, per the decision on the
+spec. Everything else in 24c is as written.
+
+### 24d. Verification
+
+- Every stat asserted against a run whose numbers are KNOWN — set them, end the run, read the
+  screen. The current suite (`smoke_run_end`) checks the screen appears and the button works; it
+  asserts nothing about the figures, which is why all four survived.
+- A run with 40+ choices must leave the Continue button on screen and focusable. That is the
+  regression test for the scroll, and it has to measure the button's rect against the viewport
+  rather than trusting the container.
+- Restart a run in place and assert the second summary contains none of the first run's entries.
+- Mutation: put the `/ 1000.0` back and the distance check must fail.

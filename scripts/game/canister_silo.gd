@@ -156,6 +156,10 @@ func fit(canister: Consumable) -> bool:
 		var was := _run.oxygen_remaining
 		_run.oxygen_remaining = minf(was + seconds_per_canister, _run.oxygen_total)
 		_run.oxygen_changed.emit(_run.oxygen_remaining, _run.oxygen_total)
+		# Counted here rather than derived from the air figures, because the tank caps: fitting
+		# a canister into a nearly-full tank adds less than it holds, and the run summary wants
+		# to know how many bottles the player SPENT, not how much of them fitted.
+		_run.canisters_used += 1
 		recharged.emit(_run.oxygen_remaining - was)
 	_discharge(canister)
 	refresh()

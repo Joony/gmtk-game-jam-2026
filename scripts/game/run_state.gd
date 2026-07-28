@@ -151,7 +151,22 @@ var repairs_permanent: int = 0
 var repairs_patched: int = 0
 var patch_failures: int = 0
 var air_spent_on_repairs: float = 0.0
+## Every second of air the run has actually consumed — breathed plus vented on bodges.
+##
+## ACCUMULATED, because `oxygen_total - oxygen_remaining` is not it. That subtraction is the
+## tank's CURRENT DEFICIT, and canisters refill the tank, so it is not cumulative; worse, every
+## death by suffocation ends at zero remaining, so it reported exactly `oxygen_total` for every
+## run that ever ended that way. It could not tell two runs apart.
+var air_breathed: float = 0.0
+## Canisters fitted to the life-support tank. The run's real air budget is the tank plus these,
+## so this is the number worth showing rather than a total that pretends refills do not happen.
+var canisters_used: int = 0
+## What the player CHOSE to do — repairs, patches, the air they spent doing them.
 var choices: Array[String] = []
+## What HAPPENED TO them — a patch giving out, a tank running dry, a need winning. Kept apart
+## from `choices` because a summary that mixes the two reads as a list of things you did, half
+## of which you did not do.
+var events: Array[String] = []
 
 # Ramp state. Interpolating in LOG space rather than linearly: a linear 1 -> 24 is already
 # past 12x at the halfway point, so almost the whole ramp is spent at high speed and it
@@ -191,6 +206,19 @@ func start() -> void:
 	finished = false
 	_end_title = ""
 	_end_text = ""
+	# THE TALLIES, which used to survive a restart. Everything below is per-run, and none of it
+	# was being cleared — a second start() in the same scene opened with the previous run's list
+	# and totals already in it. The restart reloads the scene today so it never showed, but
+	# start() is deliberately written to be safe to call twice (see the signal guards below) and
+	# smoke_supplies already restarts a run in place.
+	choices.clear()
+	events.clear()
+	repairs_permanent = 0
+	repairs_patched = 0
+	patch_failures = 0
+	air_spent_on_repairs = 0.0
+	air_breathed = 0.0
+	canisters_used = 0
 
 	_malfunctions.clear()
 	for node in get_tree().get_nodes_in_group(Malfunction.GROUP_MALFUNCTION):
@@ -248,6 +276,9 @@ func _process(delta: float) -> void:
 	# Faults that make you breathe harder do NOT apply in the pod: it is a sealed system,
 	# and the scrubber fault's pressure should be on excursions, not on sleeping through it.
 	var rate := oxygen_drain_rate * (stasis_oxygen_rate if in_stasis else _oxygen_multiplier())
+	# Counted BEFORE the clamp, and against what was actually available: the last frame of a run
+	# would otherwise bank a full frame of air the player never had.
+	air_breathed += minf(delta * rate, oxygen_remaining)
 	oxygen_remaining = maxf(oxygen_remaining - delta * rate, 0.0)
 	oxygen_changed.emit(oxygen_remaining, oxygen_total)
 	if oxygen_remaining <= 0.0:
@@ -506,7 +537,7 @@ func _on_silo_exhausted(silo: Silo) -> void:
 		if audio != null:
 			audio.say(silo.vo_line)
 	# A supply runs dry; a waste tank overflows. Same signal, opposite disaster.
-	choices.append("%s %s" % [
+	events.append("%s %s" % [
 		silo.display_name, "overflowed" if silo.mode == Silo.Mode.WASTE else "ran dry"
 	])
 	_update_speed()
@@ -575,9 +606,9 @@ func _on_need_expired(need: Need) -> void:
 	if not need.lethal:
 		# Degrading needs land in Phase 4 (slower movement, narrowed vision). Recorded now so
 		# the run summary can still tell the player it happened.
-		choices.append("%s got the better of you" % need.display_name)
+		events.append("%s got the better of you" % need.display_name)
 		return
-	choices.append("%s ran out" % need.display_name)
+	events.append("%s ran out" % need.display_name)
 	_end_title = need.fatal_title
 	_end_text = need.fatal_text
 	_end(false)
@@ -648,13 +679,19 @@ func summary() -> Dictionary:
 	return {
 		"distance_covered": total_distance - distance_remaining,
 		"total_distance": total_distance,
-		"air_spent": oxygen_total - oxygen_remaining,
-		"air_total": oxygen_total,
+		# ACCUMULATED, not `oxygen_total - oxygen_remaining` — see air_breathed. And reported
+		# with NO denominator: canisters mean the run's air budget is not oxygen_total, so
+		# "X of Y" was inviting a reading that stopped being true the first time anyone
+		# refilled. `canisters_used` is the honest scarcity figure and goes beside it.
+		"air_breathed": air_breathed,
+		"canisters_used": canisters_used,
 		"air_left": oxygen_remaining,
+		"days_elapsed": days_elapsed,
 		"repairs_permanent": repairs_permanent,
 		"repairs_patched": repairs_patched,
 		"patch_failures": patch_failures,
 		"choices": choices.duplicate(),
+		"events": events.duplicate(),
 		# Empty on a win and on running out of air, which the end screen already words for
 		# itself. A need that killed you names its own death — see Need.fatal_title.
 		"end_title": _end_title,
@@ -692,7 +729,7 @@ func _update_destination() -> void:
 func _on_broke(malfunction: Malfunction, was_patch_failure: bool) -> void:
 	if was_patch_failure:
 		patch_failures += 1
-		choices.append("Your patch on %s gave out" % malfunction.system_name)
+		events.append("Your patch on %s gave out" % malfunction.system_name)
 	# Being woken by the klaxon IS the loop: stasis is only ever interrupted by a fault.
 	if in_stasis:
 		exit_stasis()
@@ -721,6 +758,8 @@ func _on_repaired(malfunction: Malfunction, permanent: bool) -> void:
 			# not just as a clock.
 			oxygen_remaining = maxf(oxygen_remaining - malfunction.bodge_oxygen_cost, 0.0)
 			air_spent_on_repairs += malfunction.bodge_oxygen_cost
+			# Vented air is air the run consumed, so it belongs in the same total as breathing.
+			air_breathed += malfunction.bodge_oxygen_cost
 			oxygen_changed.emit(oxygen_remaining, oxygen_total)
 			choices.append("Vented %ds of air to patch %s" % [
 				int(round(malfunction.bodge_oxygen_cost)), malfunction.system_name

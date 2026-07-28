@@ -72,8 +72,16 @@ func show_result(won: bool, summary: Dictionary) -> void:
 
 	for child in _stats.get_children():
 		child.queue_free()
-	_stat("Distance covered", "%.1f km of %.1f km" % [covered / 1000.0, total / 1000.0])
-	_stat("Air spent", "%s of %s" % [_clock(summary.get("air_spent", 0.0)), _clock(summary.get("air_total", 0.0))])
+	# MILLION MILES, which is the unit the player has been reading on the HUD all run. This used
+	# to divide by 1000 and call the result km — so an entire 82-million-mile crossing reported
+	# "0.1 km of 0.1 km".
+	_stat("Distance covered", "%.1f of %.1f million miles" % [covered, total])
+	_stat("Time survived", "%.1f days" % summary.get("days_elapsed", 0.0))
+	# NO DENOMINATOR. Canisters refill the tank, so `oxygen_total` is the tank's size and not
+	# the run's air budget — "X of Y" was inviting a reading that stops being true the first
+	# time anyone refills. The canister count is the honest scarcity figure and sits beside it.
+	_stat("Air breathed", _clock(summary.get("air_breathed", 0.0)))
+	_stat("Canisters used", "%d" % int(summary.get("canisters_used", 0)))
 	_stat("Permanent repairs", "%d" % int(summary.get("repairs_permanent", 0)))
 	_stat("Patches", "%d  (%d gave out)" % [
 		int(summary.get("repairs_patched", 0)), int(summary.get("patch_failures", 0))
@@ -81,16 +89,56 @@ func show_result(won: bool, summary: Dictionary) -> void:
 
 	for child in _choices.get_children():
 		child.queue_free()
-	var choices: Array = summary.get("choices", [])
-	for entry in choices:
-		var label := Label.new()
-		label.text = "·  %s" % entry
-		label.add_theme_font_size_override("font_size", 28)
-		label.add_theme_color_override("font_color", Color(0.72, 0.78, 0.86))
-		_choices.add_child(label)
+	# TWO LISTS, not one. What the player chose and what happened to them were a single
+	# undifferentiated bullet list, so a screen headed by the player's own decisions was half
+	# full of things they did not do — "Your patch gave out" sitting under the same dot as
+	# "Repaired the coolant loop properly".
+	_section("What you did", summary.get("choices", []), Color(0.72, 0.78, 0.86))
+	_section("What went wrong", summary.get("events", []), Color(1.00, 0.62, 0.10))
 
 	visible = true
 	_button.grab_focus()
+
+
+## One headed, de-duplicated block of the summary. Empty sections are omitted entirely rather
+## than left as a heading over nothing — a flawless run should not be told what went wrong.
+func _section(heading: String, entries: Array, color: Color) -> void:
+	if entries.is_empty():
+		return
+	var title := Label.new()
+	title.text = heading
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color(0.55, 0.60, 0.68))
+	_choices.add_child(title)
+
+	for line in _collapsed(entries):
+		var label := Label.new()
+		label.text = "·  %s" % line
+		label.add_theme_font_size_override("font_size", 28)
+		label.add_theme_color_override("font_color", color)
+		_choices.add_child(label)
+
+
+## Identical entries folded into one line with a count, in the order they first happened.
+##
+## A crossing throws about forty repairs across the same handful of systems, so the raw list is
+## forty lines of near-duplicates — which is not a story, and is most of why the screen ran off
+## the bottom. Scrolling alone would not have fixed that: forty lines that scroll are still
+## forty lines.
+static func _collapsed(entries: Array) -> Array[String]:
+	var order: Array[String] = []
+	var counts := {}
+	for entry in entries:
+		var text := String(entry)
+		if not counts.has(text):
+			order.append(text)
+			counts[text] = 0
+		counts[text] += 1
+	var out: Array[String] = []
+	for text in order:
+		var n: int = counts[text]
+		out.append(text if n == 1 else "%s  x%d" % [text, n])
+	return out
 
 
 func _stat(label: String, value: String) -> void:

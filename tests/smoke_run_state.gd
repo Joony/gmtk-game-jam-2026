@@ -338,8 +338,15 @@ class _Runner:
 		suite.check(fault.is_active, "the patch gives out after bodge_distance")
 		suite.check(fault.break_count == 2, "it is the SAME fault breaking again (count %d)" % fault.break_count)
 		suite.check(run.patch_failures == 1, "the failure is recorded for the summary")
-		suite.check(run.choices.size() > 0 and "gave out" in run.choices[-1],
-			"and it is attributable to the player's own choice: '%s'" % run.choices[-1])
+		# The summary keeps CHOICES and EVENTS apart now (TODO 24): a patch giving out is not
+		# something the player did, it is something that happened to them. Both halves of the
+		# causal pair have to be there — the bodge they chose, and the failure it bought.
+		suite.check(run.events.size() > 0 and "gave out" in run.events[-1],
+			"the failure is recorded as something that HAPPENED: '%s'"
+				% ("" if run.events.is_empty() else run.events[-1]))
+		suite.check(run.choices.size() > 0 and "Patched" in run.choices[-1],
+			"and the choice that bought it is still recorded: '%s'"
+				% ("" if run.choices.is_empty() else run.choices[-1]))
 		ctx["holder"].free()
 
 

@@ -82,9 +82,24 @@ theme_override_constants/h_separation = 40
 theme_override_constants/v_separation = 2
 columns = 2
 
-[node name="Choices" type="VBoxContainer" parent="Center/VBox"]
+; THE SUMMARY SCROLLS. `Choices` was a bare VBoxContainer here, so its height was however many
+; lines the run produced — about forty for a full crossing — and it grew this VBox straight past
+; the bottom of the viewport, taking the Continue button with it. The button is the only way out
+; of the screen, so a long run could not be dismissed.
+;
+; The cap is a MINIMUM size on the scroller rather than a maximum on the list: a CenterContainer
+; sizes to its child's minimum, so anything that leaves the list free to report its own full
+; height puts us back where we started. 420px is roughly a dozen lines at font 28, which clears
+; a collapsed summary of a typical run without scrolling at all.
+[node name="ChoicesScroll" type="ScrollContainer" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Choices" type="VBoxContainer" parent="Center/VBox/ChoicesScroll"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 2
 alignment = 1
 
