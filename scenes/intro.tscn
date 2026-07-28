@@ -1,9 +1,9 @@
-[gd_scene load_steps=3 format=3 uid="uid://c4l8nwjti56ln"]
+[gd_scene format=3 uid="uid://c4l8nwjti56ln"]
 
 [ext_resource type="Script" uid="uid://dt0lotypkgah4" path="res://scripts/intro.gd" id="1_intro"]
 [ext_resource type="VideoStream" uid="uid://0y462p7ueuwc" path="res://assets/video/perpetual_pickle_intro.ogv" id="2_video"]
 
-[node name="Intro" type="Control"]
+[node name="Intro" type="Control" unique_id=1116008416]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,7 +12,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_intro")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=2045675873]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -23,7 +23,7 @@ color = Color(0, 0, 0, 1)
 
 ; expand=true stretches the 16:9 video to fill the 1920x1080 screen; the black ColorRect
 ; behind it letterboxes cleanly on any other window aspect.
-[node name="Video" type="VideoStreamPlayer" parent="."]
+[node name="Video" type="VideoStreamPlayer" parent="." unique_id=2131599364]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -34,7 +34,7 @@ grow_vertical = 2
 stream = ExtResource("2_video")
 expand = true
 
-[node name="SkipButton" type="Button" parent="."]
+[node name="SkipButton" type="Button" parent="." unique_id=1783703997]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0

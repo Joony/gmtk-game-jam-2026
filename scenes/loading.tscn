@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://djlq411ylhgah"]
 
-[ext_resource type="Script" path="res://scripts/loading.gd" id="1_loading"]
+[ext_resource type="Script" uid="uid://dlqujugg5cjt1" path="res://scripts/loading.gd" id="1_loading"]
 
-[node name="Loading" type="Control"]
+[node name="Loading" type="Control" unique_id=1621784947]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_loading")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1404977824]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

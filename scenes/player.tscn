@@ -1,15 +1,15 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://f23o2hf3ivjh"]
 
-[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
-[ext_resource type="Script" path="res://scripts/player/camera_controller.gd" id="2_camrig"]
-[ext_resource type="Script" path="res://scripts/interaction/carry.gd" id="3_carry"]
-[ext_resource type="Script" path="res://scripts/interaction/interactor.gd" id="4_interactor"]
+[ext_resource type="Script" uid="uid://blns1gxlppdjb" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://u8cn8km5jf48" path="res://scripts/player/camera_controller.gd" id="2_camrig"]
+[ext_resource type="Script" uid="uid://b16ndeqn87k35" path="res://scripts/interaction/carry.gd" id="3_carry"]
+[ext_resource type="Script" uid="uid://b7hykfady6s0m" path="res://scripts/interaction/interactor.gd" id="4_interactor"]
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.4
 height = 1.8
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
 height = 1.8
 
@@ -19,34 +19,33 @@ height = 1.8
 ; any floor body counted as a moving platform, and a light RigidBody crate springs when you
 ; land on it — inheriting that jitter launched the player. Excluding layer 2 from the
 ; platform set keeps the crate solid to stand on without propagating its velocity.
-[node name="Player" type="CharacterBody3D" groups=["cable_ignore", "player"]]
-collision_layer = 1
+[node name="Player" type="CharacterBody3D" unique_id=831992187 groups=["cable_ignore", "player"]]
 collision_mask = 3
 platform_floor_layers = 1
 script = ExtResource("1_player")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=925223674]
 mesh = SubResource("CapsuleMesh_body")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1602677775]
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="CameraAnchor" type="Marker3D" parent="."]
+[node name="CameraAnchor" type="Marker3D" parent="." unique_id=1700844526]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." unique_id=858425568]
 physics_interpolation_mode = 2
 top_level = true
 script = ExtResource("2_camrig")
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+[node name="Camera3D" type="Camera3D" parent="CameraRig" unique_id=1289361275]
 
-[node name="HoldPoint" type="Marker3D" parent="CameraRig/Camera3D"]
+[node name="HoldPoint" type="Marker3D" parent="CameraRig/Camera3D" unique_id=1109825062]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, -1.4)
 
-[node name="Carry" type="Node3D" parent="."]
+[node name="Carry" type="Node3D" parent="." unique_id=960781037]
 process_priority = 10
 script = ExtResource("3_carry")
 
-[node name="Interactor" type="Node3D" parent="."]
+[node name="Interactor" type="Node3D" parent="." unique_id=675580769]
 script = ExtResource("4_interactor")
