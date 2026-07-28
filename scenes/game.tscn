@@ -65,6 +65,7 @@
 [ext_resource type="PackedScene" path="res://scenes/props/spare_screw.tscn" id="91_screw"]
 [ext_resource type="PackedScene" path="res://scenes/props/spare_gear.tscn" id="92_gear"]
 [ext_resource type="PackedScene" path="res://scenes/props/battery.tscn" id="93_battery"]
+[ext_resource type="PackedScene" path="res://scenes/props/oil_can.tscn" id="94_oilcan"]
 
 [sub_resource type="Environment" id="Environment_game"]
 background_mode = 1
@@ -201,12 +202,19 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -17.5, 0.2, 0.5)
 [node name="Hammer" parent="." unique_id=1103477261 instance=ExtResource("30_hammer")]
 transform = Transform3D(-3.090862e-08, -0.70710677, -0.70710677, 1, -4.371139e-08, 0, -3.090862e-08, -0.70710677, 0.70710677, -0.698677, 0.07000024, -16.912462)
 
+; The oil can, in the cargo bay — the garage, as far as the ship's computer is concerned. Placed
+; here rather than by ShipSupplies for the same reason the hammer is: it is one authored object
+; in one authored place, not a row in a supply table. Starboard side, clear of the spares cluster
+; (x 16-18, z 4-6) and of both crawlers. Spawned at 0.45 — the can is 0.70m tall and its origin
+; is centred, so anything under half its height starts it interpenetrating the deck.
+[node name="OilCan" parent="." instance=ExtResource("94_oilcan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.8, 0.45, 4.2)
+
 [node name="DriveRegulator" type="Node3D" parent="." unique_id=1704392233 groups=["malfunctions"]]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -23.83, 1.3, 4)
 script = ExtResource("15_malfunction")
 system_name = "DRIVE REGULATOR"
 fault_text = "output regulator stuck open"
-vo_line = &"need_oil"
 severity = 1
 speed_penalty = 0.1
 speed_decay_per_day = 0.03

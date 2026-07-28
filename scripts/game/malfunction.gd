@@ -128,6 +128,8 @@ var _patch_expires_at: float = 0.0
 ## Last distance RunState reported. Lets a repair triggered from a panel schedule its own
 ## patch expiry without the panel needing to know RunState exists.
 var _distance_now: float = 0.0
+## Repair points that live elsewhere in the tree — see register_repair_point().
+var _extra_points: Array[RepairPoint] = []
 
 
 func _ready() -> void:
@@ -257,7 +259,38 @@ func patch_margin(distance_remaining: float) -> float:
 	return maxf(distance_remaining - _patch_expires_at, 0.0)
 
 
+## A repair point that is NOT a child of this fault. Ordinarily the panel hangs under the
+## malfunction and the two loops here find each other by parentage, but the cargo crawlers are
+## two separate models across the bay repairing ONE seizure — the fault can only be parented to
+## one of them, and the other would otherwise never repaint when the state changed. See
+## ShipFaults._adopt_crawler().
+func register_repair_point(point: RepairPoint) -> void:
+	if point == null or _extra_points.has(point):
+		return
+	_extra_points.append(point)
+	point.bind(self)
+	point.refresh()
+
+
+## Everything that can repair this fault, wherever it lives in the tree. Callers used to walk
+## `get_children()` looking for a RepairPoint, which quietly assumed the panel is always a child
+## — true until the cargo crawlers, where the fault hangs off one machine and is repaired at
+## either of two. Ask the fault instead of inferring from parentage.
+func repair_points() -> Array[RepairPoint]:
+	var out: Array[RepairPoint] = []
+	for child in get_children():
+		if child is RepairPoint:
+			out.append(child as RepairPoint)
+	for point in _extra_points:
+		if is_instance_valid(point) and not out.has(point):
+			out.append(point)
+	return out
+
+
 func _refresh_points() -> void:
 	for child in get_children():
 		if child is RepairPoint:
 			(child as RepairPoint).refresh()
+	for point in _extra_points:
+		if is_instance_valid(point):
+			point.refresh()

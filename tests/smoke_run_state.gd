@@ -667,11 +667,13 @@ class _Runner:
 		var missing_part := 0
 		for node in faults:
 			var fault := node as Malfunction
-			var panel: RepairPoint = null
+			# Asked of the fault rather than inferred from its children: the cargo crawlers are
+			# ONE seizure repaired at either of two machines, so the fault can only be parented
+			# to one of them and the other is registered rather than adopted as a child.
+			var points := fault.repair_points()
+			var panel: RepairPoint = points[0] if not points.is_empty() else null
 			var power_feed := false  # a power-only system (AUX POWER) is fixed by a cable, not a panel
 			for child in fault.get_children():
-				if child is RepairPoint:
-					panel = child
 				if child is SocketPowerRepair:
 					power_feed = true
 			if panel == null and not power_feed:

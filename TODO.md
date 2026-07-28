@@ -2177,3 +2177,30 @@ worth a `change_scene_to_instance` path plus a reset story for replay.
 **The gotcha worth keeping:** the warm copy is a second `Player` in the tree, and
 `smoke_full_loop` rightly failed on it. It now warms once per process, is skipped entirely under
 the headless display server, and runs `PROCESS_MODE_DISABLED` — drawn but inert.
+
+---
+
+## 23. ✅ The cargo crawlers and the oil can — done ([log](docs/features/crawler-oil.md))
+
+Began as a misattributed voice line: "DRIVE REGULATOR — output regulator stuck open" played
+"Them robots in the garage need oil!", which describes a different machine in a different room
+and a puzzle that did not exist. `game.tscn` had `vo_line = &"need_oil"` on the node and
+`ShipFaults._configure()` only overrides `vo_line` when the row HAS that key — so the scene won.
+The table now says `"vo_line": &""` explicitly, because an absent key is what let it through.
+
+- [x] **CARGO CRAWLERS**, on the two loaders already dressed into the cargo bay. Adopted onto the
+      models, because `Interactor` walks up from the collider and they bring their own
+- [x] **AMBER, not red** — the only `DEGRADING` fault on the ship. Everything else is CRITICAL,
+      and a run where all of it screams has no way left to say which failures matter. 3% drive
+      rising to 6%: worth clearing, never urgent
+- [x] **One fault, two repair points.** Oil whichever machine you reach; both lights go green
+- [x] **No bodge.** `tool_group` empty, so the hammer offers nothing here
+- [x] **The can is KEPT** — new `RepairPoint.consumes_part`. There is one can and the seizure
+      recurs every 15 Mm, so consuming it would make the fault unfixable the second time
+- [x] `Malfunction.register_repair_point()` / `repair_points()`, because the fault can only be
+      parented to one of the two machines and callers were inferring the answer from parentage
+
+**Two things worth not rediscovering.** The can is sized and oriented from MEASUREMENT
+(`tests/diag_oil_crawler.gd`), and its spout points along +Z out of Blender — which `Carry` aims
+straight at the player's face. That orientation is invisible to the bounding box, the collider
+fit and the floor probe alike, so nothing that existed could have caught it.

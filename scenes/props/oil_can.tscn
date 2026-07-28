@@ -1,0 +1,53 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/interaction/interactable.gd" id="1_interactable"]
+[ext_resource type="PackedScene" uid="uid://cd2wt5bslcrl4" path="res://3D-Models/CD_Oil_v1.blend" id="2_model"]
+
+; The oil can. Lives in the cargo bay — the garage, as far as the ship's computer is concerned —
+; and frees the seized cargo crawlers. See ShipFaults.CRAWLERS.
+;
+; NOT CONSUMED, unlike a spare part: RepairPoint.consumes_part is false on the crawlers. It is a
+; can of oil, not a component welded in, and there is exactly one of it — spend it on the first
+; crawler and the fault could never be cleared when it recurs. Mechanically it is the hammer's
+; sibling: one trip to fetch it, then a hand occupied for the rest of the run.
+;
+; It is a PART rather than a TOOL because the two routes differ in what they do, not in what
+; they cost: the hammer BODGES (temporary, and the drive stays down), and oil actually fixes a
+; dry bearing. The crawlers accordingly have no tool_group at all — you cannot bodge a seizure.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_oil"]
+; MEASURED, not guessed (tests/diag_oil_crawler.gd): CD_Oil_v1 is 2.00 x 4.14 x 4.56 model units
+; with its origin at the base of the can, and the long axis is the spout. At the 0.17 scale
+; below that is 0.34 x 0.70 x 0.78 m — a proper workshop oiler, a shade taller than the hammer
+; and noticeably longer in the spout.
+;
+; This is DOUBLE the size it was first built at. At 0.085 it read as a toy on the floor of a
+; cargo bay whose crawlers are five metres tall.
+size = Vector3(0.34, 0.703, 0.776)
+
+; Layer 2 = pushable props (see scenes/player.tscn). Off layer 1 so the player does not inherit
+; this body's velocity while standing on it. continuous_cd because every carryable has it — a
+; thrown prop that tunnels the deck is gone for good.
+[node name="OilCan" type="RigidBody3D" groups=["oil_cans"]]
+collision_layer = 2
+collision_mask = 3
+continuous_cd = true
+script = ExtResource("1_interactable")
+interaction_type = 0
+interaction_text = "Pick up the oil can"
+
+; Scaled to 0.17 (a 0.70m can) and dropped half its height so it sits centred on the body
+; origin — model origins are at the BASE, so an undropped mesh floats.
+;
+; YAWED 180 so the SPOUT POINTS AWAY from the player. Carry aligns a held item's local axes with
+; the view (see _upright_facing_basis), and CD_Oil_v1 models its nozzle on +Z — measured at
+; +0.111 from the body origin in tests/diag_oil_crawler.gd — which put the spout on the end
+; nearest your face, as though you were about to drink from it.
+;
+; The Z nudge that centres the lopsided mesh flips sign with the yaw: it is half the mesh's own
+; extent, so it follows wherever the spout ends up. (The Y drop is symmetric and does not.)
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(-0.17, 0, 0, 0, 0.17, 0, 0, 0, -0.17, 0, -0.352, 0.090)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_oil")

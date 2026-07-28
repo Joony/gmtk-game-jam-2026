@@ -51,6 +51,11 @@ const FAULTS := [
 		# the drive itself — and both take a hammer or a spare part.
 		"system": "DRIVE REGULATOR",
 		"fault_text": "output regulator stuck open",
+		# NO VOICE LINE, stated rather than omitted. The scene had this fault saying
+		# `need_oil` — "them robots in the garage need oil" — which belongs to the CRAWLERS
+		# fault below and described a puzzle that did not exist yet. An absent key here leaves
+		# whatever the scene happens to carry, so the silence is written down.
+		"vo_line": &"",
 		"initial": 0.10,
 		"max": 0.20,
 		"decay_per_day": 0.03,
@@ -148,6 +153,46 @@ const ENGINE := {
 }
 
 
+## THE CARGO CRAWLERS. The one fault on the ship that is not an emergency: two loader machines
+## in the cargo bay seize up, and a can of oil frees them.
+##
+## AMBER, NOT RED. Everything else that breaks is CRITICAL — klaxon, red alert, the lot — and a
+## run where every single fault screams has no register left to say "this one actually matters".
+## DEGRADING gives the indicator an amber light and no alarm, and the drive cost is small enough
+## that this is a job you do because you are passing rather than because you must.
+##
+## Built rather than placed, and adopted onto the crawler MODELS: `Interactor` walks UP from
+## whatever collider the ray hits, so a repair panel standing beside a crawler that has its own
+## collision would simply never be seen. Same reason the silos and the vending machine are
+## adopted. See ShipSupplies for the pattern.
+##
+## BOTH crawlers repair the SAME fault. One seizure, two machines it could be — you oil whichever
+## one you reach first, and both lights go green. Two separate faults would double a chore that
+## is meant to be a small one.
+const CRAWLERS := {
+	"props": [^"Decor/CargoCrawlerA", ^"Decor/CargoCrawlerB"],
+	"system_name": "CARGO CRAWLERS",
+	"fault_text": "loader bearings seized",
+	# "Them robots in the garage need oil!" — the line that was mis-wired to DRIVE REGULATOR
+	# and described this puzzle before it existed.
+	"vo_line": &"need_oil",
+	# Small, and it does not ramp. A seized cargo loader is drag on ship operations, not a hole
+	# in the drive — the number is here so the fault is worth clearing, not so it hurts.
+	"initial": 0.03,
+	"max": 0.06,
+	"decay_per_day": 0.01,
+	# Mid-crossing, after the first wave of real emergencies has taught the loop.
+	"fire_at_distance": 72.0,
+	# Bearings dry out again. Rarely, because the can is kept and re-oiling costs only the walk.
+	"refire_every": 15.0,
+	"fit_text": "Oil the bearings",
+	# The crawler is 7.8m wide and 5.1m tall at its dressed 0.71, and carries no `Indicator`
+	# empty, so the light is placed by hand: above the body, on the near face. In the crawler's
+	# LOCAL units, which are scaled — hence the division in _build_crawler_fault().
+	"indicator_at": Vector3(0.0, 2.9, 1.6),
+}
+
+
 ## Faults the plan supersedes and that should simply not be in the run. Freed rather than
 ## quietly neutralised: a `Malfunction` left in the group with nothing that can fix it is what
 ## `smoke_run_state`'s "every malfunction is fixable" exists to catch, and hiding it from that
@@ -167,6 +212,7 @@ func apply() -> void:
 		_configure(fault, row)
 
 	_build_engine_core()
+	_build_crawler_fault()
 
 	for name in RETIRE:
 		var doomed := _find(name)
@@ -260,6 +306,71 @@ func _find(system_name: String) -> Malfunction:
 
 func _scene_root() -> Node:
 	return get_parent()
+
+
+## The seized cargo crawlers, oiled rather than repaired. See CRAWLERS.
+##
+## The fault hangs off the FIRST crawler so it has a position (the HUD, the ship map and the
+## room voice all ask a fault which room it is in), and BOTH crawler models are adopted as
+## repair points bound to it. Adoption means attaching the script to the model itself: the model
+## brings its own collision, and Interactor resolves a hit by walking UP from the collider, so a
+## separate panel node standing beside it would never be the thing the ray finds.
+func _build_crawler_fault() -> void:
+	var crawlers: Array[Node3D] = []
+	for path in CRAWLERS["props"]:
+		var crawler := _scene_root().get_node_or_null(path) as Node3D
+		if crawler == null:
+			push_warning("ShipFaults: no crawler at %s" % path)
+			continue
+		crawlers.append(crawler)
+	if crawlers.is_empty():
+		return
+	if crawlers[0].get_node_or_null("CrawlerSeizure") != null:
+		return
+
+	var fault := Malfunction.new()
+	fault.name = "CrawlerSeizure"
+	fault.system_name = CRAWLERS["system_name"]
+	fault.fault_text = CRAWLERS["fault_text"]
+	# AMBER. The only fault on the ship that is not CRITICAL — no klaxon, no red alert, an amber
+	# indicator and a HUD row. See the comment on CRAWLERS.
+	fault.severity = Malfunction.Severity.DEGRADING
+	fault.vo_line = CRAWLERS["vo_line"]
+	fault.initial_speed_penalty = CRAWLERS["initial"]
+	fault.speed_penalty = CRAWLERS["max"]
+	fault.speed_decay_per_day = CRAWLERS["decay_per_day"]
+	fault.fire_at_distance = CRAWLERS["fire_at_distance"]
+	fault.refire_every = CRAWLERS["refire_every"]
+	crawlers[0].add_child(fault)
+
+	for crawler in crawlers:
+		_adopt_crawler(crawler, fault)
+
+
+## Turn one crawler model into a repair point for `fault`.
+func _adopt_crawler(crawler: Node3D, fault: Malfunction) -> void:
+	crawler.set_script(REPAIR_SCRIPT)
+	var point := crawler as Node as RepairPoint
+	point.bind(fault)
+	# OIL ONLY, and no bodge. `tool_group` empty means is_tool() is false for everything, so the
+	# hammer offers nothing here — you cannot bash a dry bearing back to life. The can is matched
+	# by its own group rather than by `spare_parts`, so a generic spare will not do either: this
+	# is the one fault with a bespoke fix.
+	point.required_part_group = &"oil_cans"
+	point.tool_group = &""
+	# ...and the can is KEPT. There is exactly one on the ship and the fault recurs.
+	point.consumes_part = false
+	point.fit_text = CRAWLERS["fit_text"]
+	# The model has no `Indicator` empty, so the light is positioned by hand — in the crawler's
+	# LOCAL space, which is scaled at 0.71, so a figure written in metres has to be divided by
+	# that or the lamp lands short of where it was meant to sit.
+	var host_scale: float = maxf(crawler.global_transform.basis.get_scale().y, 0.0001)
+	point.indicator_offset = (CRAWLERS["indicator_at"] as Vector3) / host_scale
+	point.setup()
+	# setup() binds to the PARENT when it is a Malfunction, and here it is not — the second
+	# crawler is nowhere near the fault in the tree. Rebound explicitly afterwards.
+	point.bind(fault)
+	fault.register_repair_point(point)
 
 
 ## The engine core fault, hung off the engine model and fed through a socket at its own

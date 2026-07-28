@@ -22,6 +22,7 @@ const SCENES := [
 	"res://scenes/props/spare_screw.tscn",
 	"res://scenes/props/spare_gear.tscn",
 	"res://scenes/props/hammer.tscn",
+	"res://scenes/props/oil_can.tscn",
 	"res://scenes/props/battery_cube.tscn",
 	"res://scenes/props/loose_cable.tscn",
 	"res://scenes/props/power_cable.tscn",

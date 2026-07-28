@@ -40,6 +40,12 @@ const COLOR_FIXED := Color(0.24, 0.90, 0.40)
 @export var tool_group: StringName = &"repair_tools"
 ## Optional exact instance name, for a one-off bespoke part. Empty means "any spare".
 @export var required_part: String = ""
+## Whether the permanent fix CONSUMES what fixed it. True for a spare part, which is welded in
+## and gone — that scarcity is the whole point of the spares economy. False for something that
+## is really a tool wearing a part's clothes: the oil can permanently frees a seized crawler
+## and you keep the can, the same way the hammer is kept. Without this the single can would be
+## spent on the first crawler and the fault could never be cleared again when it recurs.
+@export var consumes_part: bool = true
 ## Verb shown for the patch route, e.g. "Tape the coupling".
 @export var patch_text: String = "Patch it"
 ## Verb shown for the proper route.
@@ -218,7 +224,9 @@ func use_with_item(item: Node3D) -> void:
 	# The part is welded in — it is gone from the world. That is what stops one spare
 	# being walked around the ship fixing everything, and it is the seed of the
 	# cannibalise branch: parts become the scarce thing.
-	_consumed = true
+	#
+	# Unless it is a can of oil, which you keep. See `consumes_part`.
+	_consumed = consumes_part
 	used_with_item.emit(self, item)
 
 
